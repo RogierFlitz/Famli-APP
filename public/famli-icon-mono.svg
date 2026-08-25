@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Famli">
+  <rect width="64" height="64" rx="14" fill="#F8FAFC"/>
+  <g transform="translate(3 2) scale(0.9)" fill="#0F172A">
+    <circle cx="15.5" cy="15.5" r="8"/>
+    <ellipse cx="16.5" cy="40" rx="11" ry="18.5" transform="rotate(-14 16.5 40)"/>
+    <circle cx="48.5" cy="15.5" r="8"/>
+    <ellipse cx="47.5" cy="40" rx="11" ry="18.5" transform="rotate(14 47.5 40)"/>
+    <circle cx="32" cy="24.5" r="7"/>
+    <ellipse cx="32" cy="41" rx="8" ry="13.5"/>
+  </g>
+</svg>

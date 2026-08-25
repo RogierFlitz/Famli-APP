@@ -1,0 +1,262 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-famli);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-famli);
+  --font-display: var(--font-famli);
+  --color-famli-blue: var(--famli-blue);
+  --color-famli-coral: var(--famli-coral);
+  --color-famli-yellow: var(--famli-yellow);
+  --color-famli-brand: var(--famli-brand);
+  --color-famli-bg: var(--famli-bg);
+  --color-famli-card: var(--famli-card);
+  --color-famli-ink: var(--famli-ink);
+  --color-famli-muted: var(--famli-muted);
+  --color-famli-border: var(--famli-border);
+  --color-famli-parent-1: var(--famli-parent-1);
+  --color-famli-parent-2: var(--famli-parent-2);
+  --color-famli-child: var(--famli-child);
+  --color-famli-school: var(--famli-school);
+  --color-famli-sport: var(--famli-sport);
+  --color-famli-important: var(--famli-important);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --famli-blue: #3b82f6;
+  --famli-coral: #ff8a7a;
+  --famli-yellow: #fbbf24;
+  --famli-navy: #0f172a;
+  --famli-gray: #64748b;
+  --famli-light: #f8fafc;
+  --famli-brand: var(--famli-blue);
+  --famli-brand-hover: #2563eb;
+  --famli-brand-soft: #dbeafe;
+  --famli-on-brand: #ffffff;
+  --famli-bg: var(--famli-light);
+  --famli-card: #ffffff;
+  --famli-ink: var(--famli-navy);
+  --famli-muted: var(--famli-gray);
+  --famli-border: rgba(15, 23, 42, 0.08);
+  --famli-parent-1: var(--famli-blue);
+  --famli-parent-2: var(--famli-coral);
+  --famli-child: var(--famli-yellow);
+  --famli-school: #94a3b8;
+  --famli-sport: #60a5fa;
+  --famli-important: var(--famli-coral);
+  --famli-radius-sm: 12px;
+  --famli-radius-md: 16px;
+  --famli-radius-lg: 24px;
+  --famli-radius-xl: 32px;
+  --famli-radius-pill: 999px;
+  --famli-shadow-rest: 0 1px 0 rgba(15, 23, 42, 0.04);
+  --famli-shadow-lift: 0 18px 40px -28px rgba(15, 23, 42, 0.28);
+  --famli-control-h: 3rem;
+
+  --nest-bg: var(--famli-bg);
+  --nest-card: var(--famli-card);
+  --nest-ink: var(--famli-ink);
+  --nest-muted: var(--famli-muted);
+  --nest-border: var(--famli-border);
+  --nest-clay: var(--famli-brand);
+  --nest-sage: var(--famli-parent-2);
+
+  --background: var(--famli-bg);
+  --foreground: var(--famli-ink);
+  --card: var(--famli-card);
+  --card-foreground: var(--famli-ink);
+  --popover: var(--famli-card);
+  --popover-foreground: var(--famli-ink);
+  --primary: var(--famli-blue);
+  --primary-foreground: var(--famli-on-brand);
+  --secondary: #eef2f7;
+  --secondary-foreground: var(--famli-ink);
+  --muted: #eef2f7;
+  --muted-foreground: var(--famli-muted);
+  --accent: var(--famli-brand-soft);
+  --accent-foreground: var(--famli-ink);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: var(--famli-border);
+  --input: var(--famli-border);
+  --ring: var(--famli-blue);
+  --chart-1: var(--famli-blue);
+  --chart-2: var(--famli-coral);
+  --chart-3: var(--famli-school);
+  --chart-4: var(--famli-sport);
+  --chart-5: var(--famli-yellow);
+  --radius: 1rem;
+  --sidebar: var(--famli-card);
+  --sidebar-foreground: var(--famli-ink);
+  --sidebar-primary: var(--famli-blue);
+  --sidebar-primary-foreground: var(--famli-on-brand);
+  --sidebar-accent: var(--famli-bg);
+  --sidebar-accent-foreground: var(--famli-ink);
+  --sidebar-border: var(--famli-border);
+  --sidebar-ring: var(--famli-blue);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    background: var(--famli-bg);
+    color: var(--famli-ink);
+    font-family: var(--font-famli), ui-sans-serif, system-ui, sans-serif;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.03em;
+    font-weight: 600;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    min-height: 0;
+  }
+}
+
+@layer components {
+  .famli-card {
+    border-radius: var(--famli-radius-lg);
+    border: 1px solid var(--famli-border);
+    background: var(--famli-card);
+    padding: 1.25rem;
+    box-shadow: var(--famli-shadow-rest);
+  }
+
+  .famli-input {
+    height: var(--famli-control-h);
+    width: 100%;
+    border-radius: var(--famli-radius-md);
+    border: 1px solid var(--famli-border);
+    background: var(--famli-card);
+    padding: 0 1rem;
+    color: var(--famli-ink);
+    outline: none;
+  }
+
+  .famli-input:focus {
+    border-color: color-mix(in srgb, var(--famli-brand) 45%, var(--famli-border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--famli-brand) 16%, transparent);
+  }
+
+  .famli-btn {
+    display: inline-flex;
+    height: var(--famli-control-h);
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--famli-radius-pill);
+    padding: 0 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: background-color 120ms ease, opacity 120ms ease;
+  }
+
+  .famli-btn-primary,
+  .famli-btn-brand {
+    background: var(--famli-brand);
+    color: var(--famli-on-brand);
+  }
+
+  .famli-btn-primary:hover,
+  .famli-btn-brand:hover {
+    background: var(--famli-brand-hover);
+  }
+
+  .famli-btn-secondary {
+    border: 1px solid var(--famli-border);
+    background: var(--famli-card);
+    color: var(--famli-ink);
+  }
+
+  .famli-btn-secondary:hover {
+    background: var(--famli-bg);
+  }
+
+  select.famli-input {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--famli-muted) 50%),
+      linear-gradient(135deg, var(--famli-muted) 50%, transparent 50%);
+    background-position: calc(100% - 1.15rem) 50%, calc(100% - 0.85rem) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 2.25rem;
+  }
+
+  textarea.famli-input {
+    height: auto;
+    min-height: 5rem;
+    padding-top: 0.85rem;
+    padding-bottom: 0.85rem;
+  }
+}
