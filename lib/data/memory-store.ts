@@ -45,8 +45,22 @@ import type {
   PermissionPreset,
   RoutineOccurrence,
 } from "@/lib/domain/types";
-import { generateGuestToken, guestLinkExpiresAt } from "@/lib/architecture/guest-links";
+import {
+  assertGuestCanRespondToChangeRequest,
+  generateGuestToken,
+  guestLinkExpiresAt,
+  hashGuestToken,
+} from "@/lib/architecture/guest-links";
 import { createImportJobPlaceholder } from "@/lib/architecture/import";
+
+type StoredGuestLink = GuestLinkToken & { tokenHash: string };
+
+function findGuestLinkByToken(snap: { guestLinkTokens: GuestLinkToken[] }, token: string) {
+  const hash = hashGuestToken(token);
+  return snap.guestLinkTokens.find(
+    (item) => (item as StoredGuestLink).tokenHash === hash,
+  ) as StoredGuestLink | undefined;
+}
 
 type Store = {
   families: Map<string, FamilySnapshot>;
@@ -1361,11 +1375,13 @@ export const memoryRepository: FamilyRepository = {
   },
 
   async createGuestLink(input) {
-    const link: GuestLinkToken = {
+    const token = generateGuestToken();
+    const link: StoredGuestLink = {
       id: randomUUID(),
       familyId: input.familyId,
       label: input.label,
-      token: generateGuestToken(),
+      token,
+      tokenHash: hashGuestToken(token),
       expiresAt: guestLinkExpiresAt(input.expiresInDays ?? 7),
       scopes: input.scopes,
       changeRequestId: input.changeRequestId,
@@ -1383,21 +1399,24 @@ export const memoryRepository: FamilyRepository = {
 
   async getGuestLinkByToken(token) {
     for (const snap of getStore().families.values()) {
-      const link = snap.guestLinkTokens.find((item) => item.token === token);
-      if (link) return { link: clone(link), snapshot: clone(snap) };
+      const link = findGuestLinkByToken(snap, token);
+      if (link) return { link: { ...clone(link), token }, snapshot: clone(snap) };
     }
     return null;
   },
 
   async respondToGuestLink(input) {
     for (const [familyId, snap] of getStore().families.entries()) {
-      const link = snap.guestLinkTokens.find((item) => item.token === input.token);
+      const link = findGuestLinkByToken(snap, input.token);
       if (!link) continue;
       if (link.response) throw new Error("Er is al gereageerd op dit verzoek.");
       if (new Date(link.expiresAt) < new Date()) throw new Error("Deze link is verlopen.");
+      if (link.changeRequestId) {
+        assertGuestCanRespondToChangeRequest(link);
+      }
 
       mutateFamily(familyId, (family) => {
-        const row = family.guestLinkTokens.find((item) => item.token === input.token);
+        const row = findGuestLinkByToken(family, input.token);
         if (!row) return;
         row.response = input.decision;
         row.respondedAt = nowIso();

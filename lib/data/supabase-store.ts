@@ -1,5 +1,10 @@
 import { randomUUID } from "crypto";
-import { generateGuestToken, guestLinkExpiresAt } from "@/lib/architecture/guest-links";
+import {
+  assertGuestCanRespondToChangeRequest,
+  generateGuestToken,
+  guestLinkExpiresAt,
+  hashGuestToken,
+} from "@/lib/architecture/guest-links";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasServiceRoleKey } from "@/lib/supabase/env";
@@ -102,12 +107,15 @@ function mapImportJobRow(row: Record<string, unknown>): ImportJob {
   };
 }
 
-function mapGuestLinkRow(row: Record<string, unknown>): GuestLinkToken {
+const GUEST_LINK_COLUMNS =
+  "id, family_id, label, expires_at, scopes, change_request_id, created_by_member_id, created_at, response, responded_at, responded_by_name";
+
+function mapGuestLinkRow(row: Record<string, unknown>, token = ""): GuestLinkToken {
   return {
     id: row.id as string,
     familyId: row.family_id as string,
     label: row.label as string,
-    token: row.token as string,
+    token,
     expiresAt: row.expires_at as string,
     scopes: (row.scopes as string[]) ?? [],
     changeRequestId: (row.change_request_id as string) ?? null,
@@ -304,7 +312,11 @@ export const supabaseRepository: FamilyRepository = {
       supabase.from("context_messages").select("*").eq("family_id", familyId).order("sent_at", { ascending: false }),
       supabase.from("handover_check_ins").select("*").eq("family_id", familyId),
       supabase.from("import_jobs").select("*").eq("family_id", familyId).order("created_at", { ascending: false }),
-      supabase.from("guest_link_tokens").select("*").eq("family_id", familyId).order("created_at", { ascending: false }),
+      supabase
+        .from("guest_link_tokens")
+        .select(GUEST_LINK_COLUMNS)
+        .eq("family_id", familyId)
+        .order("created_at", { ascending: false }),
     ]);
 
     if (familyRes.error) throw familyRes.error;
@@ -662,7 +674,7 @@ export const supabaseRepository: FamilyRepository = {
       contextMessages: (contextMessagesRes.data ?? []).map(mapContextMessageRow),
       handoverCheckIns: (handoverCheckInsRes.data ?? []).map(mapHandoverCheckInRow),
       importJobs: (importJobsRes.data ?? []).map(mapImportJobRow),
-      guestLinkTokens: (guestLinksRes.data ?? []).map(mapGuestLinkRow),
+      guestLinkTokens: (guestLinksRes.data ?? []).map((row) => mapGuestLinkRow(row)),
     };
 
     return applyPrivacy(snapshot);
@@ -1365,16 +1377,16 @@ export const supabaseRepository: FamilyRepository = {
       .insert({
         family_id: input.familyId,
         label: input.label,
-        token,
+        token_hash: hashGuestToken(token),
         expires_at: guestLinkExpiresAt(input.expiresInDays ?? 7),
         scopes: input.scopes,
         change_request_id: input.changeRequestId,
         created_by_member_id: input.createdByMemberId,
       })
-      .select("*")
+      .select(GUEST_LINK_COLUMNS)
       .single();
     if (error || !data) throw error ?? new Error("Gastlink kon niet worden aangemaakt.");
-    return mapGuestLinkRow(data);
+    return mapGuestLinkRow(data, token);
   },
 
   async getGuestLinkByToken(token) {
@@ -1383,12 +1395,12 @@ export const supabaseRepository: FamilyRepository = {
     const admin = createSupabaseAdminClient();
     const { data: linkRow, error } = await admin
       .from("guest_link_tokens")
-      .select("*")
-      .eq("token", token)
+      .select(GUEST_LINK_COLUMNS)
+      .eq("token_hash", hashGuestToken(token))
       .maybeSingle();
     if (error || !linkRow) return null;
 
-    const link = mapGuestLinkRow(linkRow);
+    const link = mapGuestLinkRow(linkRow, token);
     const snapshot = await buildGuestSnapshot(admin, link.familyId);
     if (!snapshot) return null;
     return { link, snapshot };
@@ -1402,14 +1414,18 @@ export const supabaseRepository: FamilyRepository = {
     const admin = createSupabaseAdminClient();
     const { data: linkRow, error } = await admin
       .from("guest_link_tokens")
-      .select("*")
-      .eq("token", input.token)
+      .select(GUEST_LINK_COLUMNS)
+      .eq("token_hash", hashGuestToken(input.token))
       .maybeSingle();
     if (error || !linkRow) throw new Error("Link niet gevonden.");
 
-    const link = mapGuestLinkRow(linkRow);
+    const link = mapGuestLinkRow(linkRow, input.token);
     if (link.response) throw new Error("Er is al gereageerd op dit verzoek.");
     if (new Date(link.expiresAt) < new Date()) throw new Error("Deze link is verlopen.");
+
+    if (link.changeRequestId) {
+      assertGuestCanRespondToChangeRequest(link);
+    }
 
     const now = new Date().toISOString();
     const { error: updateError } = await admin
