@@ -30,9 +30,12 @@ import type {
   Child,
   ChildSizes,
   ChildUpdate,
+  ContextMessage,
   Expense,
   FamilyRole,
   FamilySnapshot,
+  GuestLinkToken,
+  ImportJob,
   NeededItem,
   Profile,
   TaskItem,
@@ -42,6 +45,8 @@ import type {
   PermissionPreset,
   RoutineOccurrence,
 } from "@/lib/domain/types";
+import { generateGuestToken, guestLinkExpiresAt } from "@/lib/architecture/guest-links";
+import { createImportJobPlaceholder } from "@/lib/architecture/import";
 
 type Store = {
   families: Map<string, FamilySnapshot>;
@@ -1278,6 +1283,151 @@ export const memoryRepository: FamilyRepository = {
     const expense = snap?.expenses.find((item) => item.id === input.expenseId);
     if (!expense?.receiptStoragePath) return null;
     return expenseReceiptViewUrl(expense.receiptStoragePath, expense.id);
+  },
+
+  async createContextMessage(input) {
+    const message: ContextMessage = {
+      id: randomUUID(),
+      familyId: input.familyId,
+      resourceType: input.resourceType,
+      resourceId: input.resourceId,
+      kind: input.kind,
+      body: input.body,
+      authorMemberId: input.authorMemberId,
+      sentAt: nowIso(),
+      readAt: null,
+      readByMemberId: null,
+      status: "sent",
+      responseBody: null,
+      respondedAt: null,
+      respondedByMemberId: null,
+    };
+    mutateFamily(input.familyId, (snap) => {
+      snap.contextMessages.push(message);
+      log(snap, input.authorMemberId, "context_message.create", "context_message", message.id, null, {
+        resourceType: input.resourceType,
+        resourceId: input.resourceId,
+      });
+    });
+    return clone(message);
+  },
+
+  async markContextMessageRead(input) {
+    mutateFamilyFromUser(input.actorUserId, (snap) => {
+      const message = snap.contextMessages.find((item) => item.id === input.messageId);
+      if (!message) throw new Error("Bericht niet gevonden.");
+      if (message.authorMemberId === input.readerMemberId) return;
+      if (message.readAt) return;
+      message.readAt = nowIso();
+      message.readByMemberId = input.readerMemberId;
+      message.status = message.kind === "confirmation" ? message.status : "read";
+    });
+  },
+
+  async respondToContextMessage(input) {
+    mutateFamilyFromUser(input.actorUserId, (snap) => {
+      const message = snap.contextMessages.find((item) => item.id === input.messageId);
+      if (!message) throw new Error("Bericht niet gevonden.");
+      if (message.authorMemberId === input.responderMemberId) {
+        throw new Error("Je kunt niet op je eigen bericht reageren.");
+      }
+      message.status = input.decision;
+      message.responseBody = input.responseBody ?? (input.decision === "confirmed" ? "Ja" : "Nee");
+      message.respondedAt = nowIso();
+      message.respondedByMemberId = input.responderMemberId;
+      if (!message.readAt) {
+        message.readAt = nowIso();
+        message.readByMemberId = input.responderMemberId;
+      }
+    });
+  },
+
+  async handoverCheckIn(input) {
+    mutateFamilyFromUser(input.actorUserId, (snap) => {
+      const handover = snap.handovers.find((item) => item.id === input.handoverId);
+      if (!handover) throw new Error("Overdracht niet gevonden.");
+      const existing = snap.handoverCheckIns.find((item) => item.handoverId === input.handoverId);
+      if (existing) return;
+      snap.handoverCheckIns.push({
+        id: randomUUID(),
+        handoverId: input.handoverId,
+        memberId: input.memberId,
+        checkedInAt: nowIso(),
+      });
+      log(snap, input.actorUserId, "handover.check_in", "handover", input.handoverId, null, {
+        memberId: input.memberId,
+      });
+    });
+  },
+
+  async createGuestLink(input) {
+    const link: GuestLinkToken = {
+      id: randomUUID(),
+      familyId: input.familyId,
+      label: input.label,
+      token: generateGuestToken(),
+      expiresAt: guestLinkExpiresAt(input.expiresInDays ?? 7),
+      scopes: input.scopes,
+      changeRequestId: input.changeRequestId,
+      createdByMemberId: input.createdByMemberId,
+      createdAt: nowIso(),
+      response: null,
+      respondedAt: null,
+      respondedByName: null,
+    };
+    mutateFamily(input.familyId, (snap) => {
+      snap.guestLinkTokens.push(link);
+    });
+    return clone(link);
+  },
+
+  async getGuestLinkByToken(token) {
+    for (const snap of getStore().families.values()) {
+      const link = snap.guestLinkTokens.find((item) => item.token === token);
+      if (link) return { link: clone(link), snapshot: clone(snap) };
+    }
+    return null;
+  },
+
+  async respondToGuestLink(input) {
+    for (const [familyId, snap] of getStore().families.entries()) {
+      const link = snap.guestLinkTokens.find((item) => item.token === input.token);
+      if (!link) continue;
+      if (link.response) throw new Error("Er is al gereageerd op dit verzoek.");
+      if (new Date(link.expiresAt) < new Date()) throw new Error("Deze link is verlopen.");
+
+      mutateFamily(familyId, (family) => {
+        const row = family.guestLinkTokens.find((item) => item.token === input.token);
+        if (!row) return;
+        row.response = input.decision;
+        row.respondedAt = nowIso();
+        row.respondedByName = input.respondedByName;
+
+        if (row.changeRequestId) {
+          const request = family.changeRequests.find((item) => item.id === row.changeRequestId);
+          if (request && request.status === "pending") {
+            request.status = input.decision === "accepted" ? "accepted" : "declined";
+            request.responseMessage = `${input.respondedByName}: ${input.decision === "accepted" ? "Ja" : "Nee"}`;
+            request.resolvedAt = nowIso();
+            request.updatedAt = nowIso();
+            if (input.decision === "accepted") applyAcceptedChange(family, request);
+          }
+        }
+      });
+      return;
+    }
+    throw new Error("Link niet gevonden.");
+  },
+
+  async createImportJob(input) {
+    const job = createImportJobPlaceholder(input.familyId, {
+      source: input.source,
+      fileName: input.fileName,
+    });
+    mutateFamily(input.familyId, (snap) => {
+      snap.importJobs.push(job);
+    });
+    return clone(job);
   },
 };
 

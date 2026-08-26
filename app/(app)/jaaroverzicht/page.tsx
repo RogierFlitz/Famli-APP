@@ -1,6 +1,7 @@
 import { requireSnapshot } from "@/lib/auth/session";
 import { generateOccurrences, memberLabel, yearNightCounts } from "@/lib/custody/generate";
 import { addDaysIso, toISODate } from "@/lib/dates";
+import { FamilyExportPanel } from "@/components/export/family-export";
 
 export default async function YearOverviewPage() {
   const snapshot = await requireSnapshot();
@@ -56,6 +57,10 @@ export default async function YearOverviewPage() {
         <Stat label="Wijzigingen in het schema" value={overrides} />
       </div>
       <p className="mt-6 text-xs text-[color:var(--nest-muted)]">Peildatum {toISODate(new Date())}.</p>
+
+      <div className="mt-8">
+        <FamilyExportPanel />
+      </div>
     </div>
   );
 }

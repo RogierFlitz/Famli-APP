@@ -4,7 +4,7 @@ Use this checklist before launching Famli to production.
 
 ## Supabase
 
-- [ ] Run `supabase/migrations/0001_init.sql` and `0002_security_foundation.sql`
+- [ ] Run migrations in order: `0001_init.sql`, `0002_security_foundation.sql`, `0003_expense_receipt_metadata.sql`, `0004_production_features.sql`
 - [ ] Confirm RLS enabled on all tables (`SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public'`)
 - [ ] Verify no policy uses `auth.role() = 'authenticated'` alone
 - [ ] Create private bucket `family-documents` (migration handles this)
@@ -19,7 +19,7 @@ Use this checklist before launching Famli to production.
 - [ ] Set `NEXT_PUBLIC_SUPABASE_URL`
 - [ ] Set `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - [ ] Set `NEXT_PUBLIC_SITE_URL` to production domain
-- [ ] Set `SUPABASE_SERVICE_ROLE_KEY` (Production env only, never Preview if possible)
+- [ ] Set `SUPABASE_SERVICE_ROLE_KEY` (Production env — required for guest links)
 - [ ] Confirm `.env*` is gitignored; no secrets in repo
 - [ ] Run `grep -r "service_role" .next/` after build — must be empty
 

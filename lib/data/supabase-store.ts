@@ -1,5 +1,8 @@
 import { randomUUID } from "crypto";
+import { generateGuestToken, guestLinkExpiresAt } from "@/lib/architecture/guest-links";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { hasServiceRoleKey } from "@/lib/supabase/env";
 import { splitAmounts } from "@/lib/money";
 import { generateHandovers, generateOccurrences } from "@/lib/custody/generate";
 import { addDaysIso, toISODate } from "@/lib/dates";
@@ -18,13 +21,17 @@ import type {
   CalendarEvent,
   ChangeRequest,
   Child,
+  ContextMessage,
   CustodySchedule,
   Expense,
   ExpenseSplit,
   Family,
   FamilyMember,
   FamilySnapshot,
+  GuestLinkToken,
   Handover,
+  HandoverCheckIn,
+  ImportJob,
   Profile,
   TaskItem,
 } from "@/lib/domain/types";
@@ -55,6 +62,186 @@ function mapProfile(row: Record<string, unknown>): Profile {
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
+}
+
+function mapContextMessageRow(row: Record<string, unknown>): ContextMessage {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    resourceType: row.resource_type as ContextMessage["resourceType"],
+    resourceId: row.resource_id as string,
+    kind: row.kind as ContextMessage["kind"],
+    body: row.body as string,
+    authorMemberId: row.author_member_id as string,
+    sentAt: row.sent_at as string,
+    readAt: (row.read_at as string) ?? null,
+    readByMemberId: (row.read_by_member_id as string) ?? null,
+    status: row.status as ContextMessage["status"],
+    responseBody: (row.response_body as string) ?? null,
+    respondedAt: (row.responded_at as string) ?? null,
+    respondedByMemberId: (row.responded_by_member_id as string) ?? null,
+  };
+}
+
+function mapHandoverCheckInRow(row: Record<string, unknown>): HandoverCheckIn {
+  return {
+    id: row.id as string,
+    handoverId: row.handover_id as string,
+    memberId: row.member_id as string,
+    checkedInAt: row.checked_in_at as string,
+  };
+}
+
+function mapImportJobRow(row: Record<string, unknown>): ImportJob {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    source: row.source as ImportJob["source"],
+    status: row.status as ImportJob["status"],
+    createdAt: row.created_at as string,
+  };
+}
+
+function mapGuestLinkRow(row: Record<string, unknown>): GuestLinkToken {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    label: row.label as string,
+    token: row.token as string,
+    expiresAt: row.expires_at as string,
+    scopes: (row.scopes as string[]) ?? [],
+    changeRequestId: (row.change_request_id as string) ?? null,
+    createdByMemberId: row.created_by_member_id as string,
+    createdAt: row.created_at as string,
+    response: (row.response as GuestLinkToken["response"]) ?? null,
+    respondedAt: (row.responded_at as string) ?? null,
+    respondedByName: (row.responded_by_name as string) ?? null,
+  };
+}
+
+function mapChangeRequestRow(row: Record<string, unknown>): ChangeRequest {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    type: row.type as ChangeRequest["type"],
+    status: row.status as ChangeRequest["status"],
+    requestedByMemberId: row.requested_by_member_id as string,
+    targetDate: row.target_date as string,
+    payload: (row.payload as Record<string, unknown>) ?? {},
+    message: row.message as string,
+    responseMessage: (row.response_message as string) ?? null,
+    alternativePayload: (row.alternative_payload as Record<string, unknown>) ?? null,
+    resolvedAt: (row.resolved_at as string) ?? null,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+async function buildGuestSnapshot(admin: ReturnType<typeof createSupabaseAdminClient>, familyId: string) {
+  const { data: familyRow, error: familyError } = await admin
+    .from("families")
+    .select("*")
+    .eq("id", familyId)
+    .single();
+  if (familyError || !familyRow) return null;
+
+  const { data: memberRows } = await admin.from("family_members").select("*").eq("family_id", familyId);
+  const userIds = (memberRows ?? []).map((row) => row.user_id).filter(Boolean) as string[];
+
+  const [profilesRes, requestsRes] = await Promise.all([
+    userIds.length
+      ? admin.from("profiles").select("*").in("id", userIds)
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    admin.from("change_requests").select("*").eq("family_id", familyId),
+  ]);
+
+  const profiles: Record<string, Profile> = {};
+  for (const row of profilesRes.data ?? []) {
+    profiles[row.id as string] = mapProfile(row);
+  }
+
+  const members: FamilyMember[] = (memberRows ?? []).map((row) => ({
+    id: row.id,
+    familyId: row.family_id,
+    userId: row.user_id,
+    role: row.role,
+    relationType: row.relation_type ?? "ouder",
+    permissionPreset: row.permission_preset ?? "custom",
+    permissions: row.permissions ?? parentPermissions(),
+    parentLabel: row.parent_label,
+    displayColor: row.display_color,
+    invitedEmail: row.invited_email,
+    status: row.status,
+    householdId: row.household_id ?? null,
+    contactOnly: row.contact_only ?? false,
+    linkedParentMemberId: row.linked_parent_member_id ?? null,
+    phone: row.phone ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+
+  const familyRowData = familyRow;
+  const ownerProfile = profiles[familyRowData.owner_id as string];
+  const currentMember = members[0];
+  if (!currentMember || !ownerProfile) return null;
+
+  const snapshot: FamilySnapshot = {
+    family: {
+      id: familyRowData.id,
+      name: familyRowData.name,
+      ownerId: familyRowData.owner_id,
+      plan: familyRowData.plan,
+      subscriptionStatus: familyRowData.subscription_status,
+      trialEnd: familyRowData.trial_end,
+      featureFlags: familyRowData.feature_flags,
+      createdAt: familyRowData.created_at,
+      updatedAt: familyRowData.updated_at,
+      createdBy: familyRowData.created_by,
+    },
+    currentProfile: ownerProfile,
+    currentMember,
+    profiles,
+    members,
+    children: [],
+    guardians: [],
+    schedule: null,
+    occurrences: [],
+    events: [],
+    handovers: [],
+    changeRequests: (requestsRes.data ?? []).map(mapChangeRequestRow),
+    tasks: [],
+    expenses: [],
+    splits: [],
+    recurringExpenses: [],
+    documents: [],
+    notifications: [],
+    calendarConnections: [],
+    activityLog: [],
+    invites: [],
+    vacations: [],
+    ...emptyLifeFields(),
+  };
+
+  return snapshot;
+}
+
+async function applyGuestAcceptedChange(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  request: ChangeRequest,
+) {
+  const requestedCustodian =
+    typeof request.payload.requestedCustodianMemberId === "string"
+      ? request.payload.requestedCustodianMemberId
+      : request.requestedByMemberId;
+
+  await admin.from("custody_occurrences").upsert({
+    family_id: request.familyId,
+    schedule_id: null,
+    date: request.targetDate,
+    custodian_member_id: requestedCustodian,
+    is_override: true,
+    source: "change_request",
+  });
 }
 
 export const supabaseRepository: FamilyRepository = {
@@ -90,6 +277,10 @@ export const supabaseRepository: FamilyRepository = {
       vacationsRes,
       occurrencesRes,
       guardiansRes,
+      contextMessagesRes,
+      handoverCheckInsRes,
+      importJobsRes,
+      guestLinksRes,
     ] = await Promise.all([
       supabase.from("families").select("*").eq("id", familyId).single(),
       supabase.from("family_members").select("*").eq("family_id", familyId),
@@ -110,6 +301,10 @@ export const supabaseRepository: FamilyRepository = {
       supabase.from("vacations").select("*").eq("family_id", familyId),
       supabase.from("custody_occurrences").select("*").eq("family_id", familyId),
       supabase.from("child_guardians").select("*"),
+      supabase.from("context_messages").select("*").eq("family_id", familyId).order("sent_at", { ascending: false }),
+      supabase.from("handover_check_ins").select("*").eq("family_id", familyId),
+      supabase.from("import_jobs").select("*").eq("family_id", familyId).order("created_at", { ascending: false }),
+      supabase.from("guest_link_tokens").select("*").eq("family_id", familyId).order("created_at", { ascending: false }),
     ]);
 
     if (familyRes.error) throw familyRes.error;
@@ -464,6 +659,10 @@ export const supabaseRepository: FamilyRepository = {
         createdBy: row.created_by,
       })),
       ...emptyLifeFields(),
+      contextMessages: (contextMessagesRes.data ?? []).map(mapContextMessageRow),
+      handoverCheckIns: (handoverCheckInsRes.data ?? []).map(mapHandoverCheckInRow),
+      importJobs: (importJobsRes.data ?? []).map(mapImportJobRow),
+      guestLinkTokens: (guestLinksRes.data ?? []).map(mapGuestLinkRow),
     };
 
     return applyPrivacy(snapshot);
@@ -1054,5 +1253,213 @@ export const supabaseRepository: FamilyRepository = {
       .maybeSingle();
     if (!row?.receipt_url) return null;
     return expenseReceiptViewUrl(row.receipt_url, input.expenseId);
+  },
+
+  async createContextMessage(input) {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("context_messages")
+      .insert({
+        family_id: input.familyId,
+        resource_type: input.resourceType,
+        resource_id: input.resourceId,
+        kind: input.kind,
+        body: input.body,
+        author_member_id: input.authorMemberId,
+        status: "sent",
+      })
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Bericht kon niet worden opgeslagen.");
+    return mapContextMessageRow(data);
+  },
+
+  async markContextMessageRead(input) {
+    const supabase = await db();
+    const { data: message } = await supabase
+      .from("context_messages")
+      .select("author_member_id, read_at, kind, status")
+      .eq("id", input.messageId)
+      .maybeSingle();
+    if (!message) throw new Error("Bericht niet gevonden.");
+    if (message.author_member_id === input.readerMemberId) return;
+    if (message.read_at) return;
+
+    const nextStatus =
+      message.kind === "confirmation" ? message.status : "read";
+    await supabase
+      .from("context_messages")
+      .update({
+        read_at: new Date().toISOString(),
+        read_by_member_id: input.readerMemberId,
+        status: nextStatus,
+      })
+      .eq("id", input.messageId);
+  },
+
+  async respondToContextMessage(input) {
+    const supabase = await db();
+    const { data: message } = await supabase
+      .from("context_messages")
+      .select("author_member_id, read_at")
+      .eq("id", input.messageId)
+      .maybeSingle();
+    if (!message) throw new Error("Bericht niet gevonden.");
+    if (message.author_member_id === input.responderMemberId) {
+      throw new Error("Je kunt niet op je eigen bericht reageren.");
+    }
+
+    const now = new Date().toISOString();
+    const updatePayload: Record<string, string> = {
+      status: input.decision,
+      response_body: input.responseBody ?? (input.decision === "confirmed" ? "Ja" : "Nee"),
+      responded_at: now,
+      responded_by_member_id: input.responderMemberId,
+    };
+    if (!message.read_at) {
+      updatePayload.read_at = now;
+      updatePayload.read_by_member_id = input.responderMemberId;
+    }
+    await supabase.from("context_messages").update(updatePayload).eq("id", input.messageId);
+  },
+
+  async handoverCheckIn(input) {
+    const supabase = await db();
+    const { data: handover } = await supabase
+      .from("handovers")
+      .select("id, family_id")
+      .eq("id", input.handoverId)
+      .maybeSingle();
+    if (!handover) throw new Error("Overdracht niet gevonden.");
+
+    const { data: existing } = await supabase
+      .from("handover_check_ins")
+      .select("id")
+      .eq("handover_id", input.handoverId)
+      .maybeSingle();
+    if (existing) return;
+
+    const { error } = await supabase.from("handover_check_ins").insert({
+      family_id: handover.family_id,
+      handover_id: input.handoverId,
+      member_id: input.memberId,
+    });
+    if (error) throw error;
+
+    await supabase.from("activity_log").insert({
+      family_id: handover.family_id,
+      actor_id: input.actorUserId,
+      action: "handover.check_in",
+      entity_type: "handover",
+      entity_id: input.handoverId,
+      before: null,
+      after: { memberId: input.memberId },
+    });
+  },
+
+  async createGuestLink(input) {
+    const supabase = await db();
+    const token = generateGuestToken();
+    const { data, error } = await supabase
+      .from("guest_link_tokens")
+      .insert({
+        family_id: input.familyId,
+        label: input.label,
+        token,
+        expires_at: guestLinkExpiresAt(input.expiresInDays ?? 7),
+        scopes: input.scopes,
+        change_request_id: input.changeRequestId,
+        created_by_member_id: input.createdByMemberId,
+      })
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Gastlink kon niet worden aangemaakt.");
+    return mapGuestLinkRow(data);
+  },
+
+  async getGuestLinkByToken(token) {
+    if (!hasServiceRoleKey()) return null;
+
+    const admin = createSupabaseAdminClient();
+    const { data: linkRow, error } = await admin
+      .from("guest_link_tokens")
+      .select("*")
+      .eq("token", token)
+      .maybeSingle();
+    if (error || !linkRow) return null;
+
+    const link = mapGuestLinkRow(linkRow);
+    const snapshot = await buildGuestSnapshot(admin, link.familyId);
+    if (!snapshot) return null;
+    return { link, snapshot };
+  },
+
+  async respondToGuestLink(input) {
+    if (!hasServiceRoleKey()) {
+      throw new Error("Gastlinks vereisen SUPABASE_SERVICE_ROLE_KEY.");
+    }
+
+    const admin = createSupabaseAdminClient();
+    const { data: linkRow, error } = await admin
+      .from("guest_link_tokens")
+      .select("*")
+      .eq("token", input.token)
+      .maybeSingle();
+    if (error || !linkRow) throw new Error("Link niet gevonden.");
+
+    const link = mapGuestLinkRow(linkRow);
+    if (link.response) throw new Error("Er is al gereageerd op dit verzoek.");
+    if (new Date(link.expiresAt) < new Date()) throw new Error("Deze link is verlopen.");
+
+    const now = new Date().toISOString();
+    const { error: updateError } = await admin
+      .from("guest_link_tokens")
+      .update({
+        response: input.decision,
+        responded_at: now,
+        responded_by_name: input.respondedByName,
+      })
+      .eq("id", link.id);
+    if (updateError) throw updateError;
+
+    if (link.changeRequestId) {
+      const { data: requestRow } = await admin
+        .from("change_requests")
+        .select("*")
+        .eq("id", link.changeRequestId)
+        .maybeSingle();
+      if (requestRow && requestRow.status === "pending") {
+        const request = mapChangeRequestRow(requestRow);
+        const status = input.decision === "accepted" ? "accepted" : "declined";
+        await admin
+          .from("change_requests")
+          .update({
+            status,
+            response_message: `${input.respondedByName}: ${input.decision === "accepted" ? "Ja" : "Nee"}`,
+            resolved_at: now,
+            updated_at: now,
+          })
+          .eq("id", link.changeRequestId);
+        if (input.decision === "accepted") {
+          await applyGuestAcceptedChange(admin, request);
+        }
+      }
+    }
+  },
+
+  async createImportJob(input) {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("import_jobs")
+      .insert({
+        family_id: input.familyId,
+        source: input.source,
+        status: "pending",
+        file_name: input.fileName ?? null,
+      })
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Import kon niet worden gestart.");
+    return mapImportJobRow(data);
   },
 };

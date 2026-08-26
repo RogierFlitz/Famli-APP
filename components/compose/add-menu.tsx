@@ -19,6 +19,7 @@ import { parentName } from "@/lib/queries/family-view";
 import type { FamilySnapshot } from "@/lib/domain/types";
 import { createRoutineAction } from "@/lib/actions/routines";
 import { cn } from "@/lib/utils";
+import { ImportShell } from "@/components/import/import-shell";
 
 type Kind =
   | "menu"
@@ -31,7 +32,8 @@ type Kind =
   | "needed"
   | "expense"
   | "school"
-  | "update";
+  | "update"
+  | "import";
 
 const GROUPS: { title: string; items: { id: Exclude<Kind, "menu">; label: string }[] }[] = [
   {
@@ -42,6 +44,7 @@ const GROUPS: { title: string; items: { id: Exclude<Kind, "menu">; label: string
       { id: "party", label: "Kinderfeestje" },
       { id: "travel", label: "Reis" },
       { id: "school", label: "Schoolmoment" },
+      { id: "import", label: "Importeren (uitnodiging)" },
     ],
   },
   {
@@ -82,6 +85,7 @@ export function AddMenu({ snapshot, compact = false }: { snapshot: FamilySnapsho
     expense: "Kosten toevoegen",
     school: "Schoolmoment",
     update: "Update delen",
+    import: "Slim importeren",
   };
 
   return (
@@ -418,6 +422,8 @@ export function AddMenu({ snapshot, compact = false }: { snapshot: FamilySnapsho
         ) : null}
 
         {kind === "expense" ? <ExpenseForm snapshot={snapshot} onDone={close} /> : null}
+
+        {kind === "import" ? <ImportShell compact /> : null}
 
         {kind === "update" ? (
           <form

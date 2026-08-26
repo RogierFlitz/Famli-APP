@@ -535,7 +535,14 @@ export type ContextMessageKind = "update" | "confirmation";
 
 export type ContextMessageStatus = "sent" | "read" | "confirmed" | "declined";
 
-export type ContextResourceType = "event" | "task" | "needed_item" | "handover";
+export type ContextResourceType =
+  | "event"
+  | "task"
+  | "needed_item"
+  | "handover"
+  | "expense"
+  | "change_request"
+  | "travel";
 
 export interface ContextMessage {
   id: string;
@@ -547,9 +554,11 @@ export interface ContextMessage {
   authorMemberId: string;
   sentAt: string;
   readAt: string | null;
+  readByMemberId: string | null;
   status: ContextMessageStatus;
   responseBody: string | null;
   respondedAt: string | null;
+  respondedByMemberId: string | null;
 }
 
 /** Placeholder — photo/PDF/email import (no parser yet). */
@@ -572,7 +581,7 @@ export interface ExternalBusyBlock {
   label: string;
 }
 
-/** Guest link for oma/babysitter (architecture prep). */
+/** Guest link for oma/babysitter / externe ophaalverzoeken. */
 export interface GuestLinkToken {
   id: string;
   familyId: string;
@@ -580,6 +589,12 @@ export interface GuestLinkToken {
   token: string;
   expiresAt: string;
   scopes: string[];
+  changeRequestId: string | null;
+  createdByMemberId: string;
+  createdAt: string;
+  response: "accepted" | "declined" | null;
+  respondedAt: string | null;
+  respondedByName: string | null;
 }
 
 /** Manual check-in at handover ("Ik ben er"). */

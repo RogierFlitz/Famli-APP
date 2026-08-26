@@ -6,12 +6,18 @@ import type {
   Child,
   ChildSizes,
   ChildUpdate,
+  ContextMessage,
+  ContextMessageKind,
+  ContextResourceType,
   CustodyPattern,
   CustodyScheduleConfig,
   Expense,
   ExpenseCategory,
   FamilyRole,
   FamilySnapshot,
+  GuestLinkToken,
+  ImportJob,
+  ImportSourceKind,
   NeededCategory,
   NeededItem,
   RecurrenceInterval,
@@ -315,4 +321,48 @@ export interface FamilyRepository {
     expenseId: string;
     actorUserId: string;
   }): Promise<string | null>;
+  createContextMessage(input: {
+    familyId: string;
+    authorMemberId: string;
+    resourceType: ContextResourceType;
+    resourceId: string;
+    kind: ContextMessageKind;
+    body: string;
+  }): Promise<ContextMessage>;
+  markContextMessageRead(input: {
+    messageId: string;
+    readerMemberId: string;
+    actorUserId: string;
+  }): Promise<void>;
+  respondToContextMessage(input: {
+    messageId: string;
+    responderMemberId: string;
+    actorUserId: string;
+    decision: "confirmed" | "declined";
+    responseBody?: string | null;
+  }): Promise<void>;
+  handoverCheckIn(input: {
+    handoverId: string;
+    memberId: string;
+    actorUserId: string;
+  }): Promise<void>;
+  createGuestLink(input: {
+    familyId: string;
+    createdByMemberId: string;
+    label: string;
+    changeRequestId: string | null;
+    scopes: string[];
+    expiresInDays?: number;
+  }): Promise<GuestLinkToken>;
+  getGuestLinkByToken(token: string): Promise<{ link: GuestLinkToken; snapshot: FamilySnapshot } | null>;
+  respondToGuestLink(input: {
+    token: string;
+    decision: "accepted" | "declined";
+    respondedByName: string;
+  }): Promise<void>;
+  createImportJob(input: {
+    familyId: string;
+    source: ImportSourceKind;
+    fileName?: string;
+  }): Promise<ImportJob>;
 }

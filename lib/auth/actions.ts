@@ -21,6 +21,9 @@ async function setSessionCookie(payload: SessionPayload) {
 }
 
 export async function startDemo(userId: string) {
+  if (isSupabaseConfigured()) {
+    redirect("/login?error=Demo%20modus%20is%20uitgeschakeld%20in%20productie.");
+  }
   await setSessionCookie({ userId, source: "demo" });
   redirect("/vandaag");
 }

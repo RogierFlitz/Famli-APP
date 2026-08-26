@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { ArrowLeftRight, Check } from "lucide-react";
+import { handoverCheckInAction } from "@/lib/actions/messages";
 import { formatDayLong } from "@/lib/dates";
 import { assembleHandoverChecklist, handoverSummaryLine } from "@/lib/queries/handover";
 import { parentName } from "@/lib/queries/family-view";
 import type { FamilySnapshot, Handover } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ContextMessages } from "@/components/messages/context-messages";
 
 export function SmartHandover({
   snapshot,
@@ -19,8 +22,22 @@ export function SmartHandover({
   compact?: boolean;
 }) {
   const [ready, setReady] = useState(false);
+  const [pending, startTransition] = useTransition();
   const checklist = assembleHandoverChecklist(snapshot, handover);
   const checkIn = snapshot.handoverCheckIns.find((item) => item.handoverId === handover.id);
+
+  function checkInHere() {
+    const formData = new FormData();
+    formData.set("handoverId", handover.id);
+    startTransition(async () => {
+      try {
+        await handoverCheckInAction(formData);
+        toast.success("Check-in geregistreerd");
+      } catch {
+        toast.error("Check-in mislukt");
+      }
+    });
+  }
 
   return (
     <section
@@ -35,7 +52,10 @@ export function SmartHandover({
           <h2 className="text-lg font-semibold">Slimme overdracht</h2>
           <p className="text-sm text-[color:var(--famli-muted)]">{handoverSummaryLine(snapshot, handover)}</p>
           {!compact ? (
-            <p className="mt-1 text-sm">{formatDayLong(handover.date)} · {handover.time}{handover.location ? ` · ${handover.location}` : ""}</p>
+            <p className="mt-1 text-sm">
+              {formatDayLong(handover.date)} · {handover.time}
+              {handover.location ? ` · ${handover.location}` : ""}
+            </p>
           ) : null}
         </div>
       </div>
@@ -52,13 +72,15 @@ export function SmartHandover({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {checkIn ? (
           <p className="text-sm text-[color:var(--famli-muted)]">
-            {parentName(snapshot, checkIn.memberId)} is er · {new Date(checkIn.checkedInAt).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+            {parentName(snapshot, checkIn.memberId)} is er ·{" "}
+            {new Date(checkIn.checkedInAt).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
           </p>
         ) : (
           <button
             type="button"
+            disabled={pending}
+            onClick={checkInHere}
             className="famli-btn famli-btn-secondary h-10 px-4 text-sm"
-            title="Architectuur: handmatige check-in"
           >
             Ik ben er
           </button>
@@ -80,6 +102,12 @@ export function SmartHandover({
           )}
         </button>
       </div>
+
+      {!compact ? (
+        <div className="mt-4 border-t border-[color:var(--famli-important)]/15 pt-4">
+          <ContextMessages snapshot={snapshot} resourceType="handover" resourceId={handover.id} />
+        </div>
+      ) : null}
     </section>
   );
 }

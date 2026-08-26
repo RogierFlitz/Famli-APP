@@ -1,13 +1,11 @@
+import { NextResponse } from "next/server";
 import { requireSnapshot } from "@/lib/auth/session";
+import { getRepository } from "@/lib/data";
 import { hasCapability } from "@/lib/security/capabilities";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { getMemoryBlob } from "@/lib/storage/memory-blobs";
 
 export async function GET(_request: Request, context: { params: Promise<{ expenseId: string }> }) {
-  if (isSupabaseConfigured()) {
-    return new Response("Niet beschikbaar", { status: 404 });
-  }
-
   const snapshot = await requireSnapshot();
   if (!hasCapability(snapshot, "view_expenses")) {
     return new Response("Geen toegang", { status: 403 });
@@ -21,6 +19,15 @@ export async function GET(_request: Request, context: { params: Promise<{ expens
 
   if (expense.familyId !== snapshot.family.id) {
     return new Response("Geen toegang", { status: 403 });
+  }
+
+  if (isSupabaseConfigured()) {
+    const url = await getRepository().getExpenseReceiptViewUrl({
+      expenseId,
+      actorUserId: snapshot.currentProfile.id,
+    });
+    if (!url) return new Response("Bon niet gevonden", { status: 404 });
+    return NextResponse.redirect(url);
   }
 
   const blob = getMemoryBlob(expense.receiptStoragePath);

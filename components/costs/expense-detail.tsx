@@ -8,6 +8,7 @@ import { parentName } from "@/lib/queries/family-view";
 import { markSplitPaidAction } from "@/lib/actions/family";
 import type { Expense, ExpenseSplit, FamilySnapshot } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
+import { ContextMessages } from "@/components/messages/context-messages";
 
 function splitStatusLabel(status: ExpenseSplit["status"]): string {
   if (status === "pending") return "Openstaand";
@@ -104,6 +105,8 @@ export function ExpenseDetail({
           <p className="mt-1">{expense.notes}</p>
         </div>
       ) : null}
+
+      <ContextMessages snapshot={snapshot} resourceType="expense" resourceId={expense.id} />
 
       <div className="flex flex-wrap gap-2 pt-2">
         {mine ? (

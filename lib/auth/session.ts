@@ -11,6 +11,7 @@ export async function getSession(): Promise<SessionPayload | null> {
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getUser();
     if (data.user) return { userId: data.user.id, source: "supabase" };
+    return null;
   }
 
   const store = await cookies();
