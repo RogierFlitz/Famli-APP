@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/domain/types";
+import { applySecurityHeaders } from "@/lib/security/headers";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseProxyClient } from "@/lib/supabase/proxy";
 
@@ -17,6 +18,11 @@ function isPublicPath(pathname: string) {
   );
 }
 
+function withSecurityHeaders(response: NextResponse): NextResponse {
+  applySecurityHeaders(response.headers);
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublic = isPublicPath(pathname);
@@ -27,18 +33,18 @@ export async function proxy(request: NextRequest) {
     if (!data.user && !isPublic) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
-      return NextResponse.redirect(url);
+      return withSecurityHeaders(NextResponse.redirect(url));
     }
-    return response;
+    return withSecurityHeaders(response);
   }
 
   const session = request.cookies.get(SESSION_COOKIE)?.value;
   if (!session && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return withSecurityHeaders(NextResponse.redirect(url));
   }
-  return NextResponse.next();
+  return withSecurityHeaders(NextResponse.next());
 }
 
 export const config = {

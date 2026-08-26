@@ -14,7 +14,9 @@ import { EmptyState } from "@/components/empty-state";
 import { NeededList } from "@/components/children/needed-list";
 import { createChildUpdateAction, updateChildSizesAction } from "@/lib/actions/life";
 import type { Child, FamilySnapshot } from "@/lib/domain/types";
-import { childRoutineOccurrences, occurrenceStatusLabel, routinesOnly } from "@/lib/queries/routines";
+import { childRoutineOccurrences, childCompletedTasks, childCompletedRoutineOccurrences, occurrenceStatusLabel, routinesOnly } from "@/lib/queries/routines";
+import { CompletedTasksSection } from "@/components/tasks/completed-tasks-section";
+import { CompletedRoutineOccurrencesSection } from "@/components/routines/completed-routines-section";
 import { weekdayLabel } from "@/lib/domain/labels";
 import { MEDICAL_DISCLAIMER } from "@/lib/members/permissions";
 import { cn } from "@/lib/utils";
@@ -552,13 +554,17 @@ function TasksRoutinesTab({
   today: string;
 }) {
   const tasks = snapshot.tasks.filter((item) => item.kind === "one_off" && item.childId === childId && item.status !== "done");
+  const completedTasks = childCompletedTasks(snapshot, childId);
   const routines = routinesOnly(snapshot).filter((item) => item.childId === childId);
-  const occurrences = childRoutineOccurrences(snapshot, childId, today).slice(0, 10);
+  const occurrences = childRoutineOccurrences(snapshot, childId, today)
+    .filter((item) => item.status === "pending" || item.status === "unregistered")
+    .slice(0, 10);
+  const completedOccurrences = childCompletedRoutineOccurrences(snapshot, childId);
 
   return (
     <div className="space-y-4">
       <section>
-        <h2 className="mb-3 text-2xl font-semibold">Open taken</h2>
+        <h2 className="mb-3 text-2xl font-semibold">Actief</h2>
         <div className="space-y-2">
           {tasks.map((task) => (
             <div key={task.id} className="rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-3">
@@ -570,7 +576,7 @@ function TasksRoutinesTab({
         </div>
       </section>
       <section>
-        <h2 className="mb-3 text-2xl font-semibold">Routines</h2>
+        <h2 className="mb-3 text-2xl font-semibold">Komend</h2>
         <div className="space-y-2">
           {routines.map((routine) => (
             <div key={routine.id} className="rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-3">
@@ -585,10 +591,7 @@ function TasksRoutinesTab({
             </div>
           ))}
         </div>
-      </section>
-      <section>
-        <h2 className="mb-3 text-2xl font-semibold">Komende momenten</h2>
-        <div className="space-y-2">
+        <div className="mt-4 space-y-2">
           {occurrences.map((item) => (
             <div key={item.id} className="rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-3">
               <p className="font-medium">
@@ -597,8 +600,11 @@ function TasksRoutinesTab({
               <p className="text-sm text-[color:var(--famli-muted)]">{occurrenceStatusLabel(item.status)}</p>
             </div>
           ))}
+          {!occurrences.length ? <p className="text-sm text-[color:var(--famli-muted)]">Geen komende momenten.</p> : null}
         </div>
       </section>
+      <CompletedTasksSection snapshot={snapshot} tasks={completedTasks} />
+      <CompletedRoutineOccurrencesSection snapshot={snapshot} occurrences={completedOccurrences} groupByDate />
     </div>
   );
 }

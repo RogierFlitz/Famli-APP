@@ -2,12 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { getRepository } from "@/lib/data";
-import { requireSnapshot } from "@/lib/auth/session";
+import { writeAuditLog } from "@/lib/security/audit";
+import { requireAuthorizedMutation } from "@/lib/security/guard";
 import type { ChangeRequestType, EventCategory } from "@/lib/domain/types";
 
 export async function createChangeRequestAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
-  await getRepository().createChangeRequest({
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "view_custody",
+    rateLimit: "mutation",
+  });
+  const request = await getRepository().createChangeRequest({
     familyId: snapshot.family.id,
     requestedByMemberId: snapshot.currentMember.id,
     type: String(formData.get("type") ?? "other") as ChangeRequestType,
@@ -22,6 +26,11 @@ export async function createChangeRequestAction(formData: FormData) {
       pickupMemberId: String(formData.get("pickupMemberId") ?? ""),
     },
   });
+  await writeAuditLog(snapshot, {
+    action: "create",
+    resourceType: "change_request",
+    resourceId: request.id,
+  });
   revalidatePath("/agenda");
   revalidatePath("/regelen");
   revalidatePath("/vandaag");
@@ -29,9 +38,13 @@ export async function createChangeRequestAction(formData: FormData) {
 }
 
 export async function respondToChangeRequestAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_custody",
+    rateLimit: "mutation",
+  });
+  const id = String(formData.get("id") ?? "");
   await getRepository().respondToChangeRequest({
-    id: String(formData.get("id") ?? ""),
+    id,
     actorMemberId: snapshot.currentMember.id,
     actorUserId: snapshot.currentProfile.id,
     decision: String(formData.get("decision") ?? "declined") as
@@ -40,6 +53,11 @@ export async function respondToChangeRequestAction(formData: FormData) {
       | "alternative_proposed",
     message: String(formData.get("message") ?? ""),
   });
+  await writeAuditLog(snapshot, {
+    action: "update",
+    resourceType: "change_request",
+    resourceId: id,
+  });
   revalidatePath("/agenda");
   revalidatePath("/regelen");
   revalidatePath("/vandaag");
@@ -47,12 +65,16 @@ export async function respondToChangeRequestAction(formData: FormData) {
 }
 
 export async function createEventAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const childIds = formData.getAll("childIds").map(String);
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_calendar",
+    childId: childIds[0] ?? null,
+    rateLimit: "mutation",
+  });
   const date = String(formData.get("date") ?? "");
   const start = String(formData.get("start") ?? "09:00");
   const end = String(formData.get("end") ?? "10:00");
-  const childIds = formData.getAll("childIds").map(String);
-  await getRepository().createEvent({
+  const event = await getRepository().createEvent({
     familyId: snapshot.family.id,
     createdBy: snapshot.currentProfile.id,
     title: String(formData.get("title") ?? ""),
@@ -69,13 +91,21 @@ export async function createEventAction(formData: FormData) {
     memberIds: formData.getAll("memberIds").map(String),
     allDay: String(formData.get("allDay") ?? "") === "true",
   });
+  await writeAuditLog(snapshot, {
+    action: "create",
+    resourceType: "event",
+    resourceId: event.id,
+  });
   revalidatePath("/agenda");
   revalidatePath("/vandaag");
   revalidatePath("/kinderen");
 }
 
 export async function createHandoverAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_custody",
+    rateLimit: "mutation",
+  });
   const childIds = formData.getAll("childIds").map(String);
   await getRepository().createHandover({
     familyId: snapshot.family.id,
@@ -98,7 +128,10 @@ export async function createHandoverAction(formData: FormData) {
 }
 
 export async function createVacationAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_travel",
+    rateLimit: "mutation",
+  });
   await getRepository().createVacation({
     familyId: snapshot.family.id,
     createdBy: snapshot.currentProfile.id,
@@ -113,7 +146,10 @@ export async function createVacationAction(formData: FormData) {
 }
 
 export async function respondToVacationAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_travel",
+    rateLimit: "mutation",
+  });
   await getRepository().respondToVacation(
     String(formData.get("id") ?? ""),
     snapshot.currentProfile.id,

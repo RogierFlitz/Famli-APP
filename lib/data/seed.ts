@@ -86,10 +86,34 @@ function nextThursdayWith(occurrences: CustodyOccurrence[], memberId: string, fr
   for (let i = 1; i <= 21; i += 1) {
     const date = addDays(from, i);
     if (getISODay(date) !== 4) continue;
-    const occ = occurrences.find((item) => item.date === iso(date));
+    const occ = occurrences.find((item) => item.date === iso(date) && item.childId === null);
     if (occ?.custodianMemberId === memberId) return iso(date);
   }
   return iso(addDays(from, ((4 - getISODay(from) + 7) % 7) || 7));
+}
+
+/** Per-child overrides so split custody (Roxy bij Emma, Sophie bij papa) shows in the calendar. */
+function addSplitCustodyOverrides(
+  occurrences: CustodyOccurrence[],
+  date: string,
+  assignments: { childId: string; memberId: string }[],
+) {
+  const shared = occurrences.find((item) => item.date === date && item.childId === null);
+  for (const { childId, memberId } of assignments) {
+    occurrences.push({
+      id: `occ-split-${date}-${childId}`,
+      familyId: IDS.family,
+      scheduleId: IDS.schedule,
+      childId,
+      date,
+      custodianMemberId: memberId,
+      isOverride: true,
+      source: "manual",
+      originalCustodianMemberId: shared?.custodianMemberId ?? null,
+      createdAt: `${date}T00:00:00`,
+      updatedAt: `${date}T00:00:00`,
+    });
+  }
 }
 
 export function createDemoSnapshot(now = new Date()): FamilySnapshot {
@@ -223,6 +247,18 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     to: iso(rangeEnd),
   });
   ensureHandoverToday(occurrences, todayIso, tomorrowIso);
+
+  const splitDayNear = iso(addDays(today, 3));
+  addSplitCustodyOverrides(occurrences, splitDayNear, [
+    { childId: IDS.roxy, memberId: IDS.emmaMember },
+    { childId: IDS.sophie, memberId: IDS.rogierMember },
+  ]);
+  const splitDayFar = iso(addDays(today, 10));
+  addSplitCustodyOverrides(occurrences, splitDayFar, [
+    { childId: IDS.roxy, memberId: IDS.rogierMember },
+    { childId: IDS.sophie, memberId: IDS.emmaMember },
+  ]);
+
   const thursday = nextThursdayWith(occurrences, IDS.rogierMember, today);
   const thursdayOcc = occurrences.find((item) => item.date === thursday);
   if (thursdayOcc) {

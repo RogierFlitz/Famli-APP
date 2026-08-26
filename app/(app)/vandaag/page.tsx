@@ -6,7 +6,7 @@ import { formatDayLong, toISODate } from "@/lib/dates";
 import { timelineForDate } from "@/lib/calendar/timeline";
 import { nextHandover, parentName, urgentActions } from "@/lib/queries/family-view";
 import { childPlace, comingSoon, forgetNot, neededHeadline, stayHeadline } from "@/lib/queries/child-life";
-import { myDutiesToday } from "@/lib/queries/routines";
+import { myOpenDutiesToday, myCompletedDutiesToday } from "@/lib/queries/routines";
 import { completeRoutineOccurrenceAction } from "@/lib/actions/routines";
 import { canAcceptChangeRequests } from "@/lib/members/permissions";
 import { AddMenu } from "@/components/compose/add-menu";
@@ -29,7 +29,8 @@ export default async function TodayPage() {
     : [];
   const remember = forgetNot(snapshot, now);
   const soon = comingSoon(snapshot, now);
-  const duties = myDutiesToday(snapshot, now);
+  const duties = myOpenDutiesToday(snapshot, now);
+  const completedDuties = myCompletedDutiesToday(snapshot, now);
 
   return (
     <div className="space-y-8">
@@ -70,7 +71,7 @@ export default async function TodayPage() {
         })}
       </section>
 
-      {duties.length ? (
+      {duties.length || completedDuties.length ? (
         <section>
           <h2 className="mb-3 text-2xl font-semibold">Voor jou vandaag</h2>
           <div className="space-y-2">
@@ -94,6 +95,22 @@ export default async function TodayPage() {
               </div>
             ))}
           </div>
+          {completedDuties.length ? (
+            <div className="mt-4 space-y-2">
+              <h3 className="text-lg font-semibold text-[color:var(--famli-muted)]">Afgerond vandaag</h3>
+              {completedDuties.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4 opacity-80"
+                >
+                  <p className="text-sm text-[color:var(--famli-muted)]">{item.time}</p>
+                  <p className="text-lg font-medium line-through">{item.title}</p>
+                  {item.subtitle ? <p className="text-sm text-[color:var(--famli-muted)]">{item.subtitle}</p> : null}
+                  <p className="mt-1 text-sm text-[color:var(--famli-muted)]">✓ Afgerond</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </section>
       ) : null}
 

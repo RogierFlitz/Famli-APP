@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getRepository } from "@/lib/data";
 import { SESSION_COOKIE, type SessionPayload } from "@/lib/domain/types";
+import { assertRateLimit } from "@/lib/security/rate-limit";
+import { safeRedirectPath } from "@/lib/security/redirect";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -43,6 +45,8 @@ export async function signUpLocal(formData: FormData) {
     redirect("/signup?error=Vul%20je%20voornaam%20en%20e-mailadres%20in.");
   }
 
+  assertRateLimit("login", email);
+
   if (isSupabaseConfigured()) {
     const password = String(formData.get("password") ?? "");
     const supabase = await createSupabaseServerClient();
@@ -63,15 +67,34 @@ export async function signUpLocal(formData: FormData) {
 export async function signInLocal(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const next = safeRedirectPath(String(formData.get("next") ?? ""));
+
+  assertRateLimit("login", email);
 
   if (isSupabaseConfigured()) {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
-    redirect("/vandaag");
+    redirect(next);
   }
 
   redirect("/login?error=Zonder%20Supabase%20gebruik%20je%20de%20demo%20of%20maak%20je%20een%20lokaal%20account.");
+}
+
+export async function requestPasswordReset(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  assertRateLimit("password_reset", email);
+
+  if (!isSupabaseConfigured()) {
+    redirect("/login?error=Wachtwoord%20reset%20vereist%20Supabase%20Auth.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl}/login`,
+  });
+  redirect("/login?error=Controleer%20je%20e-mail%20voor%20reset-instructies.");
 }
 
 export async function signOut() {

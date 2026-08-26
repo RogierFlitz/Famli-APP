@@ -2,13 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { getRepository } from "@/lib/data";
-import { requireSnapshot } from "@/lib/auth/session";
+import { writeAuditLog } from "@/lib/security/audit";
+import { requireAuthorizedMutation } from "@/lib/security/guard";
 import { MEDICAL_DISCLAIMER } from "@/lib/members/permissions";
+import { parseEuroToCents } from "@/lib/money";
 import type { RoutineAssignMode } from "@/lib/domain/types";
 
 export async function createRoutineAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
   const kind = String(formData.get("kind") ?? "routine") as "routine" | "care";
+  const childId = String(formData.get("childId") ?? "") || null;
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: kind === "care" ? "edit_care_routines" : "edit_tasks",
+    childId,
+    rateLimit: "mutation",
+  });
   const weekdays = formData
     .getAll("weekdays")
     .map((value) => Number(value))
@@ -18,12 +25,12 @@ export async function createRoutineAction(formData: FormData) {
     .map((value) => value.trim())
     .filter(Boolean);
 
-  await getRepository().createRoutine({
+  const routine = await getRepository().createRoutine({
     familyId: snapshot.family.id,
     createdBy: snapshot.currentProfile.id,
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? "") || null,
-    childId: String(formData.get("childId") ?? "") || null,
+    childId,
     assigneeMemberId: String(formData.get("assigneeMemberId") ?? "") || null,
     kind,
     weekdays: weekdays.length ? weekdays : [1, 2, 3, 4, 5],
@@ -37,18 +44,33 @@ export async function createRoutineAction(formData: FormData) {
       .filter(Boolean),
   });
 
+  await writeAuditLog(snapshot, {
+    action: "create",
+    resourceType: kind === "care" ? "care_routine" : "routine",
+    resourceId: routine.id,
+  });
+
   revalidatePath("/regelen");
   revalidatePath("/vandaag");
   revalidatePath("/kinderen");
 }
 
 export async function completeRoutineOccurrenceAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_tasks",
+    rateLimit: "mutation",
+  });
+  const occurrenceId = String(formData.get("occurrenceId") ?? "");
   await getRepository().completeRoutineOccurrence({
-    occurrenceId: String(formData.get("occurrenceId") ?? ""),
+    occurrenceId,
     actorUserId: snapshot.currentProfile.id,
     actorMemberId: snapshot.currentMember.id,
     notes: String(formData.get("notes") ?? "") || null,
+  });
+  await writeAuditLog(snapshot, {
+    action: "update",
+    resourceType: "routine_occurrence",
+    resourceId: occurrenceId,
   });
   revalidatePath("/regelen");
   revalidatePath("/vandaag");

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { getRepository } from "@/lib/data";
-import { requireSnapshot } from "@/lib/auth/session";
+import { writeAuditLog } from "@/lib/security/audit";
+import { requireAuthorizedMutation } from "@/lib/security/guard";
 import { parseEuroToCents } from "@/lib/money";
 import type { EventCategory, NeededCategory, SchoolEventKind } from "@/lib/domain/types";
 
@@ -15,9 +16,14 @@ function refreshFamily() {
 }
 
 export async function updateChildSizesAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const childId = String(formData.get("childId") ?? "");
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "view_child_basic",
+    childId,
+    rateLimit: "mutation",
+  });
   await getRepository().updateChildSizes({
-    childId: String(formData.get("childId") ?? ""),
+    childId,
     actorUserId: snapshot.currentProfile.id,
     clothing: String(formData.get("clothing") ?? "") || null,
     shoes: String(formData.get("shoes") ?? "") || null,
@@ -31,12 +37,18 @@ export async function updateChildSizesAction(formData: FormData) {
 }
 
 export async function createNeededAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const childIdRaw = String(formData.get("childId") ?? "") || null;
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_tasks",
+    childId: childIdRaw,
+    rateLimit: "mutation",
+  });
+  const childId = childIdRaw ?? snapshot.children[0]?.id ?? "";
   const budget = String(formData.get("budget") ?? "");
   await getRepository().createNeededItem({
     familyId: snapshot.family.id,
     createdBy: snapshot.currentProfile.id,
-    childId: String(formData.get("childId") ?? snapshot.children[0]?.id ?? ""),
+    childId,
     title: String(formData.get("title") ?? ""),
     category: String(formData.get("category") ?? "overig") as NeededCategory,
     size: String(formData.get("size") ?? "") || null,
@@ -51,7 +63,10 @@ export async function createNeededAction(formData: FormData) {
 }
 
 export async function claimNeededAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_tasks",
+    rateLimit: "mutation",
+  });
   await getRepository().claimNeededItem(
     String(formData.get("id") ?? ""),
     snapshot.currentProfile.id,
@@ -61,7 +76,10 @@ export async function claimNeededAction(formData: FormData) {
 }
 
 export async function purchaseNeededAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_expenses",
+    rateLimit: "mutation",
+  });
   const price = String(formData.get("price") ?? "");
   const receipt = formData.get("receipt");
   await getRepository().purchaseNeededItem({
@@ -75,7 +93,10 @@ export async function purchaseNeededAction(formData: FormData) {
 }
 
 export async function neededToExpenseAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_expenses",
+    rateLimit: "mutation",
+  });
   const parents = snapshot.members.filter((member) => member.role !== "viewer");
   const me = snapshot.currentMember.id;
   const other = parents.find((member) => member.id !== me)?.id;
@@ -91,19 +112,34 @@ export async function neededToExpenseAction(formData: FormData) {
 }
 
 export async function createChildUpdateAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
-  await getRepository().createChildUpdate({
+  const childId = String(formData.get("childId") ?? "");
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "view_child_basic",
+    childId,
+    rateLimit: "mutation",
+  });
+  const update = await getRepository().createChildUpdate({
     familyId: snapshot.family.id,
-    childId: String(formData.get("childId") ?? ""),
+    childId,
     body: String(formData.get("body") ?? ""),
     category: String(formData.get("category") ?? "") || null,
     authorMemberId: snapshot.currentMember.id,
+  });
+  await writeAuditLog(snapshot, {
+    action: "create",
+    resourceType: "child_update",
+    resourceId: update.id,
   });
   refreshFamily();
 }
 
 export async function createPartyAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const snapshot = (
+    await requireAuthorizedMutation({
+      capability: "edit_calendar",
+      rateLimit: "mutation",
+    })
+  ).snapshot;
   const date = String(formData.get("date") ?? "");
   const start = String(formData.get("start") ?? "14:00");
   const end = String(formData.get("end") ?? "17:00");
@@ -136,7 +172,10 @@ export async function createPartyAction(formData: FormData) {
 }
 
 export async function createSchoolMomentAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_calendar",
+    rateLimit: "mutation",
+  });
   const date = String(formData.get("date") ?? "");
   const kind = String(formData.get("schoolKind") ?? "studiedag") as SchoolEventKind;
   const start = String(formData.get("start") ?? "09:00");
@@ -161,9 +200,13 @@ export async function createSchoolMomentAction(formData: FormData) {
 }
 
 export async function createTravelAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
   const childIds = formData.getAll("childIds").map(String);
-  await getRepository().createTravelPlan({
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_travel",
+    childId: childIds[0] ?? null,
+    rateLimit: "sensitive",
+  });
+  const plan = await getRepository().createTravelPlan({
     familyId: snapshot.family.id,
     createdBy: snapshot.currentProfile.id,
     title: String(formData.get("title") ?? "Reis"),
@@ -189,16 +232,24 @@ export async function createTravelAction(formData: FormData) {
     returnDeparts: String(formData.get("returnDeparts") ?? "") || null,
     returnArrives: String(formData.get("returnArrives") ?? "") || null,
   });
+  await writeAuditLog(snapshot, {
+    action: "create",
+    resourceType: "travel_plan",
+    resourceId: plan.id,
+  });
   refreshFamily();
 }
 
 export async function createUpdateOrEventAction(formData: FormData) {
-  const snapshot = await requireSnapshot();
   const category = String(formData.get("category") ?? "overig") as EventCategory;
   if (category === "feestje") {
     await createPartyAction(formData);
     return;
   }
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_calendar",
+    rateLimit: "mutation",
+  });
   await getRepository().createEvent({
     familyId: snapshot.family.id,
     createdBy: snapshot.currentProfile.id,

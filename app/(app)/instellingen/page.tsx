@@ -82,6 +82,12 @@ export default async function SettingsPage() {
       <form action={signOut}>
         <button className="h-11 text-sm text-[color:var(--nest-muted)] underline">Uitloggen</button>
       </form>
+
+      <p className="text-sm">
+        <a href="/instellingen/beveiliging" className="text-[color:var(--nest-muted)] underline">
+          Beveiligingsinstellingen
+        </a>
+      </p>
     </div>
   );
 }

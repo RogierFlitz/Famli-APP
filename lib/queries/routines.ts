@@ -86,6 +86,94 @@ export function myDutiesToday(snapshot: FamilySnapshot, now = new Date()): DutyI
   return dutiesForMemberOn(snapshot, snapshot.currentMember.id, toISODate(now));
 }
 
+export function myOpenDutiesToday(snapshot: FamilySnapshot, now = new Date()): DutyItem[] {
+  return myDutiesToday(snapshot, now).filter((item) =>
+    item.kind === "task" ? item.task?.status !== "done" : item.occurrence?.status === "pending",
+  );
+}
+
+export function myCompletedDutiesToday(snapshot: FamilySnapshot, now = new Date()): DutyItem[] {
+  const date = toISODate(now);
+  const memberId = snapshot.currentMember.id;
+  const items: DutyItem[] = [];
+
+  for (const task of snapshot.tasks.filter((item) => item.kind === "one_off" && item.status === "done")) {
+    const due = task.dueAt?.slice(0, 10);
+    if (due !== date) continue;
+    if (task.assigneeMemberId && task.assigneeMemberId !== memberId) continue;
+    items.push({
+      id: task.id,
+      time: task.dueAt ? formatTime(task.dueAt) : "Hele dag",
+      title: task.title,
+      subtitle: task.childId
+        ? snapshot.children.find((child) => child.id === task.childId)?.firstName ?? ""
+        : "Gezin",
+      kind: "task",
+      task,
+      href: `/regelen?tab=taken&id=${task.id}`,
+      packingItems: [],
+    });
+  }
+
+  for (const occurrence of snapshot.routineOccurrences.filter((item) => item.date === date && item.status === "done")) {
+    if (occurrence.assigneeMemberId && occurrence.assigneeMemberId !== memberId) continue;
+    const routine = routineById(snapshot, occurrence.routineId);
+    if (!routine || routine.active === false) continue;
+    items.push({
+      id: occurrence.id,
+      time: occurrence.time,
+      title: occurrenceTitle(snapshot, routine, occurrence),
+      subtitle:
+        routine.kind === "care"
+          ? MEDICAL_DISCLAIMER
+          : occurrence.assigneeMemberId
+            ? `Voor ${parentName(snapshot, occurrence.assigneeMemberId).toLowerCase()}`
+            : "",
+      kind: routine.kind === "care" ? "care" : "routine",
+      routine,
+      occurrence,
+      href: `/regelen?tab=routines&id=${occurrence.id}`,
+      packingItems: routine.packingItems ?? [],
+      careInstructions: routine.careInstructions,
+    });
+  }
+
+  return items.sort((a, b) => a.time.localeCompare(b.time));
+}
+
+export function completedOneOffTasks(snapshot: FamilySnapshot) {
+  return snapshot.tasks
+    .filter((item) => item.kind === "one_off" && item.status === "done")
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export function completedRoutineOccurrences(snapshot: FamilySnapshot, daysBack = 14) {
+  const cutoff = toISODate(addDays(new Date(), -daysBack));
+  return snapshot.routineOccurrences
+    .filter((item) => item.status === "done" && item.date >= cutoff)
+    .sort((a, b) => {
+      const dateCmp = b.date.localeCompare(a.date);
+      if (dateCmp !== 0) return dateCmp;
+      return (b.completedAt ?? "").localeCompare(a.completedAt ?? "");
+    });
+}
+
+export function childCompletedTasks(snapshot: FamilySnapshot, childId: string) {
+  return snapshot.tasks
+    .filter((item) => item.kind === "one_off" && item.childId === childId && item.status === "done")
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export function childCompletedRoutineOccurrences(snapshot: FamilySnapshot, childId: string, daysBack = 14) {
+  const cutoff = toISODate(addDays(new Date(), -daysBack));
+  return snapshot.routineOccurrences
+    .filter((item) => {
+      const routine = routineById(snapshot, item.routineId);
+      return routine?.childId === childId && item.status === "done" && item.date >= cutoff;
+    })
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+}
+
 export function openCareForHandover(snapshot: FamilySnapshot, handoverDate: string) {
   return snapshot.routineOccurrences
     .filter((item) => item.date === handoverDate && item.status === "pending")

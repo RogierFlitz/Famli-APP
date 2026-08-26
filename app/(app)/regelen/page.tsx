@@ -7,7 +7,15 @@ import { parentName } from "@/lib/queries/family-view";
 import { formatDayLong } from "@/lib/dates";
 import { NeededList } from "@/components/children/needed-list";
 import { RoutineOccurrenceCard } from "@/components/routines/routine-list";
-import { myDutiesToday, routinesOnly } from "@/lib/queries/routines";
+import { CompletedRoutineOccurrencesSection } from "@/components/routines/completed-routines-section";
+import { CompletedTasksSection } from "@/components/tasks/completed-tasks-section";
+import {
+  completedOneOffTasks,
+  completedRoutineOccurrences,
+  myOpenDutiesToday,
+  myCompletedDutiesToday,
+  routinesOnly,
+} from "@/lib/queries/routines";
 import { canAcceptChangeRequests } from "@/lib/members/permissions";
 import { weekdayLabel } from "@/lib/domain/labels";
 import { createRoutineAction } from "@/lib/actions/routines";
@@ -19,7 +27,8 @@ export default async function ArrangePage({
 }) {
   const snapshot = await requireSnapshot();
   const { tab = "vandaag", id } = await searchParams;
-  const todayDuties = myDutiesToday(snapshot);
+  const todayDuties = myOpenDutiesToday(snapshot);
+  const todayCompleted = myCompletedDutiesToday(snapshot);
   const pending = canAcceptChangeRequests(snapshot)
     ? snapshot.changeRequests.filter((item) => item.status === "pending" || item.status === "alternative_proposed")
     : [];
@@ -28,6 +37,8 @@ export default async function ArrangePage({
   const routineOccurrences = snapshot.routineOccurrences
     .filter((item) => item.status === "pending" || item.status === "unregistered")
     .slice(0, 20);
+  const completedTasks = completedOneOffTasks(snapshot);
+  const completedOccurrences = completedRoutineOccurrences(snapshot);
   const myOpenSplits = snapshot.splits.filter((split) => {
     const expense = snapshot.expenses.find((item) => item.id === split.expenseId);
     return split.status === "pending" && expense && expense.paidByMemberId !== snapshot.currentMember.id && split.memberId === snapshot.currentMember.id;
@@ -66,16 +77,31 @@ export default async function ArrangePage({
       </nav>
 
       {tab === "vandaag" ? (
-        <div className="space-y-3">
-          {todayDuties.map((item) => (
-            <article key={item.id} className="famli-card">
-              <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">{item.time}</p>
-              <p className="mt-1 text-lg font-medium">{item.title}</p>
-              {item.subtitle ? <p className="text-sm text-[color:var(--famli-muted)]">{item.subtitle}</p> : null}
-            </article>
-          ))}
-          {!todayDuties.length ? (
-            <EmptyState title="Niets gepland voor vandaag" body="Taken en routines voor jou verschijnen hier." />
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {todayDuties.map((item) => (
+              <article key={item.id} className="famli-card">
+                <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">{item.time}</p>
+                <p className="mt-1 text-lg font-medium">{item.title}</p>
+                {item.subtitle ? <p className="text-sm text-[color:var(--famli-muted)]">{item.subtitle}</p> : null}
+              </article>
+            ))}
+            {!todayDuties.length && !todayCompleted.length ? (
+              <EmptyState title="Niets gepland voor vandaag" body="Taken en routines voor jou verschijnen hier." />
+            ) : null}
+          </div>
+          {todayCompleted.length ? (
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold">Afgerond vandaag</h2>
+              {todayCompleted.map((item) => (
+                <article key={item.id} className="famli-card opacity-80">
+                  <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">{item.time}</p>
+                  <p className="mt-1 text-lg font-medium line-through">{item.title}</p>
+                  {item.subtitle ? <p className="text-sm text-[color:var(--famli-muted)]">{item.subtitle}</p> : null}
+                  <p className="mt-1 text-sm text-[color:var(--famli-muted)]">✓ Afgerond</p>
+                </article>
+              ))}
+            </section>
           ) : null}
         </div>
       ) : null}
@@ -139,6 +165,7 @@ export default async function ArrangePage({
             </article>
           ))}
           {!tasks.length ? <EmptyState title="Geen open taken" body="Voeg een taak toe als er iets geregeld moet worden." /> : null}
+          <CompletedTasksSection snapshot={snapshot} tasks={completedTasks} />
         </div>
       ) : null}
 
@@ -208,6 +235,11 @@ export default async function ArrangePage({
               <EmptyState title="Geen open routines" body="Voeg een routine toe voor terugkerende taken." />
             ) : null}
           </div>
+          <CompletedRoutineOccurrencesSection
+            snapshot={snapshot}
+            occurrences={completedOccurrences}
+            groupByDate
+          />
         </div>
       ) : null}
 

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { generateInviteToken, inviteExpiresAt } from "@/lib/security/invites";
 import { addDaysIso, toISODate } from "@/lib/dates";
 import { generateHandovers, generateOccurrences } from "@/lib/custody/generate";
 import { splitAmounts } from "@/lib/money";
@@ -1071,7 +1072,8 @@ export const memoryRepository: FamilyRepository = {
     const relationType = input.relationType;
     const preset = input.permissionPreset ?? (relationType === "partner" ? "involved" : "practical");
     const role = roleForRelation(relationType);
-    const token = randomUUID();
+    const token = generateInviteToken();
+    const expiresAt = inviteExpiresAt().toISOString();
     mutateFamily(input.familyId, (snap) => {
       const memberId = randomUUID();
       snap.members.push({
@@ -1112,7 +1114,7 @@ export const memoryRepository: FamilyRepository = {
           role,
           parentLabel: input.parentLabel,
           token,
-          expiresAt: new Date(Date.now() + 14 * 86400000).toISOString(),
+          expiresAt,
           acceptedAt: null,
           createdAt: nowIso(),
         });
