@@ -224,6 +224,12 @@ export interface FamilyRepository {
     userId: string,
     privacyMode: CalendarPrivacyMode,
   ): Promise<void>;
+  syncCalendarConnection(userId: string, provider: import("@/lib/domain/types").CalendarProvider): Promise<void>;
+  disconnectCalendar(userId: string, provider: import("@/lib/domain/types").CalendarProvider): Promise<void>;
+  connectIcsCalendar(userId: string, familyId: string, icsUrl: string, label?: string): Promise<void>;
+  updateGoogleSelectedCalendars(userId: string, calendarIds: string[]): Promise<void>;
+  syncStaleCalendars(userId: string): Promise<void>;
+  listGoogleCalendarsForUser(userId: string): Promise<Array<{ id: string; name: string; primary?: boolean }>>;
   addRecurringExpense(input: {
     familyId: string;
     createdBy: string;

@@ -58,22 +58,19 @@ export function FamilyCalendar({
   const [view, setView] = useState<CalendarView>(() => resolveInitialView(initialView, false));
   const [filters, setFilters] = useState<CalendarFilterState>(DEFAULT_FILTERS);
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate ?? null);
-  const [mobileDay, setMobileDay] = useState<string>(initialDate ?? todayIso);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
     () => snapshot.events.find((event) => event.id === focusId) ?? null,
   );
   const [proposeOpen, setProposeOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
-  useEffect(() => {
-    if (!initialView) {
-      setView(resolveInitialView(undefined, mobile));
-    }
-  }, [mobile, initialView]);
+  const [mobileDefaultApplied, setMobileDefaultApplied] = useState(Boolean(initialView));
+  if (!initialView && mobile && !mobileDefaultApplied) {
+    setMobileDefaultApplied(true);
+    setView(resolveInitialView(undefined, mobile));
+  }
 
-  useEffect(() => {
-    setMobileDay(toISODate(anchor));
-  }, [anchor]);
+  const mobileDay = toISODate(anchor);
 
   const navigatePrev = () => {
     setAnchor((current) => {
@@ -94,14 +91,11 @@ export function FamilyCalendar({
   const goToday = () => {
     const now = new Date();
     setAnchor(now);
-    const iso = toISODate(now);
-    setMobileDay(iso);
-    if (view === "day") setSelectedDate(iso);
+    if (view === "day") setSelectedDate(toISODate(now));
   };
 
   const handleSelectDay = (iso: string) => {
     setSelectedDate(iso);
-    setMobileDay(iso);
     setAnchor(new Date(`${iso}T12:00:00`));
   };
 
@@ -144,10 +138,7 @@ export function FamilyCalendar({
             selectedIso={mobileDay}
             filters={filters}
             todayIso={todayIso}
-            onSelectDay={(iso) => {
-              setMobileDay(iso);
-              handleSelectDay(iso);
-            }}
+            onSelectDay={handleSelectDay}
             onSelectEvent={setSelectedEvent}
           />
         ) : null}
@@ -170,10 +161,7 @@ export function FamilyCalendar({
             selectedIso={mobileDay}
             filters={filters}
             todayIso={todayIso}
-            onSelectDay={(iso) => {
-              setMobileDay(iso);
-              handleSelectDay(iso);
-            }}
+            onSelectDay={handleSelectDay}
             onSelectEvent={setSelectedEvent}
           />
         ) : null}
@@ -199,10 +187,7 @@ export function FamilyCalendar({
             selectedIso={mobileDay}
             filters={filters}
             todayIso={todayIso}
-            onSelectDay={(iso) => {
-              setMobileDay(iso);
-              setAnchor(new Date(`${iso}T12:00:00`));
-            }}
+            onSelectDay={(iso) => setAnchor(new Date(`${iso}T12:00:00`))}
             onSelectEvent={setSelectedEvent}
           />
         ) : null}

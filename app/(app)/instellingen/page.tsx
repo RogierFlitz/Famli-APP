@@ -1,14 +1,21 @@
 import { requireSnapshot } from "@/lib/auth/session";
 import { planLabel, notificationPrefLabel } from "@/lib/domain/labels";
+import { googleOAuthConfigured, microsoftOAuthConfigured } from "@/lib/calendar/config";
 import { CalendarPrivacyPanel } from "@/components/settings/calendar-privacy";
 import { FamilyMembersPanel } from "@/components/settings/family-members";
 import { signOut } from "@/lib/auth/actions";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ calendar?: string; connected?: string; error?: string }>;
+}) {
   const snapshot = await requireSnapshot();
-  const connection = snapshot.calendarConnections.find(
+  const params = await searchParams;
+  const ownConnections = snapshot.calendarConnections.filter(
     (item) => item.userId === snapshot.currentProfile.id,
   );
+  const privacyConnection = ownConnections[0];
 
   return (
     <div className="space-y-8">
@@ -24,9 +31,20 @@ export default async function SettingsPage() {
       <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
         <h2 className="font-[family-name:var(--font-display)] text-2xl">Persoonlijke agenda</h2>
         <p className="mt-2 text-sm text-[color:var(--nest-muted)]">
-          Een persoonlijke agenda mag gekoppeld worden zonder dat de andere ouder privé-informatie ziet.
+          Koppel je eigen agenda en kies wat andere gezinsleden mogen zien. Famli-gebeurtenissen blijven apart
+          zichtbaar.
         </p>
-        <CalendarPrivacyPanel privacyMode={connection?.privacyMode ?? "busy"} />
+        <CalendarPrivacyPanel
+          privacyMode={privacyConnection?.privacyMode ?? "busy"}
+          connections={ownConnections}
+          userId={snapshot.currentProfile.id}
+          flash={{
+            provider: params.calendar,
+            connected: params.connected === "1",
+            error: params.error,
+          }}
+          oauthReady={{ google: googleOAuthConfigured(), microsoft: microsoftOAuthConfigured() }}
+        />
       </section>
 
       <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">

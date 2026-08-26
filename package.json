@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:security": "npx tsx --tsconfig tsconfig.json --test tests/security/*.test.ts tests/life/*.test.ts tests/custody/*.test.ts tests/notifications/*.test.ts tests/shopping/*.test.ts"
+    "test:security": "npx tsx --tsconfig tsconfig.json --test tests/security/*.test.ts tests/life/*.test.ts tests/custody/*.test.ts tests/notifications/*.test.ts tests/shopping/*.test.ts tests/calendar/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",

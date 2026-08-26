@@ -1,4 +1,5 @@
 import { requireSnapshot } from "@/lib/auth/session";
+import { syncStaleCalendarsAction } from "@/lib/actions/calendar-integrations";
 import { FamilyCalendar } from "@/components/calendar/family-calendar";
 
 export default async function AgendaPage({
@@ -8,6 +9,13 @@ export default async function AgendaPage({
 }) {
   const snapshot = await requireSnapshot();
   const params = await searchParams;
+
+  try {
+    await syncStaleCalendarsAction();
+  } catch {
+    // Non-blocking stale sync
+  }
+
   return (
     <FamilyCalendar
       snapshot={snapshot}

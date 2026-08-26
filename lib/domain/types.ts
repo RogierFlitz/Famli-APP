@@ -458,8 +458,27 @@ export interface CalendarConnection {
   privacyMode: CalendarPrivacyMode;
   status: "disconnected" | "pending" | "connected" | "error";
   syncOutbound: boolean;
+  providerAccountEmail?: string | null;
+  selectedCalendars?: Array<{ id: string; name: string; primary?: boolean }>;
+  lastSyncedAt?: string | null;
+  syncError?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Sanitized personal calendar event visible in the family agenda. */
+export interface PersonalCalendarEvent {
+  id: string;
+  userId: string;
+  ownerMemberId: string;
+  provider: CalendarProvider;
+  startsAt: string;
+  endsAt: string;
+  title: string;
+  location: string | null;
+  allDay: boolean;
+  isBusyOnly: boolean;
+  isOwn: boolean;
 }
 
 export interface ActivityLogEntry {
@@ -811,6 +830,7 @@ export interface FamilySnapshot {
   contextMessages: ContextMessage[];
   importJobs: ImportJob[];
   externalBusyBlocks: ExternalBusyBlock[];
+  personalCalendarEvents: PersonalCalendarEvent[];
   guestLinkTokens: GuestLinkToken[];
   handoverCheckIns: HandoverCheckIn[];
   households: Household[];

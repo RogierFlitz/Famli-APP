@@ -801,6 +801,7 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     ],
     importJobs: [],
     externalBusyBlocks: [],
+    personalCalendarEvents: [],
     guestLinkTokens: [],
     handoverCheckIns: [],
     households,

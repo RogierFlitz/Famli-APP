@@ -45,6 +45,13 @@ import {
 } from "@/lib/shopping/store-helpers";
 import { inferShoppingCategory } from "@/lib/shopping/categories";
 import { throwIfMissingShoppingTables } from "@/lib/shopping/errors";
+import { mapRpcRowToPersonalEvent, type RawExternalEventRow } from "@/lib/calendar/sanitize";
+import {
+  disconnectCalendarConnection,
+  saveIcsConnection,
+  syncCalendarConnection as runCalendarSync,
+  syncUserConnections,
+} from "@/lib/calendar/sync";
 import type {
   CalendarEvent,
   ChangeRequest,
@@ -65,6 +72,7 @@ import type {
   ImportJob,
   NeededItem,
   Party,
+  PersonalCalendarEvent,
   Profile,
   RoutineOccurrence,
   ShoppingItem,
@@ -558,7 +566,7 @@ export const supabaseRepository: FamilyRepository = {
       supabase.from("recurring_expenses").select("*").eq("family_id", familyId),
       supabase.from("documents").select("*").eq("family_id", familyId),
       supabase.from("notifications").select("*").eq("family_id", familyId).eq("user_id", userId),
-      supabase.from("calendar_connections").select("*").eq("user_id", userId),
+      supabase.from("calendar_connections").select("id, user_id, family_id, provider, privacy_mode, status, sync_outbound, provider_account_email, selected_calendars, last_synced_at, sync_error, created_at, updated_at").eq("family_id", familyId),
       supabase.from("activity_log").select("*").eq("family_id", familyId).order("created_at", { ascending: false }).limit(50),
       supabase.from("invites").select("*").eq("family_id", familyId),
       supabase.from("vacations").select("*").eq("family_id", familyId),
@@ -614,6 +622,18 @@ export const supabaseRepository: FamilyRepository = {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
+
+    const memberByUserId = new Map(
+      members.filter((item) => item.userId).map((item) => [item.userId!, item.id] as const),
+    );
+    const { data: externalRows } = await supabase.rpc("get_family_external_calendar_events", {
+      p_family_id: familyId,
+    });
+    const personalCalendarEvents = (externalRows ?? [])
+      .map((row: RawExternalEventRow) =>
+        mapRpcRowToPersonalEvent(row, memberByUserId.get(row.user_id) ?? ""),
+      )
+      .filter((item: PersonalCalendarEvent | null): item is PersonalCalendarEvent => Boolean(item));
 
     const familyRow = familyRes.data;
     const family: Family = {
@@ -879,6 +899,10 @@ export const supabaseRepository: FamilyRepository = {
         privacyMode: row.privacy_mode,
         status: row.status,
         syncOutbound: row.sync_outbound,
+        providerAccountEmail: row.provider_account_email ?? null,
+        selectedCalendars: row.selected_calendars ?? [],
+        lastSyncedAt: row.last_synced_at ?? null,
+        syncError: row.sync_error ?? null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       })),
@@ -958,6 +982,7 @@ export const supabaseRepository: FamilyRepository = {
       clubs: [],
       households: [],
       externalBusyBlocks: [],
+      personalCalendarEvents,
       contextMessages: (contextMessagesRes.data ?? []).map(mapContextMessageRow),
       handoverCheckIns: (handoverCheckInsRes.data ?? []).map(mapHandoverCheckInRow),
       importJobs: (importJobsRes.data ?? []).map(mapImportJobRow),
@@ -1679,7 +1704,7 @@ export const supabaseRepository: FamilyRepository = {
     if (existing) {
       const { error } = await supabase
         .from("calendar_connections")
-        .update({ privacy_mode: privacyMode })
+        .update({ privacy_mode: privacyMode, updated_at: new Date().toISOString() })
         .eq("user_id", userId);
       if (error) throw error;
       return;
@@ -1705,6 +1730,61 @@ export const supabaseRepository: FamilyRepository = {
       sync_outbound: false,
     });
     if (error) throw error;
+  },
+
+  async syncCalendarConnection(userId, provider) {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("calendar_connections")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("provider", provider)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data?.id) throw new Error("Geen agenda-koppeling gevonden.");
+    await runCalendarSync(data.id);
+  },
+
+  async disconnectCalendar(userId, provider) {
+    await disconnectCalendarConnection(userId, provider);
+  },
+
+  async connectIcsCalendar(userId, familyId, icsUrl, label) {
+    const connectionId = await saveIcsConnection({ userId, familyId, icsUrl, label });
+    await runCalendarSync(connectionId);
+  },
+
+  async updateGoogleSelectedCalendars(userId, calendarIds) {
+    const supabase = await db();
+    const { error } = await supabase
+      .from("calendar_connections")
+      .update({ selected_calendars: calendarIds.map((id) => ({ id, name: id })) })
+      .eq("user_id", userId)
+      .eq("provider", "google");
+    if (error) throw error;
+    await this.syncCalendarConnection(userId, "google");
+  },
+
+  async syncStaleCalendars(userId) {
+    await syncUserConnections(userId, { staleOnly: true });
+  },
+
+  async listGoogleCalendarsForUser(userId) {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("calendar_connections")
+      .select("id, access_token_encrypted, refresh_token_encrypted, token_expires_at, provider")
+      .eq("user_id", userId)
+      .eq("provider", "google")
+      .eq("status", "connected")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return [];
+    const { ensureAccessToken, mapConnectionRow } = await import("@/lib/calendar/sync");
+    const { listGoogleCalendars } = await import("@/lib/calendar/providers/google");
+    const token = await ensureAccessToken(mapConnectionRow(data));
+    if (!token) return [];
+    return listGoogleCalendars(token);
   },
 
   async addRecurringExpense(input) {

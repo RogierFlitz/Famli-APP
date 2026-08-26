@@ -37,7 +37,7 @@ export default async function OnboardingPage() {
       lastName={profile?.lastName ?? ""}
       email={profile?.email ?? ""}
       familyName={snapshot?.family.name ?? ""}
-      children={snapshot?.children.map((child) => child.firstName) ?? []}
+      childNames={snapshot?.children.map((child) => child.firstName) ?? []}
       invited={snapshot?.invites.map((invite) => invite.email) ?? []}
       hasSchedule={Boolean(snapshot?.schedule)}
       parents={parents}

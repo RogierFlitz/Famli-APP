@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { searchFamily } from "@/lib/search";
@@ -8,13 +8,9 @@ import type { FamilySnapshot } from "@/lib/domain/types";
 
 export function FamilySearch({ snapshot }: { snapshot: FamilySnapshot }) {
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
   const hits = searchFamily(snapshot, query);
-
-  useEffect(() => {
-    if (query.length < 2) setOpen(false);
-    else setOpen(true);
-  }, [query]);
+  const open = hits.length > 0 && (query.length >= 2 || focused);
 
   return (
     <div className="relative min-w-0 flex-1">
@@ -26,7 +22,8 @@ export function FamilySearch({ snapshot }: { snapshot: FamilySnapshot }) {
         id="famli-search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        onFocus={() => hits.length && setOpen(true)}
+        onFocus={() => hits.length && setFocused(true)}
+        onBlur={() => setFocused(false)}
         placeholder="Zoek schoenmaat, hockey, reis..."
         className="h-11 w-full rounded-full border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] pl-10 pr-4 text-sm"
       />
@@ -38,7 +35,7 @@ export function FamilySearch({ snapshot }: { snapshot: FamilySnapshot }) {
               href={hit.href}
               onClick={() => {
                 setQuery("");
-                setOpen(false);
+                setFocused(false);
               }}
               className="block px-4 py-3 hover:bg-[color:var(--famli-bg)]"
             >

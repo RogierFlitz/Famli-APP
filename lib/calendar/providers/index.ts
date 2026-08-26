@@ -1,10 +1,5 @@
 import type { CalendarPrivacyMode, CalendarProvider } from "@/lib/domain/types";
 
-/**
- * Modular calendar integration layer.
- * Provider adapters are intentionally inert until OAuth credentials exist.
- * Do not call live Google/Microsoft APIs from this module.
- */
 export interface ExternalCalendarEvent {
   id: string;
   startsAt: string;
@@ -41,42 +36,37 @@ export function applyPrivacy(
   };
 }
 
-export interface CalendarProviderAdapter {
+export interface CalendarProviderMeta {
   id: CalendarProvider;
   label: string;
   description: string;
   authKind: "oauth" | "ics";
-  connect(): Promise<never>;
+  limitations?: string;
 }
 
-function notConfigured(provider: string): Promise<never> {
-  return Promise.reject(
-    new Error(
-      `${provider} is nog niet gekoppeld. Voeg OAuth-credentials toe voordat je deze provider activeert.`,
-    ),
-  );
-}
-
-export const calendarProviders: CalendarProviderAdapter[] = [
+export const calendarProviderMeta: CalendarProviderMeta[] = [
   {
     id: "microsoft",
     label: "Microsoft Outlook",
-    description: "Microsoft Graph Calendar API. Persoonlijke afspraken blijven privé tot jij deelt.",
+    description: "Koppel je Outlook-agenda. Famli leest alleen je afspraken — niets wordt teruggeschreven.",
     authKind: "oauth",
-    connect: () => notConfigured("Microsoft Outlook"),
   },
   {
     id: "google",
     label: "Google Calendar",
-    description: "Google Calendar API. Famli-gebeurtenissen kunnen later optioneel terug synchroniseren.",
+    description: "Koppel Google Calendar en kies welke agenda's je wilt importeren.",
     authKind: "oauth",
-    connect: () => notConfigured("Google Calendar"),
   },
   {
     id: "apple_ics",
     label: "Apple Calendar",
-    description: "ICS-abonnement of export. Geschikt voor delen zonder volledige accounttoegang.",
+    description: "Importeer via een ICS-abonnementslink. Geen volledige accountkoppeling mogelijk.",
     authKind: "ics",
-    connect: () => notConfigured("Apple Calendar"),
+    limitations:
+      "Apple biedt geen OAuth voor agenda's. Deel een ICS-link uit Apple Calendar (Instellingen → Accounts → Agenda → Deel). Famli importeert periodiek; wijzigingen kunnen vertraagd binnenkomen.",
   },
 ];
+
+export { googleAuthorizeUrl, exchangeGoogleCode, refreshGoogleToken, listGoogleCalendars, fetchGoogleEvents } from "./google";
+export { microsoftAuthorizeUrl, exchangeMicrosoftCode, refreshMicrosoftToken, fetchMicrosoftEvents } from "./microsoft";
+export { fetchIcsEvents, parseIcsEvents } from "./apple-ics";

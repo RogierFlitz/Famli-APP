@@ -21,6 +21,7 @@ export function emptyLifeFields(): Pick<
   | "contextMessages"
   | "importJobs"
   | "externalBusyBlocks"
+  | "personalCalendarEvents"
   | "guestLinkTokens"
   | "handoverCheckIns"
   | "households"
@@ -42,6 +43,7 @@ export function emptyLifeFields(): Pick<
     contextMessages: [],
     importJobs: [],
     externalBusyBlocks: [],
+    personalCalendarEvents: [],
     guestLinkTokens: [],
     handoverCheckIns: [],
     households: [],

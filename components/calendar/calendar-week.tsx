@@ -4,11 +4,13 @@ import { format } from "date-fns";
 import { nl } from "date-fns/locale";
 import { toISODate, weekDays } from "@/lib/dates";
 import { filteredEventsOn, filteredTasksOn, custodyBackgroundStyle, custodyStateForDate } from "@/lib/calendar/helpers";
+import { personalEventsOn } from "@/lib/calendar/external-events";
 import { handoverOn } from "@/lib/queries/family-view";
 import Link from "next/link";
 import type { CalendarEvent, FamilySnapshot } from "@/lib/domain/types";
 import type { CalendarFilterState } from "@/lib/calendar/helpers";
 import { CalendarEventChip } from "@/components/calendar/calendar-event";
+import { PersonalEventChip } from "@/components/calendar/personal-event-chip";
 import { HandoverEvent } from "@/components/calendar/handover-event";
 import { CustodyHeadline } from "@/components/calendar/custody-indicator";
 import { cn } from "@/lib/utils";
@@ -38,6 +40,7 @@ export function CalendarWeek({
         const custody = custodyStateForDate(snapshot, iso);
         const handover = handoverOn(snapshot, iso);
         const dayEvents = filteredEventsOn(snapshot, iso, filters).filter((event) => event.category !== "overdracht");
+        const personalEvents = personalEventsOn(snapshot, iso, filters);
         const dayTasks = filteredTasksOn(snapshot, iso, filters);
 
         return (
@@ -89,6 +92,9 @@ export function CalendarWeek({
                   onSelect={onSelectEvent}
                 />
               ))}
+              {personalEvents.map((event) => (
+                <PersonalEventChip key={event.id} snapshot={snapshot} event={event} />
+              ))}
               {dayTasks.map((task) => (
                 <Link
                   key={task.id}
@@ -99,7 +105,7 @@ export function CalendarWeek({
                   <span className="ml-1 text-[color:var(--famli-muted)]">· Taak</span>
                 </Link>
               ))}
-              {!dayEvents.length && !dayTasks.length && !handover ? (
+              {!dayEvents.length && !personalEvents.length && !dayTasks.length && !handover ? (
                 <p className="text-xs text-[color:var(--famli-muted)]">Geen afspraken</p>
               ) : null}
             </div>
@@ -172,6 +178,7 @@ export function CalendarDayTimeline({
 }) {
   const handover = handoverOn(snapshot, date);
   const dayEvents = filteredEventsOn(snapshot, date, filters).filter((event) => event.category !== "overdracht");
+  const personalEvents = personalEventsOn(snapshot, date, filters);
   const dayTasks = filteredTasksOn(snapshot, date, filters);
 
   return (
@@ -195,6 +202,9 @@ export function CalendarDayTimeline({
           onSelect={onSelectEvent}
         />
       ))}
+      {personalEvents.map((event) => (
+        <PersonalEventChip key={event.id} snapshot={snapshot} event={event} />
+      ))}
       {dayTasks.map((task) => (
         <Link
           key={task.id}
@@ -205,7 +215,7 @@ export function CalendarDayTimeline({
           <p className="text-xs text-[color:var(--famli-muted)]">Taak</p>
         </Link>
       ))}
-      {!dayEvents.length && !dayTasks.length && !handover ? (
+      {!dayEvents.length && !personalEvents.length && !dayTasks.length && !handover ? (
         <p className="py-6 text-center text-sm text-[color:var(--famli-muted)]">Geen afspraken vandaag</p>
       ) : null}
     </div>

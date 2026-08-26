@@ -1,5 +1,6 @@
 "use client";
 
+import { createElement } from "react";
 import {
   ArrowLeftRight,
   Backpack,
@@ -56,7 +57,6 @@ export function CalendarEventChip({
   onSelect: (event: CalendarEvent) => void;
   className?: string;
 }) {
-  const Icon = eventIcon(event);
   const isHandover = eventKind(event) === "wissel";
   const handover = isHandover ? handoverOn(snapshot, date) : null;
   const routine = isRoutineEvent(event) && !isImportantEvent(event);
@@ -87,7 +87,10 @@ export function CalendarEventChip({
         className,
       )}
     >
-      <Icon className={cn("shrink-0", compact ? "size-2.5" : "size-3")} aria-hidden />
+      {createElement(eventIcon(event), {
+        className: cn("shrink-0", compact ? "size-2.5" : "size-3"),
+        "aria-hidden": true,
+      })}
       <span className="min-w-0 flex-1 truncate">
         {time && !isHandover ? <span className="mr-1 tabular-nums opacity-70">{time}</span> : null}
         {title}

@@ -957,6 +957,9 @@ export const memoryRepository: FamilyRepository = {
     const familyId = getStore().userFamily.get(userId);
     const snap = familyId ? getStore().families.get(familyId) : null;
     if (!snap) return;
+    for (const connection of snap.calendarConnections.filter((item) => item.userId === userId)) {
+      connection.privacyMode = privacyMode;
+    }
     const connection = snap.calendarConnections.find((item) => item.userId === userId);
     if (connection) connection.privacyMode = privacyMode;
     else {
@@ -972,6 +975,61 @@ export const memoryRepository: FamilyRepository = {
         updatedAt: nowIso(),
       });
     }
+  },
+
+  async syncCalendarConnection(_userId, _provider) {
+    // Demo mode: no live sync
+  },
+
+  async disconnectCalendar(userId, provider) {
+    mutateFamilyFromUser(userId, (snap) => {
+      const connection = snap.calendarConnections.find(
+        (item) => item.userId === userId && item.provider === provider,
+      );
+      if (connection) {
+        connection.status = "disconnected";
+        connection.providerAccountEmail = null;
+        connection.lastSyncedAt = null;
+        connection.syncError = null;
+      }
+      snap.personalCalendarEvents = snap.personalCalendarEvents.filter(
+        (item) => !(item.userId === userId && item.provider === provider),
+      );
+    });
+  },
+
+  async connectIcsCalendar(userId, familyId, icsUrl, label) {
+    mutateFamily(familyId, (snap) => {
+      const existing = snap.calendarConnections.find(
+        (item) => item.userId === userId && item.provider === "apple_ics",
+      );
+      if (existing) {
+        existing.status = "connected";
+        existing.providerAccountEmail = label ?? "ICS-abonnement";
+        existing.updatedAt = nowIso();
+      } else {
+        snap.calendarConnections.push({
+          id: randomUUID(),
+          userId,
+          familyId,
+          provider: "apple_ics",
+          privacyMode: "busy",
+          status: "connected",
+          syncOutbound: false,
+          providerAccountEmail: label ?? icsUrl.slice(0, 40),
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+        });
+      }
+    });
+  },
+
+  async updateGoogleSelectedCalendars(_userId, _calendarIds) {},
+
+  async syncStaleCalendars(_userId) {},
+
+  async listGoogleCalendarsForUser(_userId) {
+    return [];
   },
 
   async addRecurringExpense(input) {

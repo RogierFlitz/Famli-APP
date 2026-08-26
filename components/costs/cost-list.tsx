@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Receipt } from "lucide-react";
 import { formatEuro } from "@/lib/money";
@@ -108,12 +108,9 @@ export function CostList({
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "open" | "done">("open");
-  const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
+  const [userSelectedId, setUserSelectedId] = useState<string | null>(null);
+  const selectedId = focusId ?? userSelectedId;
   const me = snapshot.currentMember.id;
-
-  useEffect(() => {
-    setSelectedId(focusId ?? null);
-  }, [focusId]);
 
   const allItems = useMemo<CostItem[]>(() => {
     return snapshot.expenses
@@ -141,12 +138,12 @@ export function CostList({
   const selectedItem = allItems.find((item) => item.expense.id === selectedId) ?? null;
 
   function openDetail(expenseId: string) {
-    setSelectedId(expenseId);
+    setUserSelectedId(expenseId);
     router.replace(`/kosten?id=${expenseId}`, { scroll: false });
   }
 
   function closeDetail() {
-    setSelectedId(null);
+    setUserSelectedId(null);
     router.replace("/kosten", { scroll: false });
   }
 

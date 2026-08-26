@@ -30,7 +30,7 @@ export function OnboardingWizard(props: {
   lastName: string;
   email: string;
   familyName: string;
-  children: string[];
+  childNames: string[];
   invited: string[];
   hasSchedule: boolean;
   parents: ParentOption[];
@@ -38,7 +38,7 @@ export function OnboardingWizard(props: {
   const initialStep = useMemo(() => {
     if (props.hasSchedule) return 5;
     if (props.invited.length) return 4;
-    if (props.children.length) return 3;
+    if (props.childNames.length) return 3;
     if (props.familyName) return 2;
     return 0;
   }, [props]);

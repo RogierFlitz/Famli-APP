@@ -13,10 +13,12 @@ import {
   sortEventsForCell,
   type CalendarFilterState,
 } from "@/lib/calendar/helpers";
+import { personalEventsOn } from "@/lib/calendar/external-events";
 import { handoverOn } from "@/lib/queries/family-view";
 import { dayCover } from "@/lib/queries/child-life";
 import type { CalendarEvent, FamilySnapshot } from "@/lib/domain/types";
 import { CalendarEventChip } from "@/components/calendar/calendar-event";
+import { PersonalEventChip } from "@/components/calendar/personal-event-chip";
 import { HandoverEvent } from "@/components/calendar/handover-event";
 import { CustodyIndicator } from "@/components/calendar/custody-indicator";
 import { cn } from "@/lib/utils";
@@ -51,10 +53,13 @@ export function CalendarCell({
   const dayEvents = sortEventsForCell(
     filteredEventsOn(snapshot, iso, filters).filter((event) => event.category !== "overdracht"),
   );
+  const personalEvents = personalEventsOn(snapshot, iso, filters);
   const dayTasks = filteredTasksOn(snapshot, iso, filters);
   const tasksOnly = onlyTasksFilterActive(filters);
   const visible = (tasksOnly ? [] : dayEvents).slice(0, MAX_VISIBLE);
-  const hiddenCount = tasksOnly ? 0 : dayEvents.length - visible.length;
+  const visiblePersonal = tasksOnly ? [] : personalEvents.slice(0, Math.max(0, MAX_VISIBLE - visible.length));
+  const hiddenCount =
+    tasksOnly ? 0 : dayEvents.length - visible.length + Math.max(0, personalEvents.length - visiblePersonal.length);
 
   return (
     <div
@@ -115,6 +120,9 @@ export function CalendarCell({
             compact
             onSelect={onSelectEvent}
           />
+        ))}
+        {visiblePersonal.map((event) => (
+          <PersonalEventChip key={event.id} snapshot={snapshot} event={event} compact />
         ))}
         {hiddenCount > 0 ? (
           <p className="px-0.5 text-[10px] text-[color:var(--famli-muted)]">+{hiddenCount} meer</p>

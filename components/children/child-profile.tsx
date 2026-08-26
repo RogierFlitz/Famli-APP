@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
@@ -46,9 +46,9 @@ export function ChildProfile({
 }) {
   const startTab = TABS.some((item) => item.id === initialTab) ? (initialTab as Tab) : "overzicht";
   const [tab, setTab] = useState<Tab>(startTab);
-  useEffect(() => {
-    if (TABS.some((item) => item.id === initialTab)) setTab(initialTab as Tab);
-  }, [initialTab]);
+  if (initialTab && TABS.some((item) => item.id === initialTab) && tab !== initialTab) {
+    setTab(initialTab as Tab);
+  }
   const today = toISODate(new Date());
   const age = childAge(child);
   const place = childPlace(snapshot, child);
