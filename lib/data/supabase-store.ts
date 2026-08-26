@@ -44,6 +44,7 @@ import {
   sortShoppingLists,
 } from "@/lib/shopping/store-helpers";
 import { inferShoppingCategory } from "@/lib/shopping/categories";
+import { throwIfMissingShoppingTables } from "@/lib/shopping/errors";
 import type {
   CalendarEvent,
   ChangeRequest,
@@ -2678,18 +2679,23 @@ export const supabaseRepository: FamilyRepository = {
       .eq("family_id", familyId)
       .order("is_default", { ascending: false })
       .order("name", { ascending: true });
-    if (error) throw error;
+    if (error) throwIfMissingShoppingTables(error);
     const lists = (data ?? []).map(mapShoppingListRow);
     if (!lists.length) {
       const actorId = (await currentUserId(supabase)) ?? "";
       if (!actorId) return [];
-      const created = await this.createShoppingList({
-        familyId,
-        name: buildDefaultShoppingList({ familyId, createdBy: actorId }).name,
-        createdBy: actorId,
-        isDefault: true,
-      });
-      return [created];
+      try {
+        const created = await this.createShoppingList({
+          familyId,
+          name: buildDefaultShoppingList({ familyId, createdBy: actorId }).name,
+          createdBy: actorId,
+          isDefault: true,
+        });
+        return [created];
+      } catch (createError) {
+        throwIfMissingShoppingTables(createError);
+        throw createError;
+      }
     }
     return sortShoppingLists(lists);
   },
@@ -2716,7 +2722,10 @@ export const supabaseRepository: FamilyRepository = {
       })
       .select("*")
       .single();
-    if (error || !data) throw error ?? new Error("Lijst kon niet worden aangemaakt.");
+    if (error || !data) {
+      if (error) throwIfMissingShoppingTables(error);
+      throw error ?? new Error("Lijst kon niet worden aangemaakt.");
+    }
     return mapShoppingListRow(data);
   },
 
@@ -2730,24 +2739,28 @@ export const supabaseRepository: FamilyRepository = {
       .eq("id", listId)
       .select("*")
       .single();
-    if (error || !data) throw error ?? new Error("Lijst kon niet worden hernoemd.");
+    if (error || !data) {
+      if (error) throwIfMissingShoppingTables(error);
+      throw error ?? new Error("Lijst kon niet worden hernoemd.");
+    }
     return mapShoppingListRow(data);
   },
 
   async deleteShoppingList(listId, _actorUserId) {
     const supabase = await db();
     const { error } = await supabase.from("shopping_lists").delete().eq("id", listId);
-    if (error) throw error;
+    if (error) throwIfMissingShoppingTables(error);
   },
 
   async getShoppingItems(listId, familyId) {
     const supabase = await db();
-    const { data: list } = await supabase
+    const { data: list, error: listError } = await supabase
       .from("shopping_lists")
       .select("id")
       .eq("id", listId)
       .eq("family_id", familyId)
       .maybeSingle();
+    if (listError) throwIfMissingShoppingTables(listError);
     if (!list) return [];
     const { data, error } = await supabase
       .from("shopping_items")
@@ -2756,7 +2769,7 @@ export const supabaseRepository: FamilyRepository = {
       .eq("family_id", familyId)
       .order("completed", { ascending: true })
       .order("created_at", { ascending: false });
-    if (error) throw error;
+    if (error) throwIfMissingShoppingTables(error);
     return sortShoppingItems((data ?? []).map(mapShoppingItemRow));
   },
 
@@ -2779,7 +2792,10 @@ export const supabaseRepository: FamilyRepository = {
       })
       .select("*")
       .single();
-    if (error || !data) throw error ?? new Error("Item kon niet worden toegevoegd.");
+    if (error || !data) {
+      if (error) throwIfMissingShoppingTables(error);
+      throw error ?? new Error("Item kon niet worden toegevoegd.");
+    }
     return mapShoppingItemRow(data);
   },
 
@@ -2797,7 +2813,10 @@ export const supabaseRepository: FamilyRepository = {
       .eq("id", input.id)
       .select("*")
       .single();
-    if (error || !data) throw error ?? new Error("Item kon niet worden bijgewerkt.");
+    if (error || !data) {
+      if (error) throwIfMissingShoppingTables(error);
+      throw error ?? new Error("Item kon niet worden bijgewerkt.");
+    }
     return mapShoppingItemRow(data);
   },
 
@@ -2808,7 +2827,7 @@ export const supabaseRepository: FamilyRepository = {
       .select("*")
       .eq("id", itemId)
       .maybeSingle();
-    if (readError) throw readError;
+    if (readError) throwIfMissingShoppingTables(readError);
     if (!existing) throw new Error("Item niet gevonden.");
     const completed = !existing.completed;
     const { data, error } = await supabase
@@ -2821,14 +2840,17 @@ export const supabaseRepository: FamilyRepository = {
       .eq("id", itemId)
       .select("*")
       .single();
-    if (error || !data) throw error ?? new Error("Item kon niet worden bijgewerkt.");
+    if (error || !data) {
+      if (error) throwIfMissingShoppingTables(error);
+      throw error ?? new Error("Item kon niet worden bijgewerkt.");
+    }
     return mapShoppingItemRow(data);
   },
 
   async deleteShoppingItem(itemId, _actorUserId) {
     const supabase = await db();
     const { error } = await supabase.from("shopping_items").delete().eq("id", itemId);
-    if (error) throw error;
+    if (error) throwIfMissingShoppingTables(error);
   },
 
   async clearCompletedShoppingItems(listId, _actorUserId) {
@@ -2839,7 +2861,7 @@ export const supabaseRepository: FamilyRepository = {
       .eq("list_id", listId)
       .eq("completed", true)
       .select("id");
-    if (error) throw error;
+    if (error) throwIfMissingShoppingTables(error);
     return data?.length ?? 0;
   },
 };
