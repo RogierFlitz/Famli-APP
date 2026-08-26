@@ -3,6 +3,7 @@ import {
   CheckSquare,
   Home,
   Settings,
+  ShoppingCart,
   Users,
   Wallet,
   FileText,
@@ -12,6 +13,7 @@ export const primaryNav = [
   { href: "/vandaag", label: "Vandaag", icon: Home },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/regelen", label: "Regelen", icon: CheckSquare },
+  { href: "/boodschappen", label: "Boodschappen", icon: ShoppingCart },
   { href: "/kosten", label: "Kosten", icon: Wallet },
   { href: "/kinderen", label: "Kinderen", icon: Users },
 ] as const;

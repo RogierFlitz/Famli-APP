@@ -10,6 +10,7 @@ import type {
   NeededStatus,
   PermissionPreset,
   PlanId,
+  ShoppingCategory,
   TaskStatus,
 } from "./types";
 
@@ -151,6 +152,20 @@ export const neededLocationLabel: Record<NeededItemLocation, string> = {
   onderweg: "Onderweg",
   onbekend: "Onbekend",
   custom: "Andere locatie",
+};
+
+export const shoppingCategoryLabel: Record<ShoppingCategory, string> = {
+  groente_fruit: "Groente & fruit",
+  brood: "Brood",
+  zuivel: "Zuivel",
+  vlees_vis_vega: "Vlees/vis/vega",
+  beleg: "Beleg",
+  dranken: "Dranken",
+  snacks: "Snacks",
+  diepvries: "Diepvries",
+  huishouden: "Huishouden",
+  verzorging: "Verzorging",
+  overig: "Overig",
 };
 
 export const sizeFieldLabel: Record<string, string> = {

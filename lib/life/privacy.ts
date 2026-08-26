@@ -26,6 +26,8 @@ export function emptyLifeFields(): Pick<
   | "households"
   | "childMemberAccess"
   | "routineOccurrences"
+  | "shoppingLists"
+  | "shoppingItems"
 > {
   return {
     sizes: [],
@@ -45,6 +47,8 @@ export function emptyLifeFields(): Pick<
     households: [],
     childMemberAccess: [],
     routineOccurrences: [],
+    shoppingLists: [],
+    shoppingItems: [],
   };
 }
 

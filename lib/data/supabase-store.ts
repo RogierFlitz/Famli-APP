@@ -36,6 +36,14 @@ import {
   storeExpenseReceiptBlob,
 } from "@/lib/storage/expense-receipts";
 import type { CreateFamilyInput, FamilyRepository } from "@/lib/data/repository";
+import {
+  buildDefaultShoppingList,
+  mapShoppingItemRow,
+  mapShoppingListRow,
+  sortShoppingItems,
+  sortShoppingLists,
+} from "@/lib/shopping/store-helpers";
+import { inferShoppingCategory } from "@/lib/shopping/categories";
 import type {
   CalendarEvent,
   ChangeRequest,
@@ -58,6 +66,8 @@ import type {
   Party,
   Profile,
   RoutineOccurrence,
+  ShoppingItem,
+  ShoppingList,
   TaskItem,
   TravelPlan,
   TravelSegment,
@@ -531,6 +541,8 @@ export const supabaseRepository: FamilyRepository = {
       routineOccurrencesRes,
       partiesRes,
       childAccessRes,
+      shoppingListsRes,
+      shoppingItemsRes,
     ] = await Promise.all([
       supabase.from("families").select("*").eq("id", familyId).single(),
       supabase.from("family_members").select("*").eq("family_id", familyId),
@@ -568,6 +580,8 @@ export const supabaseRepository: FamilyRepository = {
       supabase.from("routine_occurrences").select("*").eq("family_id", familyId),
       supabase.from("parties").select("*").eq("family_id", familyId),
       supabase.from("child_member_access").select("*").eq("family_id", familyId),
+      supabase.from("shopping_lists").select("*").eq("family_id", familyId).order("is_default", { ascending: false }),
+      supabase.from("shopping_items").select("*").eq("family_id", familyId).order("created_at", { ascending: false }),
     ]);
 
     if (familyRes.error) throw familyRes.error;
@@ -937,6 +951,8 @@ export const supabaseRepository: FamilyRepository = {
         }),
       ),
       routineOccurrences: (routineOccurrencesRes.data ?? []).map(mapRoutineOccurrenceRow),
+      shoppingLists: (shoppingListsRes.data ?? []).map(mapShoppingListRow),
+      shoppingItems: (shoppingItemsRes.data ?? []).map(mapShoppingItemRow),
       schools: [],
       clubs: [],
       households: [],
@@ -1003,6 +1019,19 @@ export const supabaseRepository: FamilyRepository = {
 
     const { error: memberError } = await writer.from("family_members").insert(memberRow);
     if (memberError) throw new Error(toUserFacingDbError(memberError));
+
+    const defaultList = buildDefaultShoppingList({
+      familyId,
+      createdBy: input.userId,
+    });
+    const { error: listError } = await writer.from("shopping_lists").insert({
+      id: defaultList.id,
+      family_id: defaultList.familyId,
+      name: defaultList.name,
+      is_default: true,
+      created_by: defaultList.createdBy,
+    });
+    if (listError) throw new Error(toUserFacingDbError(listError));
 
     const snap = await this.getSnapshot(input.userId);
     if (!snap) {
@@ -2639,5 +2668,178 @@ export const supabaseRepository: FamilyRepository = {
       .single();
     if (error || !data) throw error ?? new Error("Import kon niet worden gestart.");
     return mapImportJobRow(data);
+  },
+
+  async getShoppingLists(familyId) {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("shopping_lists")
+      .select("*")
+      .eq("family_id", familyId)
+      .order("is_default", { ascending: false })
+      .order("name", { ascending: true });
+    if (error) throw error;
+    const lists = (data ?? []).map(mapShoppingListRow);
+    if (!lists.length) {
+      const actorId = (await currentUserId(supabase)) ?? "";
+      if (!actorId) return [];
+      const created = await this.createShoppingList({
+        familyId,
+        name: buildDefaultShoppingList({ familyId, createdBy: actorId }).name,
+        createdBy: actorId,
+        isDefault: true,
+      });
+      return [created];
+    }
+    return sortShoppingLists(lists);
+  },
+
+  async createShoppingList(input) {
+    const supabase = await db();
+    const id = randomUUID();
+    const isDefault = input.isDefault ?? false;
+    if (isDefault) {
+      await supabase
+        .from("shopping_lists")
+        .update({ is_default: false })
+        .eq("family_id", input.familyId)
+        .eq("is_default", true);
+    }
+    const { data, error } = await supabase
+      .from("shopping_lists")
+      .insert({
+        id,
+        family_id: input.familyId,
+        name: input.name.trim(),
+        is_default: isDefault,
+        created_by: input.createdBy,
+      })
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Lijst kon niet worden aangemaakt.");
+    return mapShoppingListRow(data);
+  },
+
+  async renameShoppingList(listId, name, _actorUserId) {
+    const supabase = await db();
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("Geef een naam op.");
+    const { data, error } = await supabase
+      .from("shopping_lists")
+      .update({ name: trimmed })
+      .eq("id", listId)
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Lijst kon niet worden hernoemd.");
+    return mapShoppingListRow(data);
+  },
+
+  async deleteShoppingList(listId, _actorUserId) {
+    const supabase = await db();
+    const { error } = await supabase.from("shopping_lists").delete().eq("id", listId);
+    if (error) throw error;
+  },
+
+  async getShoppingItems(listId, familyId) {
+    const supabase = await db();
+    const { data: list } = await supabase
+      .from("shopping_lists")
+      .select("id")
+      .eq("id", listId)
+      .eq("family_id", familyId)
+      .maybeSingle();
+    if (!list) return [];
+    const { data, error } = await supabase
+      .from("shopping_items")
+      .select("*")
+      .eq("list_id", listId)
+      .eq("family_id", familyId)
+      .order("completed", { ascending: true })
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return sortShoppingItems((data ?? []).map(mapShoppingItemRow));
+  },
+
+  async addShoppingItem(input) {
+    const supabase = await db();
+    const id = randomUUID();
+    const category = input.category ?? inferShoppingCategory(input.name);
+    const { data, error } = await supabase
+      .from("shopping_items")
+      .insert({
+        id,
+        family_id: input.familyId,
+        list_id: input.listId,
+        name: input.name.trim(),
+        quantity: input.quantity ?? null,
+        unit: input.unit ?? null,
+        category,
+        note: input.note ?? null,
+        created_by: input.createdBy,
+      })
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Item kon niet worden toegevoegd.");
+    return mapShoppingItemRow(data);
+  },
+
+  async updateShoppingItem(input) {
+    const supabase = await db();
+    const patch: Record<string, unknown> = {};
+    if (input.name !== undefined) patch.name = input.name.trim();
+    if (input.quantity !== undefined) patch.quantity = input.quantity;
+    if (input.unit !== undefined) patch.unit = input.unit;
+    if (input.category !== undefined) patch.category = input.category;
+    if (input.note !== undefined) patch.note = input.note;
+    const { data, error } = await supabase
+      .from("shopping_items")
+      .update(patch)
+      .eq("id", input.id)
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Item kon niet worden bijgewerkt.");
+    return mapShoppingItemRow(data);
+  },
+
+  async toggleShoppingItem(itemId, actorUserId, _actorMemberId) {
+    const supabase = await db();
+    const { data: existing, error: readError } = await supabase
+      .from("shopping_items")
+      .select("*")
+      .eq("id", itemId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!existing) throw new Error("Item niet gevonden.");
+    const completed = !existing.completed;
+    const { data, error } = await supabase
+      .from("shopping_items")
+      .update({
+        completed,
+        completed_by: completed ? actorUserId : null,
+        completed_at: completed ? new Date().toISOString() : null,
+      })
+      .eq("id", itemId)
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Item kon niet worden bijgewerkt.");
+    return mapShoppingItemRow(data);
+  },
+
+  async deleteShoppingItem(itemId, _actorUserId) {
+    const supabase = await db();
+    const { error } = await supabase.from("shopping_items").delete().eq("id", itemId);
+    if (error) throw error;
+  },
+
+  async clearCompletedShoppingItems(listId, _actorUserId) {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("shopping_items")
+      .delete()
+      .eq("list_id", listId)
+      .eq("completed", true)
+      .select("id");
+    if (error) throw error;
+    return data?.length ?? 0;
   },
 };

@@ -50,6 +50,8 @@ import type {
   MemberRelationType,
   PermissionPreset,
   RoutineOccurrence,
+  ShoppingItem,
+  ShoppingList,
 } from "@/lib/domain/types";
 import {
   assertGuestCanRespondToChangeRequest,
@@ -58,6 +60,12 @@ import {
   hashGuestToken,
 } from "@/lib/architecture/guest-links";
 import { createImportJobPlaceholder } from "@/lib/architecture/import";
+import {
+  buildDefaultShoppingList,
+  sortShoppingItems,
+  sortShoppingLists,
+} from "@/lib/shopping/store-helpers";
+import { inferShoppingCategory } from "@/lib/shopping/categories";
 
 type StoredGuestLink = GuestLinkToken & { tokenHash: string };
 
@@ -343,6 +351,12 @@ export const memoryRepository: FamilyRepository = {
       ...emptyLifeFields(),
     };
     snap.members = [snap.currentMember];
+    const defaultList = buildDefaultShoppingList({
+      familyId,
+      createdBy: input.userId,
+    });
+    snap.shoppingLists = [defaultList];
+    snap.shoppingItems = [];
     getStore().families.set(familyId, snap);
     getStore().userFamily.set(input.userId, familyId);
     return clone(snap);
@@ -1668,6 +1682,167 @@ export const memoryRepository: FamilyRepository = {
       snap.importJobs.push(job);
     });
     return clone(job);
+  },
+
+  async getShoppingLists(familyId) {
+    const snap = getStore().families.get(familyId);
+    if (!snap) return [];
+    if (!snap.shoppingLists?.length) {
+      const defaultList = buildDefaultShoppingList({
+        familyId,
+        createdBy: snap.currentProfile.id,
+      });
+      snap.shoppingLists = [defaultList];
+      snap.shoppingItems = snap.shoppingItems ?? [];
+    }
+    return sortShoppingLists(snap.shoppingLists);
+  },
+
+  async createShoppingList(input) {
+    let created!: ShoppingList;
+    mutateFamily(input.familyId, (snap) => {
+      if (input.isDefault) {
+        for (const list of snap.shoppingLists) list.isDefault = false;
+      }
+      created = {
+        id: randomUUID(),
+        familyId: input.familyId,
+        name: input.name.trim(),
+        isDefault: input.isDefault ?? false,
+        createdBy: input.createdBy,
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      };
+      snap.shoppingLists.push(created);
+    });
+    return created;
+  },
+
+  async renameShoppingList(listId, name, _actorUserId) {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("Geef een naam op.");
+    let updated!: ShoppingList;
+    for (const [familyId, snap] of getStore().families.entries()) {
+      const list = snap.shoppingLists.find((item) => item.id === listId);
+      if (!list) continue;
+      mutateFamily(familyId, (family) => {
+        const row = family.shoppingLists.find((item) => item.id === listId)!;
+        row.name = trimmed;
+        row.updatedAt = nowIso();
+        updated = { ...row };
+      });
+      return updated;
+    }
+    throw new Error("Lijst niet gevonden.");
+  },
+
+  async deleteShoppingList(listId, _actorUserId) {
+    for (const [familyId, snap] of getStore().families.entries()) {
+      if (!snap.shoppingLists.some((item) => item.id === listId)) continue;
+      mutateFamily(familyId, (family) => {
+        family.shoppingLists = family.shoppingLists.filter((item) => item.id !== listId);
+        family.shoppingItems = family.shoppingItems.filter((item) => item.listId !== listId);
+      });
+      return;
+    }
+    throw new Error("Lijst niet gevonden.");
+  },
+
+  async getShoppingItems(listId, familyId) {
+    const snap = getStore().families.get(familyId);
+    if (!snap?.shoppingLists.some((list) => list.id === listId)) return [];
+    return sortShoppingItems(
+      snap.shoppingItems.filter((item) => item.listId === listId && item.familyId === familyId),
+    );
+  },
+
+  async addShoppingItem(input) {
+    let created!: ShoppingItem;
+    mutateFamily(input.familyId, (snap) => {
+      created = {
+        id: randomUUID(),
+        familyId: input.familyId,
+        listId: input.listId,
+        name: input.name.trim(),
+        quantity: input.quantity ?? null,
+        unit: input.unit ?? null,
+        category: input.category ?? inferShoppingCategory(input.name),
+        note: input.note ?? null,
+        completed: false,
+        completedBy: null,
+        completedAt: null,
+        createdBy: input.createdBy,
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      };
+      snap.shoppingItems.push(created);
+    });
+    return created;
+  },
+
+  async updateShoppingItem(input) {
+    let updated!: ShoppingItem;
+    for (const [familyId, snap] of getStore().families.entries()) {
+      const item = snap.shoppingItems.find((row) => row.id === input.id);
+      if (!item) continue;
+      mutateFamily(familyId, (family) => {
+        const row = family.shoppingItems.find((entry) => entry.id === input.id)!;
+        if (input.name !== undefined) row.name = input.name.trim();
+        if (input.quantity !== undefined) row.quantity = input.quantity;
+        if (input.unit !== undefined) row.unit = input.unit;
+        if (input.category !== undefined) row.category = input.category;
+        if (input.note !== undefined) row.note = input.note;
+        row.updatedAt = nowIso();
+        updated = { ...row };
+      });
+      return updated;
+    }
+    throw new Error("Item niet gevonden.");
+  },
+
+  async toggleShoppingItem(itemId, actorUserId, _actorMemberId) {
+    let updated!: ShoppingItem;
+    for (const [familyId, snap] of getStore().families.entries()) {
+      const item = snap.shoppingItems.find((row) => row.id === itemId);
+      if (!item) continue;
+      mutateFamily(familyId, (family) => {
+        const row = family.shoppingItems.find((entry) => entry.id === itemId)!;
+        row.completed = !row.completed;
+        row.completedBy = row.completed ? actorUserId : null;
+        row.completedAt = row.completed ? nowIso() : null;
+        row.updatedAt = nowIso();
+        updated = { ...row };
+      });
+      return updated;
+    }
+    throw new Error("Item niet gevonden.");
+  },
+
+  async deleteShoppingItem(itemId, _actorUserId) {
+    for (const [familyId, snap] of getStore().families.entries()) {
+      if (!snap.shoppingItems.some((item) => item.id === itemId)) continue;
+      mutateFamily(familyId, (family) => {
+        family.shoppingItems = family.shoppingItems.filter((item) => item.id !== itemId);
+      });
+      return;
+    }
+    throw new Error("Item niet gevonden.");
+  },
+
+  async clearCompletedShoppingItems(listId, _actorUserId) {
+    let count = 0;
+    for (const [familyId, snap] of getStore().families.entries()) {
+      if (!snap.shoppingLists.some((list) => list.id === listId)) continue;
+      mutateFamily(familyId, (family) => {
+        const before = family.shoppingItems.length;
+        family.shoppingItems = family.shoppingItems.filter(
+          (item) => !(item.listId === listId && item.completed),
+        );
+        count = before - family.shoppingItems.length;
+      });
+      return count;
+    }
+    return 0;
   },
 };
 

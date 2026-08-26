@@ -30,6 +30,9 @@ import type {
   MemberRelationType,
   PermissionPreset,
   RoutineAssignMode,
+  ShoppingCategory,
+  ShoppingItem,
+  ShoppingList,
   TaskKind,
 } from "@/lib/domain/types";
 
@@ -370,4 +373,36 @@ export interface FamilyRepository {
     source: ImportSourceKind;
     fileName?: string;
   }): Promise<ImportJob>;
+  getShoppingLists(familyId: string): Promise<ShoppingList[]>;
+  createShoppingList(input: {
+    familyId: string;
+    name: string;
+    createdBy: string;
+    isDefault?: boolean;
+  }): Promise<ShoppingList>;
+  renameShoppingList(listId: string, name: string, actorUserId: string): Promise<ShoppingList>;
+  deleteShoppingList(listId: string, actorUserId: string): Promise<void>;
+  getShoppingItems(listId: string, familyId: string): Promise<ShoppingItem[]>;
+  addShoppingItem(input: {
+    familyId: string;
+    listId: string;
+    name: string;
+    quantity?: number | null;
+    unit?: string | null;
+    category?: ShoppingCategory;
+    note?: string | null;
+    createdBy: string;
+  }): Promise<ShoppingItem>;
+  updateShoppingItem(input: {
+    id: string;
+    actorUserId: string;
+    name?: string;
+    quantity?: number | null;
+    unit?: string | null;
+    category?: ShoppingCategory;
+    note?: string | null;
+  }): Promise<ShoppingItem>;
+  toggleShoppingItem(itemId: string, actorUserId: string, actorMemberId: string): Promise<ShoppingItem>;
+  deleteShoppingItem(itemId: string, actorUserId: string): Promise<void>;
+  clearCompletedShoppingItems(listId: string, actorUserId: string): Promise<number>;
 }
