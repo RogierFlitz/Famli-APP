@@ -80,6 +80,18 @@ export async function inviteParentAction(formData: FormData): Promise<Onboarding
   }
 }
 
+function parseMemberIdArray(raw: FormDataEntryValue | null): string[] | undefined {
+  const value = String(raw ?? "").trim();
+  if (!value) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed.filter((item): item is string => typeof item === "string" && item.length > 0);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function saveScheduleAction(formData: FormData): Promise<OnboardingActionResult> {
   try {
     const session = await requireSession();
@@ -87,7 +99,33 @@ export async function saveScheduleAction(formData: FormData): Promise<Onboarding
     const snapshot = await repo.getSnapshot(session.userId);
     if (!snapshot) return { ok: false, error: "Maak eerst je gezin aan." };
     const parents = snapshot.members.filter((member) => member.role !== "viewer");
+    const parentAMemberId = parents[0]?.id ?? snapshot.currentMember.id;
+    const parentBMemberId = parents[1]?.id ?? parentAMemberId;
     const patternType = String(formData.get("patternType") ?? "two_two_three") as CustodyPattern;
+    const dayCycle = parseMemberIdArray(formData.get("dayCycle"));
+    const weekdayMemberIds = parseMemberIdArray(formData.get("weekdayMemberIds"));
+
+    if (patternType === "custom" && (!dayCycle || dayCycle.length < 1)) {
+      return { ok: false, error: "Stel minimaal één dag in voor het aangepaste schema." };
+    }
+    if (patternType === "fixed_weekdays" && weekdayMemberIds?.length !== 7) {
+      return { ok: false, error: "Wijs alle weekdagen toe aan een ouder." };
+    }
+
+    const allowedParentIds = new Set([parentAMemberId, parentBMemberId]);
+    if (
+      patternType === "custom" &&
+      dayCycle?.some((memberId) => !allowedParentIds.has(memberId))
+    ) {
+      return { ok: false, error: "Elke dag moet aan een van de ouders worden toegewezen." };
+    }
+    if (
+      patternType === "fixed_weekdays" &&
+      weekdayMemberIds?.some((memberId) => !allowedParentIds.has(memberId))
+    ) {
+      return { ok: false, error: "Elke weekdag moet aan een van de ouders worden toegewezen." };
+    }
+
     await repo.saveSchedule({
       familyId: snapshot.family.id,
       createdBy: session.userId,
@@ -102,8 +140,12 @@ export async function saveScheduleAction(formData: FormData): Promise<Onboarding
       patternType,
       startsOn: String(formData.get("startsOn") ?? toISODate(new Date())),
       config: {
-        parentAMemberId: parents[0]?.id ?? snapshot.currentMember.id,
-        parentBMemberId: parents[1]?.id ?? snapshot.currentMember.id,
+        parentAMemberId,
+        parentBMemberId,
+        ...(patternType === "custom" && dayCycle ? { dayCycle } : {}),
+        ...(patternType === "fixed_weekdays" && weekdayMemberIds
+          ? { weekdayMemberIds }
+          : {}),
         handoverTime: "17:00",
         handoverLocation: "School",
       },

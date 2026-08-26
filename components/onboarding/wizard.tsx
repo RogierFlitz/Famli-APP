@@ -9,9 +9,9 @@ import {
   completeOnboardingAction,
   createFamilyAction,
   inviteParentAction,
-  saveScheduleAction,
 } from "@/lib/actions/onboarding";
-import { toISODate } from "@/lib/dates";
+import { ScheduleStep } from "@/components/onboarding/schedule-step";
+import type { ParentOption } from "@/components/onboarding/custody-schedule-editor";
 import { famliBrand } from "@/lib/brand/tokens";
 
 const steps = [
@@ -33,6 +33,7 @@ export function OnboardingWizard(props: {
   children: string[];
   invited: string[];
   hasSchedule: boolean;
+  parents: ParentOption[];
 }) {
   const initialStep = useMemo(() => {
     if (props.hasSchedule) return 5;
@@ -129,30 +130,11 @@ export function OnboardingWizard(props: {
       )}
 
       {step === 4 && (
-        <form
-          action={async (formData) => {
-            const result = await saveScheduleAction(formData);
-            if (!result.ok) {
-              toast.error(result.error);
-              return;
-            }
-            setStep(5);
-          }}
-          className="space-y-4"
-        >
-          <h1 className="text-4xl font-semibold tracking-tight">Stel het basisschema in</h1>
-          <label className="block text-sm">
-            Patroon
-            <select name="patternType" className="famli-input mt-1">
-              <option value="two_two_three">2-2-3</option>
-              <option value="week_on_week_off">Week-op-week-af</option>
-              <option value="fixed_weekdays">Vaste weekdagen</option>
-              <option value="custom">Volledig aangepast</option>
-            </select>
-          </label>
-          <Field name="startsOn" label="Startdatum (maandag)" type="date" defaultValue={toISODate(new Date())} />
-          <Actions onBack={() => setStep(3)} submit="Schema opslaan" />
-        </form>
+        <ScheduleStep
+          parents={props.parents}
+          onBack={() => setStep(3)}
+          onSaved={() => setStep(5)}
+        />
       )}
 
       {step === 5 && (

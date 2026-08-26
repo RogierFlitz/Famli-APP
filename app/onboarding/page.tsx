@@ -21,6 +21,15 @@ export default async function OnboardingPage() {
     }
   }
 
+  const parents =
+    snapshot?.members
+      .filter((member) => member.role !== "viewer")
+      .slice(0, 2)
+      .map((member) => ({
+        memberId: member.id,
+        label: member.parentLabel,
+      })) ?? [];
+
   return (
     <OnboardingWizard
       userId={session.userId}
@@ -31,6 +40,7 @@ export default async function OnboardingPage() {
       children={snapshot?.children.map((child) => child.firstName) ?? []}
       invited={snapshot?.invites.map((invite) => invite.email) ?? []}
       hasSchedule={Boolean(snapshot?.schedule)}
+      parents={parents}
     />
   );
 }
