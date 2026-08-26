@@ -1431,7 +1431,43 @@ export const supabaseRepository: FamilyRepository = {
 
   async updateCalendarPrivacy(userId, privacyMode) {
     const supabase = await db();
-    await supabase.from("calendar_connections").update({ privacy_mode: privacyMode }).eq("user_id", userId);
+    const { data: existing, error: readError } = await supabase
+      .from("calendar_connections")
+      .select("id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (readError) throw readError;
+
+    if (existing) {
+      const { error } = await supabase
+        .from("calendar_connections")
+        .update({ privacy_mode: privacyMode })
+        .eq("user_id", userId);
+      if (error) throw error;
+      return;
+    }
+
+    const { data: membership, error: memberError } = await supabase
+      .from("family_members")
+      .select("family_id")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (memberError) throw memberError;
+    if (!membership) throw new Error("Geen gezin gevonden.");
+
+    const { error } = await supabase.from("calendar_connections").insert({
+      user_id: userId,
+      family_id: membership.family_id,
+      provider: "microsoft",
+      privacy_mode: privacyMode,
+      status: "disconnected",
+      sync_outbound: false,
+    });
+    if (error) throw error;
   },
 
   async addRecurringExpense(input) {

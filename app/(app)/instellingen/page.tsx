@@ -1,7 +1,6 @@
 import { requireSnapshot } from "@/lib/auth/session";
-import { calendarProviders } from "@/lib/calendar/providers";
 import { planLabel, notificationPrefLabel } from "@/lib/domain/labels";
-import { updateCalendarPrivacyAction } from "@/lib/actions/family";
+import { CalendarPrivacyPanel } from "@/components/settings/calendar-privacy";
 import { FamilyMembersPanel } from "@/components/settings/family-members";
 import { signOut } from "@/lib/auth/actions";
 
@@ -27,31 +26,7 @@ export default async function SettingsPage() {
         <p className="mt-2 text-sm text-[color:var(--nest-muted)]">
           Een persoonlijke agenda mag gekoppeld worden zonder dat de andere ouder privé-informatie ziet.
         </p>
-        <form action={updateCalendarPrivacyAction} className="mt-4 space-y-3">
-          <p className="text-sm font-medium">Persoonlijke afspraken tonen als</p>
-          {[
-            ["full", "Volledige afspraak"],
-            ["busy", 'Alleen "Bezet"'],
-            ["hidden", "Helemaal niet delen"],
-          ].map(([value, label]) => (
-            <label key={value} className="flex items-center gap-2 text-sm">
-              <input type="radio" name="privacyMode" value={value} defaultChecked={(connection?.privacyMode ?? "busy") === value} />
-              {label}
-            </label>
-          ))}
-          <button className="h-11 rounded-full border border-[color:var(--nest-border)] px-4">Opslaan</button>
-        </form>
-        <div className="mt-6 space-y-3">
-          {calendarProviders.map((provider) => (
-            <div key={provider.id} className="rounded-2xl bg-[color:var(--nest-bg)] p-4">
-              <p className="font-medium">{provider.label}</p>
-              <p className="text-sm text-[color:var(--nest-muted)]">{provider.description}</p>
-              <button disabled className="mt-2 h-10 rounded-full border border-[color:var(--nest-border)] px-4 text-sm opacity-60">
-                Koppelen volgt na OAuth-setup
-              </button>
-            </div>
-          ))}
-        </div>
+        <CalendarPrivacyPanel privacyMode={connection?.privacyMode ?? "busy"} />
       </section>
 
       <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
