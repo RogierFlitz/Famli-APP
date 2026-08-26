@@ -21,6 +21,12 @@ import {
 } from "@/lib/members/permissions";
 import { markPastOccurrencesUnregistered } from "@/lib/queries/routines";
 import { refreshRoutineOccurrences } from "@/lib/routines/generate";
+import {
+  fetchActiveMemberUserIds,
+  fetchMemberUserId,
+  mapNotificationRow,
+  notifyFamilyMembers,
+} from "@/lib/notifications/supabase";
 import { generateInviteToken, inviteExpiresAt } from "@/lib/security/invites";
 import {
   deleteExpenseReceiptBlob,
@@ -59,6 +65,11 @@ import type {
 
 async function db() {
   return createSupabaseServerClient();
+}
+
+async function currentUserId(supabase: Awaited<ReturnType<typeof db>>): Promise<string | null> {
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id ?? null;
 }
 
 function bootstrapDb() {
@@ -834,9 +845,12 @@ export const supabaseRepository: FamilyRepository = {
         id: row.id,
         familyId: row.family_id,
         userId: row.user_id,
+        actorId: row.actor_id ?? null,
         type: row.type,
         title: row.title,
         body: row.body,
+        entityType: row.entity_type ?? null,
+        entityId: row.entity_id ?? null,
         payload: row.payload ?? {},
         readAt: row.read_at,
         channel: row.channel,
@@ -1021,6 +1035,7 @@ export const supabaseRepository: FamilyRepository = {
   async inviteParent(input) {
     const supabase = await db();
     const token = randomUUID();
+    const actorId = (await currentUserId(supabase)) ?? "";
     const { error } = await supabase.from("invites").insert({
       family_id: input.familyId,
       email: input.email,
@@ -1039,6 +1054,20 @@ export const supabaseRepository: FamilyRepository = {
       invited_email: input.email,
       status: "invited",
     });
+    if (actorId) {
+      const recipients = await fetchActiveMemberUserIds(supabase, input.familyId, actorId);
+      await notifyFamilyMembers(supabase, {
+        familyId: input.familyId,
+        actorId,
+        recipientUserIds: recipients,
+        type: "invite_sent",
+        title: "Nieuwe uitnodiging verstuurd",
+        body: `${input.parentLabel} (${input.email}) is uitgenodigd voor het gezin.`,
+        entityType: "invite",
+        entityId: token,
+        payload: { email: input.email },
+      });
+    }
     return { token };
   },
 
@@ -1053,6 +1082,18 @@ export const supabaseRepository: FamilyRepository = {
       .update({ user_id: userId, status: "active" })
       .eq("family_id", invite.family_id)
       .eq("invited_email", invite.email);
+    const recipients = await fetchActiveMemberUserIds(supabase, invite.family_id, userId);
+    await notifyFamilyMembers(supabase, {
+      familyId: invite.family_id,
+      actorId: userId,
+      recipientUserIds: recipients,
+      type: "invite_accepted",
+      title: "Uitnodiging geaccepteerd",
+      body: `${invite.parent_label} is toegetreden tot het gezin.`,
+      entityType: "invite",
+      entityId: invite.id,
+      payload: { parentLabel: invite.parent_label },
+    });
     const snap = await this.getSnapshot(userId);
     if (!snap) throw new Error("Gezin kon niet worden geladen.");
     return snap;
@@ -1070,6 +1111,17 @@ export const supabaseRepository: FamilyRepository = {
       created_by: input.createdBy,
     });
     if (error) throw error;
+    const recipients = await fetchActiveMemberUserIds(supabase, input.familyId, input.createdBy);
+    await notifyFamilyMembers(supabase, {
+      familyId: input.familyId,
+      actorId: input.createdBy,
+      recipientUserIds: recipients,
+      type: "schedule_changed",
+      title: "Omgangsregeling gewijzigd",
+      body: `Het rooster "${input.name}" is bijgewerkt.`,
+      entityType: "schedule",
+      entityId: input.familyId,
+    });
   },
 
   async completeOnboarding(userId) {
@@ -1098,6 +1150,24 @@ export const supabaseRepository: FamilyRepository = {
       .select("*")
       .single();
     if (error) throw error;
+    const { data: requester } = await supabase
+      .from("family_members")
+      .select("user_id")
+      .eq("id", input.requestedByMemberId)
+      .maybeSingle();
+    const actorId = requester?.user_id ?? (await currentUserId(supabase)) ?? "";
+    const recipients = await fetchActiveMemberUserIds(supabase, input.familyId, actorId);
+    await notifyFamilyMembers(supabase, {
+      familyId: input.familyId,
+      actorId,
+      recipientUserIds: recipients,
+      type: "change_request",
+      title: "Nieuw wijzigingsverzoek",
+      body: input.message,
+      entityType: "change_request",
+      entityId: id,
+      payload: { changeRequestId: id },
+    });
     return {
       id: data.id,
       familyId: data.family_id,
@@ -1152,6 +1222,26 @@ export const supabaseRepository: FamilyRepository = {
       before: null,
       after: { status: data.status },
     });
+    const requesterUserId = await fetchMemberUserId(supabase, data.requested_by_member_id);
+    const responseTitle =
+      input.decision === "accepted"
+        ? "Verzoek geaccepteerd"
+        : input.decision === "declined"
+          ? "Verzoek afgewezen"
+          : "Alternatief voorgesteld";
+    if (requesterUserId) {
+      await notifyFamilyMembers(supabase, {
+        familyId: data.family_id,
+        actorId: input.actorUserId,
+        recipientUserIds: [requesterUserId],
+        type: "change_request_response",
+        title: responseTitle,
+        body: input.message || data.message,
+        entityType: "change_request",
+        entityId: data.id,
+        payload: { changeRequestId: data.id, decision: input.decision },
+      });
+    }
     return {
       id: data.id,
       familyId: data.family_id,
@@ -1196,6 +1286,25 @@ export const supabaseRepository: FamilyRepository = {
         status: memberId === input.paidByMemberId ? "paid" : "pending",
       })),
     );
+    const pendingMemberIds = Object.entries(input.splitPercents)
+      .filter(([memberId]) => memberId !== input.paidByMemberId)
+      .map(([memberId]) => memberId);
+    const recipientUserIds: string[] = [];
+    for (const memberId of pendingMemberIds) {
+      const uid = await fetchMemberUserId(supabase, memberId);
+      if (uid) recipientUserIds.push(uid);
+    }
+    await notifyFamilyMembers(supabase, {
+      familyId: input.familyId,
+      actorId: input.createdBy,
+      recipientUserIds,
+      type: "expense",
+      title: "Nieuwe kostenpost",
+      body: input.description,
+      entityType: "expense",
+      entityId: id,
+      payload: { expenseId: id, childId: input.childId },
+    });
     return {
       id,
       familyId: input.familyId,
@@ -1242,6 +1351,22 @@ export const supabaseRepository: FamilyRepository = {
       created_by: input.createdBy,
     });
     if (error) throw error;
+    if (input.assigneeMemberId) {
+      const assigneeUserId = await fetchMemberUserId(supabase, input.assigneeMemberId);
+      if (assigneeUserId) {
+        await notifyFamilyMembers(supabase, {
+          familyId: input.familyId,
+          actorId: input.createdBy,
+          recipientUserIds: [assigneeUserId],
+          type: "task_assigned",
+          title: "Nieuwe taak toegewezen",
+          body: input.title,
+          entityType: "task",
+          entityId: id,
+          payload: { taskId: id, childId: input.childId },
+        });
+      }
+    }
     return {
       id,
       familyId: input.familyId,
@@ -1259,9 +1384,33 @@ export const supabaseRepository: FamilyRepository = {
     } satisfies TaskItem;
   },
 
-  async updateTaskStatus(taskId, status) {
+  async updateTaskStatus(taskId, status, actorUserId) {
     const supabase = await db();
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("family_id, title, created_by, assignee_member_id, child_id")
+      .eq("id", taskId)
+      .maybeSingle();
     await supabase.from("tasks").update({ status }).eq("id", taskId);
+    if (task && status === "done" && actorUserId) {
+      const recipientUserIds: string[] = [];
+      if (task.created_by && task.created_by !== actorUserId) recipientUserIds.push(task.created_by);
+      const assigneeUserId = await fetchMemberUserId(supabase, task.assignee_member_id);
+      if (assigneeUserId && assigneeUserId !== actorUserId && !recipientUserIds.includes(assigneeUserId)) {
+        recipientUserIds.push(assigneeUserId);
+      }
+      await notifyFamilyMembers(supabase, {
+        familyId: task.family_id,
+        actorId: actorUserId,
+        recipientUserIds,
+        type: "task_completed",
+        title: "Taak afgerond",
+        body: task.title,
+        entityType: "task",
+        entityId: taskId,
+        payload: { taskId, childId: task.child_id },
+      });
+    }
   },
 
   async createEvent(input) {
@@ -1314,6 +1463,21 @@ export const supabaseRepository: FamilyRepository = {
         gift_needed_item_id: giftId,
         gift_budget_cents: input.party.giftBudgetCents ?? null,
         notes: input.party.notes ?? null,
+      });
+    }
+
+    if (input.childIds.length > 0) {
+      const recipients = await fetchActiveMemberUserIds(supabase, input.familyId, input.createdBy);
+      await notifyFamilyMembers(supabase, {
+        familyId: input.familyId,
+        actorId: input.createdBy,
+        recipientUserIds: recipients,
+        type: "event_created",
+        title: "Nieuwe afspraak met kinderen",
+        body: input.title,
+        entityType: "event",
+        entityId: id,
+        payload: { childIds: input.childIds },
       });
     }
 
@@ -1388,6 +1552,20 @@ export const supabaseRepository: FamilyRepository = {
         input.childIds.map((childId) => ({ handover_id: handoverId, child_id: childId })),
       );
     }
+    const toUserId = await fetchMemberUserId(supabase, input.toMemberId);
+    if (toUserId) {
+      await notifyFamilyMembers(supabase, {
+        familyId: input.familyId,
+        actorId: input.createdBy,
+        recipientUserIds: [toUserId],
+        type: "handover_created",
+        title: "Nieuw wisselmoment",
+        body: `Wissel op ${input.date} om ${input.time}`,
+        entityType: "handover",
+        entityId: handoverId,
+        payload: { handoverId, childIds: input.childIds },
+      });
+    }
   },
 
   async createVacation(input) {
@@ -1405,6 +1583,17 @@ export const supabaseRepository: FamilyRepository = {
       notes: input.notes,
       created_by: input.createdBy,
     });
+    const recipients = await fetchActiveMemberUserIds(supabase, input.familyId, input.createdBy);
+    await notifyFamilyMembers(supabase, {
+      familyId: input.familyId,
+      actorId: input.createdBy,
+      recipientUserIds: recipients,
+      type: "vacation",
+      title: "Vakantieverzoek",
+      body: input.title,
+      entityType: "vacation",
+      entityId: id,
+    });
     return {
       id,
       familyId: input.familyId,
@@ -1421,12 +1610,30 @@ export const supabaseRepository: FamilyRepository = {
     };
   },
 
-  async respondToVacation(id, _actorUserId, accept) {
+  async respondToVacation(id, actorUserId, accept) {
     const supabase = await db();
+    const { data: vacation } = await supabase
+      .from("vacations")
+      .select("family_id, title, created_by")
+      .eq("id", id)
+      .maybeSingle();
     await supabase
       .from("vacations")
       .update({ status: accept ? "accepted" : "declined" })
       .eq("id", id);
+    if (vacation?.created_by && vacation.created_by !== actorUserId) {
+      await notifyFamilyMembers(supabase, {
+        familyId: vacation.family_id,
+        actorId: actorUserId,
+        recipientUserIds: [vacation.created_by],
+        type: "vacation",
+        title: accept ? "Vakantie geaccepteerd" : "Vakantie afgewezen",
+        body: vacation.title,
+        entityType: "vacation",
+        entityId: id,
+        payload: { decision: accept ? "accepted" : "declined" },
+      });
+    }
   },
 
   async updateCalendarPrivacy(userId, privacyMode) {
@@ -1486,6 +1693,29 @@ export const supabaseRepository: FamilyRepository = {
     });
   },
 
+  async getNotifications(userId, limit = 50) {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data ?? []).map((row) => mapNotificationRow(row as Record<string, unknown>));
+  },
+
+  async markNotificationRead(notificationId, userId) {
+    const supabase = await db();
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("id", notificationId)
+      .eq("user_id", userId)
+      .is("read_at", null);
+    if (error) throw error;
+  },
+
   async markNotificationsRead(userId) {
     const supabase = await db();
     await supabase
@@ -1493,6 +1723,20 @@ export const supabaseRepository: FamilyRepository = {
       .update({ read_at: new Date().toISOString() })
       .eq("user_id", userId)
       .is("read_at", null);
+  },
+
+  async markAllNotificationsRead(userId) {
+    return this.markNotificationsRead(userId);
+  },
+
+  async deleteNotification(notificationId, userId) {
+    const supabase = await db();
+    const { error } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("id", notificationId)
+      .eq("user_id", userId);
+    if (error) throw error;
   },
 
   async updateChildSizes(input) {
@@ -1591,6 +1835,25 @@ export const supabaseRepository: FamilyRepository = {
       .select("*")
       .single();
     if (error || !data) throw error ?? new Error("Item kon niet worden opgeslagen.");
+    const recipientUserIds: string[] = [];
+    if (input.assigneeMemberId) {
+      const assigneeUserId = await fetchMemberUserId(supabase, input.assigneeMemberId);
+      if (assigneeUserId) recipientUserIds.push(assigneeUserId);
+    } else {
+      const others = await fetchActiveMemberUserIds(supabase, input.familyId, input.createdBy);
+      recipientUserIds.push(...others);
+    }
+    await notifyFamilyMembers(supabase, {
+      familyId: input.familyId,
+      actorId: input.createdBy,
+      recipientUserIds,
+      type: "needed_item",
+      title: "Nieuw nodig-item",
+      body: input.title,
+      entityType: "needed_item",
+      entityId: id,
+      payload: { neededItemId: id, childId: input.childId },
+    });
     return mapNeededItemRow(data);
   },
 
@@ -1722,6 +1985,24 @@ export const supabaseRepository: FamilyRepository = {
       .select("*")
       .single();
     if (error || !data) throw error ?? new Error("Update kon niet worden opgeslagen.");
+    const { data: author } = await supabase
+      .from("family_members")
+      .select("user_id")
+      .eq("id", input.authorMemberId)
+      .maybeSingle();
+    const actorId = author?.user_id ?? (await currentUserId(supabase)) ?? "";
+    const recipients = await fetchActiveMemberUserIds(supabase, input.familyId, actorId);
+    await notifyFamilyMembers(supabase, {
+      familyId: input.familyId,
+      actorId,
+      recipientUserIds: recipients,
+      type: "child_update",
+      title: "Update over kind",
+      body: input.body.slice(0, 120),
+      entityType: "child_update",
+      entityId: data.id,
+      payload: { childId: input.childId, childUpdateId: data.id },
+    });
     return mapChildUpdateRow(data);
   },
 
@@ -1827,6 +2108,19 @@ export const supabaseRepository: FamilyRepository = {
       member_id: input.withMemberId,
     });
 
+    const recipients = await fetchActiveMemberUserIds(supabase, input.familyId, input.createdBy);
+    await notifyFamilyMembers(supabase, {
+      familyId: input.familyId,
+      actorId: input.createdBy,
+      recipientUserIds: recipients,
+      type: "travel_plan",
+      title: "Nieuw reisplan",
+      body: `${input.title} — ${input.destination}`,
+      entityType: "travel_plan",
+      entityId: planId,
+      payload: { childIds: input.childIds },
+    });
+
     return {
       id: planId,
       familyId: input.familyId,
@@ -1896,6 +2190,22 @@ export const supabaseRepository: FamilyRepository = {
       });
     }
 
+    const actorId = (await currentUserId(supabase)) ?? "";
+    if (actorId && !input.contactOnly) {
+      const recipients = await fetchActiveMemberUserIds(supabase, input.familyId, actorId);
+      await notifyFamilyMembers(supabase, {
+        familyId: input.familyId,
+        actorId,
+        recipientUserIds: recipients,
+        type: "invite_sent",
+        title: "Nieuwe uitnodiging",
+        body: `${input.parentLabel}${input.email ? ` (${input.email})` : ""} is uitgenodigd.`,
+        entityType: "invite",
+        entityId: memberId,
+        payload: { email: input.email, memberId },
+      });
+    }
+
     return { token };
   },
 
@@ -1925,6 +2235,26 @@ export const supabaseRepository: FamilyRepository = {
       .select("*")
       .single();
     if (error || !data) throw error ?? new Error("Routine kon niet worden opgeslagen.");
+    const recipientUserIds: string[] = [];
+    if (input.assigneeMemberId) {
+      const assigneeUserId = await fetchMemberUserId(supabase, input.assigneeMemberId);
+      if (assigneeUserId) recipientUserIds.push(assigneeUserId);
+    }
+    const others = await fetchActiveMemberUserIds(supabase, input.familyId, input.createdBy);
+    for (const uid of others) {
+      if (!recipientUserIds.includes(uid)) recipientUserIds.push(uid);
+    }
+    await notifyFamilyMembers(supabase, {
+      familyId: input.familyId,
+      actorId: input.createdBy,
+      recipientUserIds,
+      type: "routine_created",
+      title: input.kind === "care" ? "Nieuwe zorg-routine" : "Nieuwe routine",
+      body: input.title,
+      entityType: "routine",
+      entityId: id,
+      payload: { taskId: id, childId: input.childId },
+    });
     return mapTaskRow(data);
   },
 

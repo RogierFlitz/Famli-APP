@@ -1,5 +1,11 @@
 import { randomUUID } from "crypto";
 import { generateInviteToken, inviteExpiresAt } from "@/lib/security/invites";
+import {
+  activeMemberUserIds,
+  memberUserId,
+  notifyFamilyMembers,
+  pushNotification,
+} from "@/lib/notifications/memory";
 import { addDaysIso, toISODate } from "@/lib/dates";
 import { generateHandovers, generateOccurrences } from "@/lib/custody/generate";
 import { splitAmounts } from "@/lib/money";
@@ -421,6 +427,18 @@ export const memoryRepository: FamilyRepository = {
         createdAt: nowIso(),
         updatedAt: nowIso(),
       });
+      const actorId = snap.currentProfile.id;
+      notifyFamilyMembers(snap, {
+        familyId: input.familyId,
+        actorId,
+        recipientUserIds: activeMemberUserIds(snap, actorId),
+        type: "invite_sent",
+        title: "Nieuwe uitnodiging verstuurd",
+        body: `${input.parentLabel} (${input.email}) is uitgenodigd voor het gezin.`,
+        entityType: "invite",
+        entityId: token,
+        payload: { email: input.email },
+      });
     });
     return { token };
   },
@@ -445,6 +463,17 @@ export const memoryRepository: FamilyRepository = {
       }
       const inv = snap.invites.find((item) => item.token === token);
       if (inv) inv.acceptedAt = nowIso();
+      notifyFamilyMembers(snap, {
+        familyId: invite.familyId,
+        actorId: userId,
+        recipientUserIds: activeMemberUserIds(snap, userId),
+        type: "invite_accepted",
+        title: "Uitnodiging geaccepteerd",
+        body: `${invite.parentLabel} is toegetreden tot het gezin.`,
+        entityType: "invite",
+        entityId: inv?.id ?? token,
+        payload: { parentLabel: invite.parentLabel },
+      });
     });
 
     getStore().userFamily.set(userId, invite.familyId);
@@ -469,6 +498,16 @@ export const memoryRepository: FamilyRepository = {
       refreshGenerated(snap);
       log(snap, input.createdBy, "schedule.saved", "custody_schedule", snap.schedule.id, null, {
         patternType: input.patternType,
+      });
+      notifyFamilyMembers(snap, {
+        familyId: input.familyId,
+        actorId: input.createdBy,
+        recipientUserIds: activeMemberUserIds(snap, input.createdBy),
+        type: "schedule_changed",
+        title: "Omgangsregeling gewijzigd",
+        body: `Het rooster "${input.name}" is bijgewerkt.`,
+        entityType: "schedule",
+        entityId: input.familyId,
       });
     });
   },
@@ -499,21 +538,18 @@ export const memoryRepository: FamilyRepository = {
     };
     mutateFamily(input.familyId, (snap) => {
       snap.changeRequests.unshift(request);
-      for (const member of snap.members) {
-        if (member.id === input.requestedByMemberId || !member.userId) continue;
-        snap.notifications.unshift({
-          id: randomUUID(),
-          familyId: input.familyId,
-          userId: member.userId,
-          type: "change_request",
-          title: "Nieuw wijzigingsverzoek",
-          body: input.message,
-          payload: { changeRequestId: request.id },
-          readAt: null,
-          channel: "in_app",
-          createdAt: nowIso(),
-        });
-      }
+      const actorId = snap.members.find((m) => m.id === input.requestedByMemberId)?.userId ?? snap.currentProfile.id;
+      notifyFamilyMembers(snap, {
+        familyId: input.familyId,
+        actorId,
+        recipientUserIds: activeMemberUserIds(snap, actorId),
+        type: "change_request",
+        title: "Nieuw wijzigingsverzoek",
+        body: input.message,
+        entityType: "change_request",
+        entityId: request.id,
+        payload: { changeRequestId: request.id },
+      });
       log(snap, snap.currentProfile.id, "change_request.created", "change_request", request.id, null, {
         type: input.type,
         targetDate: input.targetDate,
@@ -545,24 +581,24 @@ export const memoryRepository: FamilyRepository = {
       log(snap, input.actorUserId, `change_request.${input.decision}`, "change_request", request.id, before, {
         status: request.status,
       });
-      for (const member of snap.members) {
-        if (!member.userId || member.id === input.actorMemberId) continue;
-        snap.notifications.unshift({
-          id: randomUUID(),
+      const requesterUserId = memberUserId(snap, request.requestedByMemberId);
+      const responseTitle =
+        input.decision === "accepted"
+          ? "Verzoek geaccepteerd"
+          : input.decision === "declined"
+            ? "Verzoek afgewezen"
+            : "Alternatief voorgesteld";
+      if (requesterUserId) {
+        notifyFamilyMembers(snap, {
           familyId: snap.family.id,
-          userId: member.userId,
-          type: "change_request",
-          title:
-            input.decision === "accepted"
-              ? "Verzoek geaccepteerd"
-              : input.decision === "declined"
-                ? "Verzoek afgewezen"
-                : "Alternatief voorgesteld",
+          actorId: input.actorUserId,
+          recipientUserIds: [requesterUserId],
+          type: "change_request_response",
+          title: responseTitle,
           body: input.message || request.message,
-          payload: { changeRequestId: request.id },
-          readAt: null,
-          channel: "in_app",
-          createdAt: nowIso(),
+          entityType: "change_request",
+          entityId: request.id,
+          payload: { changeRequestId: request.id, decision: input.decision },
         });
       }
       updated = clone(request);
@@ -610,6 +646,21 @@ export const memoryRepository: FamilyRepository = {
       log(snap, input.createdBy, "expense.created", "expense", expense.id, null, {
         amountCents: input.amountCents,
       });
+      const recipientUserIds = Object.keys(input.splitPercents)
+        .filter((memberId) => memberId !== input.paidByMemberId)
+        .map((memberId) => memberUserId(snap, memberId))
+        .filter((id): id is string => Boolean(id));
+      notifyFamilyMembers(snap, {
+        familyId: input.familyId,
+        actorId: input.createdBy,
+        recipientUserIds,
+        type: "expense",
+        title: "Nieuwe kostenpost",
+        body: input.description,
+        entityType: "expense",
+        entityId: expense.id,
+        payload: { expenseId: expense.id, childId: input.childId },
+      });
     });
     return expense;
   },
@@ -644,6 +695,22 @@ export const memoryRepository: FamilyRepository = {
     };
     mutateFamily(input.familyId, (snap) => {
       snap.tasks.unshift(task);
+      if (input.assigneeMemberId) {
+        const assigneeUserId = memberUserId(snap, input.assigneeMemberId);
+        if (assigneeUserId) {
+          notifyFamilyMembers(snap, {
+            familyId: input.familyId,
+            actorId: input.createdBy,
+            recipientUserIds: [assigneeUserId],
+            type: "task_assigned",
+            title: "Nieuwe taak toegewezen",
+            body: input.title,
+            entityType: "task",
+            entityId: task.id,
+            payload: { taskId: task.id, childId: input.childId },
+          });
+        }
+      }
     });
     return task;
   },
@@ -654,6 +721,25 @@ export const memoryRepository: FamilyRepository = {
       if (!task) return;
       task.status = status;
       task.updatedAt = nowIso();
+      if (status === "done") {
+        const recipients: string[] = [];
+        if (task.createdBy !== actorUserId) recipients.push(task.createdBy);
+        const assigneeUserId = memberUserId(snap, task.assigneeMemberId);
+        if (assigneeUserId && assigneeUserId !== actorUserId && !recipients.includes(assigneeUserId)) {
+          recipients.push(assigneeUserId);
+        }
+        notifyFamilyMembers(snap, {
+          familyId: snap.family.id,
+          actorId: actorUserId,
+          recipientUserIds: recipients,
+          type: "task_completed",
+          title: "Taak afgerond",
+          body: task.title,
+          entityType: "task",
+          entityId: task.id,
+          payload: { taskId: task.id, childId: task.childId },
+        });
+      }
     });
   },
 
@@ -723,6 +809,19 @@ export const memoryRepository: FamilyRepository = {
         });
       }
       log(snap, input.createdBy, "event.created", "event", event.id, null, { title: event.title });
+      if (input.childIds.length > 0) {
+        notifyFamilyMembers(snap, {
+          familyId: input.familyId,
+          actorId: input.createdBy,
+          recipientUserIds: activeMemberUserIds(snap, input.createdBy),
+          type: "event_created",
+          title: "Nieuwe afspraak met kinderen",
+          body: input.title,
+          entityType: "event",
+          entityId: event.id,
+          payload: { childIds: input.childIds },
+        });
+      }
     });
     return event;
   },
@@ -770,6 +869,20 @@ export const memoryRepository: FamilyRepository = {
         updatedAt: nowIso(),
         createdBy: input.createdBy,
       });
+      const toUserId = memberUserId(snap, input.toMemberId);
+      if (toUserId) {
+        notifyFamilyMembers(snap, {
+          familyId: input.familyId,
+          actorId: input.createdBy,
+          recipientUserIds: [toUserId],
+          type: "handover_created",
+          title: "Nieuw wisselmoment",
+          body: `Wissel op ${input.date} om ${input.time}`,
+          entityType: "handover",
+          entityId: handoverId,
+          payload: { handoverId, childIds: input.childIds },
+        });
+      }
     });
   },
 
@@ -790,6 +903,16 @@ export const memoryRepository: FamilyRepository = {
     };
     mutateFamily(input.familyId, (snap) => {
       snap.vacations.unshift(vacation);
+      notifyFamilyMembers(snap, {
+        familyId: input.familyId,
+        actorId: input.createdBy,
+        recipientUserIds: activeMemberUserIds(snap, input.createdBy),
+        type: "vacation",
+        title: "Vakantieverzoek",
+        body: input.title,
+        entityType: "vacation",
+        entityId: vacation.id,
+      });
     });
     return vacation;
   },
@@ -800,6 +923,19 @@ export const memoryRepository: FamilyRepository = {
       if (!vacation) return;
       vacation.status = accept ? "accepted" : "declined";
       vacation.updatedAt = nowIso();
+      if (vacation.createdBy !== actorUserId) {
+        notifyFamilyMembers(snap, {
+          familyId: snap.family.id,
+          actorId: actorUserId,
+          recipientUserIds: [vacation.createdBy],
+          type: "vacation",
+          title: accept ? "Vakantie geaccepteerd" : "Vakantie afgewezen",
+          body: vacation.title,
+          entityType: "vacation",
+          entityId: vacation.id,
+          payload: { decision: accept ? "accepted" : "declined" },
+        });
+      }
     });
   },
 
@@ -847,12 +983,40 @@ export const memoryRepository: FamilyRepository = {
     });
   },
 
+  async getNotifications(userId, limit = 50) {
+    const familyId = getStore().userFamily.get(userId);
+    const snap = familyId ? getStore().families.get(familyId) : null;
+    if (!snap) return [];
+    return snap.notifications.filter((item) => item.userId === userId).slice(0, limit);
+  },
+
+  async markNotificationRead(notificationId, userId) {
+    const familyId = getStore().userFamily.get(userId);
+    const snap = familyId ? getStore().families.get(familyId) : null;
+    if (!snap) return;
+    const item = snap.notifications.find((n) => n.id === notificationId && n.userId === userId);
+    if (item && !item.readAt) item.readAt = nowIso();
+  },
+
   async markNotificationsRead(userId) {
     const familyId = getStore().userFamily.get(userId);
     const snap = familyId ? getStore().families.get(familyId) : null;
     if (!snap) return;
     snap.notifications = snap.notifications.map((item) =>
       item.userId === userId ? { ...item, readAt: item.readAt ?? nowIso() } : item,
+    );
+  },
+
+  async markAllNotificationsRead(userId) {
+    return this.markNotificationsRead(userId);
+  },
+
+  async deleteNotification(notificationId, userId) {
+    const familyId = getStore().userFamily.get(userId);
+    const snap = familyId ? getStore().families.get(familyId) : null;
+    if (!snap) return;
+    snap.notifications = snap.notifications.filter(
+      (item) => !(item.id === notificationId && item.userId === userId),
     );
   },
 
@@ -933,6 +1097,20 @@ export const memoryRepository: FamilyRepository = {
     };
     mutateFamily(input.familyId, (snap) => {
       snap.neededItems.unshift(item);
+      const recipientUserIds = input.assigneeMemberId
+        ? [memberUserId(snap, input.assigneeMemberId)].filter((id): id is string => Boolean(id))
+        : activeMemberUserIds(snap, input.createdBy);
+      notifyFamilyMembers(snap, {
+        familyId: input.familyId,
+        actorId: input.createdBy,
+        recipientUserIds,
+        type: "needed_item",
+        title: "Nieuw nodig-item",
+        body: input.title,
+        entityType: "needed_item",
+        entityId: item.id,
+        payload: { neededItemId: item.id, childId: input.childId },
+      });
     });
     return item;
   },
@@ -1039,6 +1217,18 @@ export const memoryRepository: FamilyRepository = {
     };
     mutateFamily(input.familyId, (snap) => {
       snap.childUpdates.unshift(update);
+      const actorId = memberUserId(snap, input.authorMemberId) ?? snap.currentProfile.id;
+      notifyFamilyMembers(snap, {
+        familyId: input.familyId,
+        actorId,
+        recipientUserIds: activeMemberUserIds(snap, actorId),
+        type: "child_update",
+        title: "Update over kind",
+        body: input.body.slice(0, 120),
+        entityType: "child_update",
+        entityId: update.id,
+        payload: { childId: input.childId, childUpdateId: update.id },
+      });
     });
     return update;
   },
@@ -1170,6 +1360,20 @@ export const memoryRepository: FamilyRepository = {
           role,
         });
       }
+      if (!input.contactOnly) {
+        const actorId = snap.currentProfile.id;
+        notifyFamilyMembers(snap, {
+          familyId: input.familyId,
+          actorId,
+          recipientUserIds: activeMemberUserIds(snap, actorId),
+          type: "invite_sent",
+          title: "Nieuwe uitnodiging",
+          body: `${input.parentLabel}${input.email ? ` (${input.email})` : ""} is uitgenodigd.`,
+          entityType: "invite",
+          entityId: memberId,
+          payload: { email: input.email, memberId },
+        });
+      }
     });
     return { token };
   },
@@ -1200,6 +1404,23 @@ export const memoryRepository: FamilyRepository = {
     mutateFamily(input.familyId, (snap) => {
       snap.tasks.unshift(task);
       refreshRoutineOccurrences(snap);
+      const recipientUserIds = input.assigneeMemberId
+        ? [memberUserId(snap, input.assigneeMemberId)].filter((id): id is string => Boolean(id))
+        : [];
+      for (const uid of activeMemberUserIds(snap, input.createdBy)) {
+        if (!recipientUserIds.includes(uid)) recipientUserIds.push(uid);
+      }
+      notifyFamilyMembers(snap, {
+        familyId: input.familyId,
+        actorId: input.createdBy,
+        recipientUserIds,
+        type: "routine_created",
+        title: input.kind === "care" ? "Nieuwe zorg-routine" : "Nieuwe routine",
+        body: input.title,
+        entityType: "routine",
+        entityId: task.id,
+        payload: { taskId: task.id, childId: input.childId },
+      });
     });
     return task;
   },

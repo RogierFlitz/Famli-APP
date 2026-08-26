@@ -438,9 +438,12 @@ export interface AppNotification {
   id: string;
   familyId: string;
   userId: string;
+  actorId?: string | null;
   type: string;
   title: string;
   body: string;
+  entityType?: string | null;
+  entityId?: string | null;
   payload: Record<string, unknown>;
   readAt: string | null;
   channel: NotificationChannel;

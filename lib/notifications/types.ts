@@ -1,0 +1,45 @@
+export const NOTIFICATION_TYPES = [
+  "invite_sent",
+  "invite_accepted",
+  "task_assigned",
+  "task_completed",
+  "routine_created",
+  "routine_changed",
+  "handover_created",
+  "change_request",
+  "change_request_response",
+  "schedule_changed",
+  "needed_item",
+  "child_update",
+  "expense",
+  "document",
+  "event_created",
+  "vacation",
+  "travel_plan",
+] as const;
+
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+export interface CreateNotificationInput {
+  familyId: string;
+  userId: string;
+  actorId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  entityType: string;
+  entityId: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface NotifyFamilyInput {
+  familyId: string;
+  actorId: string;
+  recipientUserIds: string[];
+  type: NotificationType;
+  title: string;
+  body: string;
+  entityType: string;
+  entityId: string;
+  payload?: Record<string, unknown>;
+}

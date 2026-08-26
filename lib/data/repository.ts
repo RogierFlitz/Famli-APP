@@ -1,4 +1,5 @@
 import type {
+  AppNotification,
   CalendarEvent,
   CalendarPrivacyMode,
   ChangeRequest,
@@ -232,7 +233,11 @@ export interface FamilyRepository {
     splitPercents: Record<string, number>;
     childId: string | null;
   }): Promise<void>;
+  getNotifications(userId: string, limit?: number): Promise<AppNotification[]>;
+  markNotificationRead(notificationId: string, userId: string): Promise<void>;
   markNotificationsRead(userId: string): Promise<void>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+  deleteNotification(notificationId: string, userId: string): Promise<void>;
   updateChildSizes(input: {
     childId: string;
     actorUserId: string;

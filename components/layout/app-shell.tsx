@@ -9,6 +9,7 @@ import type { FamilySnapshot } from "@/lib/domain/types";
 import { signOut } from "@/lib/auth/actions";
 import { AddMenu } from "@/components/compose/add-menu";
 import { FamilySearch } from "@/components/search/family-search";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 export function AppShell({
   snapshot,
@@ -18,7 +19,6 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const unread = snapshot.notifications.filter((item) => !item.readAt).length;
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[240px_1fr]">
@@ -30,7 +30,7 @@ export function AppShell({
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {primaryNav.map((item) => (
-            <NavLink key={item.href} href={item.href} active={pathname.startsWith(item.href)} icon={item.icon} label={item.label} badge={item.href === "/regelen" ? unread : 0} />
+            <NavLink key={item.href} href={item.href} active={pathname.startsWith(item.href)} icon={item.icon} label={item.label} />
           ))}
           <div className="mt-auto mb-3 space-y-1 border-t border-[color:var(--famli-border)] pt-3">
             {secondaryNav.map((item) => (
@@ -55,9 +55,13 @@ export function AppShell({
             <FamliAppIcon className="size-8 shrink-0" />
           </Link>
           <FamilySearch snapshot={snapshot} />
+          <NotificationBell snapshot={snapshot} />
         </header>
-        <div className="hidden px-10 pt-6 lg:block">
-          <FamilySearch snapshot={snapshot} />
+        <div className="hidden items-center gap-4 px-10 pt-6 lg:flex">
+          <div className="flex-1">
+            <FamilySearch snapshot={snapshot} />
+          </div>
+          <NotificationBell snapshot={snapshot} />
         </div>
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 lg:px-10 lg:pb-10 lg:pt-6">
           {children}
