@@ -13,7 +13,15 @@ import { generateHandovers, generateOccurrences } from "@/lib/custody/generate";
 import { addDaysIso, toISODate } from "@/lib/dates";
 import { famliColor } from "@/lib/brand/tokens";
 import { emptyLifeFields, applyPrivacy } from "@/lib/life/privacy";
-import { parentPermissions, presetPermissions } from "@/lib/members/permissions";
+import {
+  memberPermissions,
+  parentPermissions,
+  presetPermissions,
+  roleForRelation,
+} from "@/lib/members/permissions";
+import { markPastOccurrencesUnregistered } from "@/lib/queries/routines";
+import { refreshRoutineOccurrences } from "@/lib/routines/generate";
+import { generateInviteToken, inviteExpiresAt } from "@/lib/security/invites";
 import {
   deleteExpenseReceiptBlob,
   expenseReceiptStoragePath,
@@ -26,6 +34,9 @@ import type {
   CalendarEvent,
   ChangeRequest,
   Child,
+  ChildMemberAccess,
+  ChildSizes,
+  ChildUpdate,
   ContextMessage,
   CustodySchedule,
   Expense,
@@ -37,8 +48,13 @@ import type {
   Handover,
   HandoverCheckIn,
   ImportJob,
+  NeededItem,
+  Party,
   Profile,
+  RoutineOccurrence,
   TaskItem,
+  TravelPlan,
+  TravelSegment,
 } from "@/lib/domain/types";
 
 async function db() {
@@ -142,6 +158,157 @@ function mapChangeRequestRow(row: Record<string, unknown>): ChangeRequest {
     resolvedAt: (row.resolved_at as string) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+  };
+}
+
+function mapChildSizesRow(row: Record<string, unknown>): ChildSizes {
+  return {
+    childId: row.child_id as string,
+    clothing: (row.clothing as string) ?? null,
+    shoes: (row.shoes as string) ?? null,
+    jacket: (row.jacket as string) ?? null,
+    trousers: (row.trousers as string) ?? null,
+    sport: (row.sport as string) ?? null,
+    helmet: (row.helmet as string) ?? null,
+    other: (row.other as string) ?? null,
+    updatedAt: row.updated_at as string,
+    updatedBy: row.updated_by as string,
+  };
+}
+
+function mapNeededItemRow(row: Record<string, unknown>): NeededItem {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    childId: row.child_id as string,
+    title: row.title as string,
+    category: row.category as NeededItem["category"],
+    size: (row.size as string) ?? null,
+    dueOn: (row.due_on as string) ?? null,
+    assigneeMemberId: (row.assignee_member_id as string) ?? null,
+    location: (row.location as NeededItem["location"]) ?? null,
+    locationCustom: (row.location_custom as string) ?? null,
+    budgetCents: row.budget_cents != null ? Number(row.budget_cents) : null,
+    status: row.status as NeededItem["status"],
+    notes: (row.notes as string) ?? null,
+    photoUrl: (row.photo_url as string) ?? null,
+    hiddenFromChild: Boolean(row.hidden_from_child),
+    purchasedAt: (row.purchased_at as string) ?? null,
+    purchasedByMemberId: (row.purchased_by_member_id as string) ?? null,
+    priceCents: row.price_cents != null ? Number(row.price_cents) : null,
+    receiptUrl: (row.receipt_url as string) ?? null,
+    expenseId: (row.expense_id as string) ?? null,
+    eventId: (row.event_id as string) ?? null,
+    createdAt: row.created_at as string,
+    createdBy: row.created_by as string,
+  };
+}
+
+function mapPartyRow(row: Record<string, unknown>): Party {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    eventId: row.event_id as string,
+    forChildId: row.for_child_id as string,
+    hostName: row.host_name as string,
+    address: (row.address as string) ?? null,
+    contact: (row.contact as string) ?? null,
+    rsvp: row.rsvp as Party["rsvp"],
+    giftNeededItemId: (row.gift_needed_item_id as string) ?? null,
+    giftBudgetCents: row.gift_budget_cents != null ? Number(row.gift_budget_cents) : null,
+    notes: (row.notes as string) ?? null,
+  };
+}
+
+function mapTravelPlanRow(
+  row: Record<string, unknown>,
+  childIds: string[],
+): TravelPlan {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    title: row.title as string,
+    destination: row.destination as string,
+    startsOn: row.starts_on as string,
+    endsOn: row.ends_on as string,
+    withMemberId: row.with_member_id as string,
+    childIds,
+    transport: (row.transport as string) ?? null,
+    stayName: (row.stay_name as string) ?? null,
+    stayAddress: (row.stay_address as string) ?? null,
+    stayContact: (row.stay_contact as string) ?? null,
+    bookingRef: (row.booking_ref as string) ?? null,
+    notes: (row.notes as string) ?? null,
+    createdBy: row.created_by as string,
+  };
+}
+
+function mapTravelSegmentRow(row: Record<string, unknown>): TravelSegment {
+  return {
+    id: row.id as string,
+    travelPlanId: row.travel_plan_id as string,
+    kind: row.kind as TravelSegment["kind"],
+    carrier: (row.carrier as string) ?? null,
+    number: (row.number as string) ?? null,
+    fromPlace: (row.from_place as string) ?? null,
+    toPlace: (row.to_place as string) ?? null,
+    departsAt: (row.departs_at as string) ?? null,
+    arrivesAt: (row.arrives_at as string) ?? null,
+  };
+}
+
+function mapChildUpdateRow(row: Record<string, unknown>): ChildUpdate {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    childId: row.child_id as string,
+    body: row.body as string,
+    category: (row.category as string) ?? null,
+    authorMemberId: row.author_member_id as string,
+    createdAt: row.created_at as string,
+    photoUrl: (row.photo_url as string) ?? null,
+  };
+}
+
+function mapRoutineOccurrenceRow(row: Record<string, unknown>): RoutineOccurrence {
+  const time = String(row.time).slice(0, 5);
+  return {
+    id: row.id as string,
+    routineId: row.routine_id as string,
+    familyId: row.family_id as string,
+    childId: (row.child_id as string) ?? null,
+    date: row.date as string,
+    time,
+    assigneeMemberId: (row.assignee_member_id as string) ?? null,
+    status: row.status as RoutineOccurrence["status"],
+    completedAt: (row.completed_at as string) ?? null,
+    completedByMemberId: (row.completed_by_member_id as string) ?? null,
+    notes: (row.notes as string) ?? null,
+  };
+}
+
+function mapTaskRow(row: Record<string, unknown>): TaskItem {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    title: row.title as string,
+    description: (row.description as string) ?? null,
+    childId: (row.child_id as string) ?? null,
+    assigneeMemberId: (row.assignee_member_id as string) ?? null,
+    dueAt: (row.due_at as string) ?? null,
+    status: row.status as TaskItem["status"],
+    kind: (row.kind as TaskItem["kind"]) ?? "one_off",
+    weekdays: (row.weekdays as number[] | null) ?? undefined,
+    times: (row.times as string[] | null) ?? undefined,
+    assignMode: (row.assign_mode as TaskItem["assignMode"]) ?? undefined,
+    careLabel: (row.care_label as string) ?? null,
+    careInstructions: (row.care_instructions as string) ?? null,
+    packingItems: (row.packing_items as string[]) ?? undefined,
+    active: row.active === false ? false : true,
+    attachmentUrl: (row.attachment_url as string) ?? null,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+    createdBy: row.created_by as string,
   };
 }
 
@@ -289,6 +456,15 @@ export const supabaseRepository: FamilyRepository = {
       handoverCheckInsRes,
       importJobsRes,
       guestLinksRes,
+      childSizesRes,
+      sizeHistoryRes,
+      neededItemsRes,
+      travelPlansRes,
+      travelSegmentsRes,
+      childUpdatesRes,
+      routineOccurrencesRes,
+      partiesRes,
+      childAccessRes,
     ] = await Promise.all([
       supabase.from("families").select("*").eq("id", familyId).single(),
       supabase.from("family_members").select("*").eq("family_id", familyId),
@@ -317,6 +493,15 @@ export const supabaseRepository: FamilyRepository = {
         .select(GUEST_LINK_COLUMNS)
         .eq("family_id", familyId)
         .order("created_at", { ascending: false }),
+      supabase.from("child_sizes").select("*").eq("family_id", familyId),
+      supabase.from("size_history").select("*").eq("family_id", familyId).order("changed_at", { ascending: false }),
+      supabase.from("needed_items").select("*").eq("family_id", familyId).order("created_at", { ascending: false }),
+      supabase.from("travel_plans").select("*, travel_plan_children(child_id)").eq("family_id", familyId),
+      supabase.from("travel_segments").select("*"),
+      supabase.from("child_updates").select("*").eq("family_id", familyId).order("created_at", { ascending: false }),
+      supabase.from("routine_occurrences").select("*").eq("family_id", familyId),
+      supabase.from("parties").select("*").eq("family_id", familyId),
+      supabase.from("child_member_access").select("*").eq("family_id", familyId),
     ]);
 
     if (familyRes.error) throw familyRes.error;
@@ -557,28 +742,7 @@ export const supabaseRepository: FamilyRepository = {
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       })),
-      tasks: (tasksRes.data ?? []).map((row) => ({
-        id: row.id,
-        familyId: row.family_id,
-        title: row.title,
-        description: row.description,
-        childId: row.child_id,
-        assigneeMemberId: row.assignee_member_id,
-        dueAt: row.due_at,
-        status: row.status,
-        kind: row.kind ?? "one_off",
-        weekdays: row.weekdays ?? undefined,
-        times: row.times ?? undefined,
-        assignMode: row.assign_mode ?? undefined,
-        careLabel: row.care_label ?? null,
-        careInstructions: row.care_instructions ?? null,
-        packingItems: row.packing_items ?? undefined,
-        active: row.active ?? true,
-        attachmentUrl: row.attachment_url,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        createdBy: row.created_by,
-      })),
+      tasks: (tasksRes.data ?? []).map(mapTaskRow),
       expenses,
       splits,
       recurringExpenses: (recurringRes.data ?? []).map((row) => ({
@@ -670,12 +834,52 @@ export const supabaseRepository: FamilyRepository = {
         updatedAt: row.updated_at,
         createdBy: row.created_by,
       })),
-      ...emptyLifeFields(),
+      sizes: (childSizesRes.data ?? []).map(mapChildSizesRow),
+      sizeHistory: (sizeHistoryRes.data ?? []).map((row) => ({
+        id: row.id,
+        childId: row.child_id,
+        field: row.field,
+        fromValue: row.from_value ?? null,
+        toValue: row.to_value ?? null,
+        changedAt: row.changed_at,
+        changedBy: row.changed_by,
+      })),
+      neededItems: (neededItemsRes.data ?? []).map(mapNeededItemRow),
+      parties: (partiesRes.data ?? []).map(mapPartyRow),
+      travelPlans: (travelPlansRes.data ?? []).map((row) =>
+        mapTravelPlanRow(
+          row,
+          (row.travel_plan_children ?? []).map((c: { child_id: string }) => c.child_id),
+        ),
+      ),
+      travelSegments: (travelSegmentsRes.data ?? [])
+        .filter((row) =>
+          (travelPlansRes.data ?? []).some((plan) => plan.id === row.travel_plan_id),
+        )
+        .map(mapTravelSegmentRow),
+      childUpdates: (childUpdatesRes.data ?? []).map(mapChildUpdateRow),
+      childMemberAccess: (childAccessRes.data ?? []).map(
+        (row): ChildMemberAccess => ({
+          id: row.id,
+          memberId: row.member_id,
+          childId: row.child_id,
+          canView: row.can_view,
+          canEdit: row.can_edit,
+        }),
+      ),
+      routineOccurrences: (routineOccurrencesRes.data ?? []).map(mapRoutineOccurrenceRow),
+      schools: [],
+      clubs: [],
+      households: [],
+      externalBusyBlocks: [],
       contextMessages: (contextMessagesRes.data ?? []).map(mapContextMessageRow),
       handoverCheckIns: (handoverCheckInsRes.data ?? []).map(mapHandoverCheckInRow),
       importJobs: (importJobsRes.data ?? []).map(mapImportJobRow),
       guestLinkTokens: (guestLinksRes.data ?? []).map((row) => mapGuestLinkRow(row)),
     };
+
+    refreshRoutineOccurrences(snapshot);
+    markPastOccurrencesUnregistered(snapshot);
 
     return applyPrivacy(snapshot);
   },
@@ -1015,6 +1219,37 @@ export const supabaseRepository: FamilyRepository = {
       ...input.memberIds.map((memberId) => ({ event_id: id, child_id: null, member_id: memberId })),
     ];
     if (participants.length) await supabase.from("event_participants").insert(participants);
+
+    if (input.party) {
+      const giftId = randomUUID();
+      await supabase.from("needed_items").insert({
+        id: giftId,
+        family_id: input.familyId,
+        child_id: input.party.forChildId,
+        title: `Cadeau ${input.party.hostName}`,
+        category: "cadeau",
+        due_on: input.startsAt.slice(0, 10),
+        budget_cents: input.party.giftBudgetCents,
+        status: "nodig",
+        notes: input.party.notes,
+        hidden_from_child: true,
+        event_id: id,
+        created_by: input.createdBy,
+      });
+      await supabase.from("parties").insert({
+        family_id: input.familyId,
+        event_id: id,
+        for_child_id: input.party.forChildId,
+        host_name: input.party.hostName,
+        address: input.party.address ?? null,
+        contact: input.party.contact ?? null,
+        rsvp: "pending",
+        gift_needed_item_id: giftId,
+        gift_budget_cents: input.party.giftBudgetCents ?? null,
+        notes: input.party.notes ?? null,
+      });
+    }
+
     return {
       id,
       familyId: input.familyId,
@@ -1030,6 +1265,9 @@ export const supabaseRepository: FamilyRepository = {
       childIds: input.childIds,
       memberIds: input.memberIds,
       handoverId: null,
+      dropoffMemberId: input.dropoffMemberId ?? null,
+      pickupMemberId: input.pickupMemberId ?? null,
+      schoolKind: input.schoolKind ?? null,
       cancelledAt: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1054,6 +1292,15 @@ export const supabaseRepository: FamilyRepository = {
       packing_list: input.packingList,
       created_by: input.createdBy,
     });
+    if (input.childIds.length) {
+      await supabase.from("event_participants").insert(
+        input.childIds.map((childId) => ({ event_id: eventId, child_id: childId, member_id: null })),
+      );
+    }
+    await supabase.from("event_participants").insert([
+      { event_id: eventId, child_id: null, member_id: input.fromMemberId },
+      { event_id: eventId, child_id: null, member_id: input.toMemberId },
+    ]);
     await supabase.from("handovers").insert({
       id: handoverId,
       family_id: input.familyId,
@@ -1069,6 +1316,11 @@ export const supabaseRepository: FamilyRepository = {
       packing_list: input.packingList,
       created_by: input.createdBy,
     });
+    if (input.childIds.length) {
+      await supabase.from("handover_children").insert(
+        input.childIds.map((childId) => ({ handover_id: handoverId, child_id: childId })),
+      );
+    }
   },
 
   async createVacation(input) {
@@ -1140,41 +1392,518 @@ export const supabaseRepository: FamilyRepository = {
       .is("read_at", null);
   },
 
-  async updateChildSizes() {
-    throw new Error("Maten bijwerken volgt later in Supabase.");
+  async updateChildSizes(input) {
+    const supabase = await db();
+    const { data: child } = await supabase
+      .from("children")
+      .select("id, family_id")
+      .eq("id", input.childId)
+      .maybeSingle();
+    if (!child) throw new Error("Kind niet gevonden.");
+
+    const fields = {
+      clothing: input.clothing,
+      shoes: input.shoes,
+      jacket: input.jacket,
+      trousers: input.trousers,
+      sport: input.sport,
+      helmet: input.helmet,
+      other: input.other,
+    } as const;
+    const stamp = new Date().toISOString();
+
+    const { data: current } = await supabase
+      .from("child_sizes")
+      .select("*")
+      .eq("child_id", input.childId)
+      .maybeSingle();
+
+    if (current) {
+      const historyRows = [];
+      for (const key of Object.keys(fields) as (keyof typeof fields)[]) {
+        if ((current[key] ?? "") !== (fields[key] ?? "")) {
+          historyRows.push({
+            child_id: input.childId,
+            family_id: child.family_id,
+            field: key,
+            from_value: current[key],
+            to_value: fields[key],
+            changed_at: stamp,
+            changed_by: input.actorUserId,
+          });
+        }
+      }
+      if (historyRows.length) {
+        await supabase.from("size_history").insert(historyRows);
+      }
+    }
+
+    const { data: updated, error } = await supabase
+      .from("child_sizes")
+      .upsert({
+        child_id: input.childId,
+        family_id: child.family_id,
+        ...fields,
+        updated_at: stamp,
+        updated_by: input.actorUserId,
+      })
+      .select("*")
+      .single();
+    if (error || !updated) throw error ?? new Error("Maten konden niet worden opgeslagen.");
+
+    await supabase
+      .from("children")
+      .update({
+        clothing_size: input.clothing,
+        shoe_size: input.shoes,
+        updated_at: stamp,
+      })
+      .eq("id", input.childId);
+
+    return mapChildSizesRow(updated);
   },
-  async createNeededItem() {
-    throw new Error("Nodig-items volgen later in Supabase.");
+
+  async createNeededItem(input) {
+    const supabase = await db();
+    const id = randomUUID();
+    const status = input.assigneeMemberId ? "wordt_geregeld" : "nodig";
+    const { data, error } = await supabase
+      .from("needed_items")
+      .insert({
+        id,
+        family_id: input.familyId,
+        child_id: input.childId,
+        title: input.title,
+        category: input.category,
+        size: input.size,
+        due_on: input.dueOn,
+        assignee_member_id: input.assigneeMemberId,
+        budget_cents: input.budgetCents,
+        status,
+        notes: input.notes,
+        hidden_from_child: input.hiddenFromChild,
+        event_id: input.eventId,
+        created_by: input.createdBy,
+      })
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Item kon niet worden opgeslagen.");
+    return mapNeededItemRow(data);
   },
-  async claimNeededItem() {
-    throw new Error("Nodig-items volgen later in Supabase.");
+
+  async claimNeededItem(id, _actorUserId, actorMemberId) {
+    const supabase = await db();
+    await supabase
+      .from("needed_items")
+      .update({ assignee_member_id: actorMemberId, status: "wordt_geregeld" })
+      .eq("id", id);
   },
-  async purchaseNeededItem() {
-    throw new Error("Nodig-items volgen later in Supabase.");
+
+  async purchaseNeededItem(input) {
+    const supabase = await db();
+    const { data: item } = await supabase.from("needed_items").select("assignee_member_id").eq("id", input.id).maybeSingle();
+    const update: Record<string, unknown> = {
+      status: "gekocht",
+      purchased_at: new Date().toISOString(),
+      purchased_by_member_id: input.actorMemberId,
+      price_cents: input.priceCents,
+      receipt_url: input.receiptUrl,
+    };
+    if (!item?.assignee_member_id) update.assignee_member_id = input.actorMemberId;
+    await supabase.from("needed_items").update(update).eq("id", input.id);
   },
-  async unmarkNeededItemBought() {
-    throw new Error("Nodig-items volgen later in Supabase.");
+
+  async unmarkNeededItemBought(id, _actorUserId) {
+    const supabase = await db();
+    const { data: item } = await supabase.from("needed_items").select("status, expense_id, assignee_member_id").eq("id", id).maybeSingle();
+    if (!item || item.status !== "gekocht") return;
+    if (item.expense_id) throw new Error("Kan niet terugzetten: al gekoppeld aan kosten.");
+    await supabase
+      .from("needed_items")
+      .update({
+        status: item.assignee_member_id ? "wordt_geregeld" : "nodig",
+        purchased_at: null,
+        purchased_by_member_id: null,
+        price_cents: null,
+        receipt_url: null,
+      })
+      .eq("id", id);
   },
-  async neededToExpense() {
-    throw new Error("Nodig-items volgen later in Supabase.");
+
+  async neededToExpense(input) {
+    const supabase = await db();
+    const { data: item, error: fetchError } = await supabase
+      .from("needed_items")
+      .select("*")
+      .eq("id", input.id)
+      .maybeSingle();
+    if (fetchError || !item) throw new Error("Item niet gevonden.");
+
+    const amount = item.price_cents ?? item.budget_cents ?? 0;
+    const created = new Date().toISOString();
+    const expenseCategory =
+      item.category === "school" || item.category === "sport" || item.category === "kleding"
+        ? item.category
+        : "overig";
+    const expenseId = randomUUID();
+
+    const { error: expenseError } = await supabase.from("expenses").insert({
+      id: expenseId,
+      family_id: item.family_id,
+      description: item.title,
+      amount_cents: amount,
+      date: created.slice(0, 10),
+      child_id: item.child_id,
+      category: expenseCategory,
+      paid_by_member_id: input.paidByMemberId,
+      notes: item.notes,
+      created_by: input.actorUserId,
+    });
+    if (expenseError) throw expenseError;
+
+    const shares = splitAmounts(amount, input.splitPercents);
+    await supabase.from("expense_splits").insert(
+      Object.entries(shares).map(([memberId, shareCents]) => ({
+        expense_id: expenseId,
+        member_id: memberId,
+        share_cents: shareCents,
+        share_percent: input.splitPercents[memberId],
+        paid_at: memberId === input.paidByMemberId ? created : null,
+        status: memberId === input.paidByMemberId ? "paid" : "pending",
+      })),
+    );
+
+    const itemUpdate: Record<string, unknown> = { expense_id: expenseId };
+    if (item.status !== "gekocht") {
+      itemUpdate.status = "gekocht";
+      itemUpdate.purchased_at = created;
+      itemUpdate.purchased_by_member_id = input.paidByMemberId;
+      itemUpdate.price_cents = amount;
+    }
+    await supabase.from("needed_items").update(itemUpdate).eq("id", input.id);
+
+    return {
+      id: expenseId,
+      familyId: item.family_id,
+      description: item.title,
+      amountCents: amount,
+      currency: "EUR",
+      date: created.slice(0, 10),
+      childId: item.child_id,
+      category: expenseCategory,
+      paidByMemberId: input.paidByMemberId,
+      receiptStoragePath: null,
+      receiptFilename: null,
+      receiptUploadedAt: null,
+      receiptMimeType: null,
+      notes: item.notes,
+      recurringExpenseId: null,
+      voidedAt: null,
+      createdAt: created,
+      updatedAt: created,
+      createdBy: input.actorUserId,
+    };
   },
-  async createChildUpdate() {
-    throw new Error("Updates volgen later in Supabase.");
+
+  async createChildUpdate(input) {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("child_updates")
+      .insert({
+        family_id: input.familyId,
+        child_id: input.childId,
+        body: input.body,
+        category: input.category,
+        author_member_id: input.authorMemberId,
+      })
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Update kon niet worden opgeslagen.");
+    return mapChildUpdateRow(data);
   },
-  async createTravelPlan() {
-    throw new Error("Reizen volgen later in Supabase.");
+
+  async createTravelPlan(input) {
+    const supabase = await db();
+    const planId = randomUUID();
+    const { error: planError } = await supabase.from("travel_plans").insert({
+      id: planId,
+      family_id: input.familyId,
+      title: input.title,
+      destination: input.destination,
+      starts_on: input.startsOn,
+      ends_on: input.endsOn,
+      with_member_id: input.withMemberId,
+      transport: input.transport,
+      stay_name: input.stayName,
+      stay_address: input.stayAddress,
+      stay_contact: input.stayContact,
+      booking_ref: input.bookingRef,
+      notes: input.notes,
+      created_by: input.createdBy,
+    });
+    if (planError) throw planError;
+
+    if (input.childIds.length) {
+      await supabase.from("travel_plan_children").insert(
+        input.childIds.map((childId) => ({ travel_plan_id: planId, child_id: childId })),
+      );
+    }
+
+    const segments: TravelSegment[] = [];
+    if (input.outboundNumber || input.outboundDeparts) {
+      const segId = randomUUID();
+      await supabase.from("travel_segments").insert({
+        id: segId,
+        travel_plan_id: planId,
+        kind: "outbound",
+        number: input.outboundNumber,
+        from_place: input.outboundFrom,
+        to_place: input.outboundTo,
+        departs_at: input.outboundDeparts,
+        arrives_at: input.outboundArrives,
+      });
+      segments.push({
+        id: segId,
+        travelPlanId: planId,
+        kind: "outbound",
+        carrier: null,
+        number: input.outboundNumber,
+        fromPlace: input.outboundFrom,
+        toPlace: input.outboundTo,
+        departsAt: input.outboundDeparts,
+        arrivesAt: input.outboundArrives,
+      });
+    }
+    if (input.returnNumber || input.returnDeparts) {
+      const segId = randomUUID();
+      await supabase.from("travel_segments").insert({
+        id: segId,
+        travel_plan_id: planId,
+        kind: "return",
+        number: input.returnNumber,
+        from_place: input.returnFrom,
+        to_place: input.returnTo,
+        departs_at: input.returnDeparts,
+        arrives_at: input.returnArrives,
+      });
+      segments.push({
+        id: segId,
+        travelPlanId: planId,
+        kind: "return",
+        carrier: null,
+        number: input.returnNumber,
+        fromPlace: input.returnFrom,
+        toPlace: input.returnTo,
+        departsAt: input.returnDeparts,
+        arrivesAt: input.returnArrives,
+      });
+    }
+
+    const eventId = randomUUID();
+    await supabase.from("events").insert({
+      id: eventId,
+      family_id: input.familyId,
+      title: input.title,
+      description: input.destination,
+      category: "vakantie",
+      starts_at: `${input.startsOn}T00:00:00`,
+      ends_at: `${input.endsOn}T23:59:00`,
+      all_day: true,
+      location: input.destination,
+      notes: input.notes,
+      created_by: input.createdBy,
+    });
+    if (input.childIds.length) {
+      await supabase.from("event_participants").insert(
+        input.childIds.map((childId) => ({ event_id: eventId, child_id: childId, member_id: null })),
+      );
+    }
+    await supabase.from("event_participants").insert({
+      event_id: eventId,
+      child_id: null,
+      member_id: input.withMemberId,
+    });
+
+    return {
+      id: planId,
+      familyId: input.familyId,
+      title: input.title,
+      destination: input.destination,
+      startsOn: input.startsOn,
+      endsOn: input.endsOn,
+      withMemberId: input.withMemberId,
+      childIds: input.childIds,
+      transport: input.transport,
+      stayName: input.stayName,
+      stayAddress: input.stayAddress,
+      stayContact: input.stayContact,
+      bookingRef: input.bookingRef,
+      notes: input.notes,
+      createdBy: input.createdBy,
+    };
   },
-  async inviteMember() {
-    throw new Error("Gezinsleden beheren volgt later in Supabase.");
+
+  async inviteMember(input) {
+    const supabase = await db();
+    const relationType = input.relationType;
+    const preset = input.permissionPreset ?? (relationType === "partner" ? "involved" : "practical");
+    const role = roleForRelation(relationType);
+    const memberId = randomUUID();
+    const token = input.email && !input.contactOnly ? generateInviteToken() : "";
+
+    const { error: memberError } = await supabase.from("family_members").insert({
+      id: memberId,
+      family_id: input.familyId,
+      user_id: null,
+      role,
+      relation_type: relationType,
+      permission_preset: preset,
+      permissions: presetPermissions(preset, relationType),
+      parent_label: input.parentLabel,
+      display_color: input.displayColor ?? famliColor.parent2,
+      invited_email: input.email,
+      status: input.contactOnly ? "active" : "invited",
+      household_id: input.householdId ?? null,
+      contact_only: input.contactOnly ?? false,
+      linked_parent_member_id: input.linkedParentMemberId ?? null,
+      phone: input.phone ?? null,
+    });
+    if (memberError) throw memberError;
+
+    if (input.childIds?.length) {
+      await supabase.from("child_member_access").insert(
+        input.childIds.map((childId) => ({
+          family_id: input.familyId,
+          member_id: memberId,
+          child_id: childId,
+          can_view: true,
+          can_edit: preset === "involved",
+        })),
+      );
+    }
+
+    if (input.email && !input.contactOnly) {
+      await supabase.from("invites").insert({
+        family_id: input.familyId,
+        email: input.email,
+        role,
+        parent_label: input.parentLabel,
+        token,
+        expires_at: inviteExpiresAt().toISOString(),
+      });
+    }
+
+    return { token };
   },
-  async createRoutine() {
-    throw new Error("Routines volgen later in Supabase.");
+
+  async createRoutine(input) {
+    const supabase = await db();
+    const id = randomUUID();
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        id,
+        family_id: input.familyId,
+        title: input.title,
+        description: input.description,
+        child_id: input.childId,
+        assignee_member_id: input.assigneeMemberId,
+        status: "open",
+        kind: input.kind,
+        weekdays: input.weekdays,
+        times: input.times,
+        assign_mode: input.assignMode ?? "stay",
+        care_label: input.careLabel ?? null,
+        care_instructions: input.careInstructions ?? null,
+        packing_items: input.packingItems ?? [],
+        active: true,
+        created_by: input.createdBy,
+      })
+      .select("*")
+      .single();
+    if (error || !data) throw error ?? new Error("Routine kon niet worden opgeslagen.");
+    return mapTaskRow(data);
   },
-  async completeRoutineOccurrence() {
-    throw new Error("Routines volgen later in Supabase.");
+
+  async completeRoutineOccurrence(input) {
+    const supabase = await db();
+    const { data: membership } = await supabase
+      .from("family_members")
+      .select("permissions, role, relation_type, contact_only")
+      .eq("id", input.actorMemberId)
+      .maybeSingle();
+    if (!membership) throw new Error("Lid niet gevonden.");
+    const actor = {
+      permissions: membership.permissions ?? parentPermissions(),
+      role: membership.role,
+      relationType: membership.relation_type,
+      contactOnly: membership.contact_only,
+    } as FamilyMember;
+    if (!memberPermissions(actor).completeTasks) {
+      throw new Error("Je hebt geen rechten om dit af te ronden.");
+    }
+
+    let occurrence = (
+      await supabase.from("routine_occurrences").select("*").eq("id", input.occurrenceId).maybeSingle()
+    ).data;
+
+    if (!occurrence) {
+      const parts = input.occurrenceId.split(":");
+      if (parts.length < 3) throw new Error("Routine niet gevonden.");
+      const time = parts.pop()!;
+      const date = parts.pop()!;
+      const routineId = parts.join(":");
+      const { data: routine } = await supabase
+        .from("tasks")
+        .select("family_id, child_id, assignee_member_id")
+        .eq("id", routineId)
+        .maybeSingle();
+      if (!routine) throw new Error("Routine niet gevonden.");
+      occurrence = {
+        id: input.occurrenceId,
+        routine_id: routineId,
+        family_id: routine.family_id,
+        child_id: routine.child_id,
+        date,
+        time,
+        assignee_member_id: routine.assignee_member_id,
+        status: "pending",
+      };
+    }
+
+    const now = new Date().toISOString();
+    await supabase.from("routine_occurrences").upsert({
+      id: occurrence.id,
+      routine_id: occurrence.routine_id,
+      family_id: occurrence.family_id,
+      child_id: occurrence.child_id,
+      date: occurrence.date,
+      time: occurrence.time,
+      assignee_member_id: occurrence.assignee_member_id,
+      status: "done",
+      completed_at: now,
+      completed_by_member_id: input.actorMemberId,
+      notes: input.notes ?? null,
+    });
   },
-  async reopenRoutineOccurrence() {
-    throw new Error("Routines volgen later in Supabase.");
+
+  async reopenRoutineOccurrence(occurrenceId, _actorUserId) {
+    const supabase = await db();
+    const { data: occurrence } = await supabase
+      .from("routine_occurrences")
+      .select("status")
+      .eq("id", occurrenceId)
+      .maybeSingle();
+    if (!occurrence || occurrence.status !== "done") return;
+    await supabase
+      .from("routine_occurrences")
+      .update({
+        status: "pending",
+        completed_at: null,
+        completed_by_member_id: null,
+        notes: null,
+      })
+      .eq("id", occurrenceId);
   },
 
   async uploadExpenseReceipt(input) {
