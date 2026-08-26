@@ -736,6 +736,46 @@ export interface ChildUpdate {
   photoUrl: string | null;
 }
 
+export type ShoppingCategory =
+  | "groente_fruit"
+  | "brood"
+  | "zuivel"
+  | "vlees_vis_vega"
+  | "beleg"
+  | "dranken"
+  | "snacks"
+  | "diepvries"
+  | "huishouden"
+  | "verzorging"
+  | "overig";
+
+export interface ShoppingList {
+  id: string;
+  familyId: string;
+  name: string;
+  isDefault: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShoppingItem {
+  id: string;
+  familyId: string;
+  listId: string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  category: ShoppingCategory;
+  note: string | null;
+  completed: boolean;
+  completedBy: string | null;
+  completedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FamilySnapshot {
   family: Family;
   currentProfile: Profile;
@@ -776,6 +816,8 @@ export interface FamilySnapshot {
   households: Household[];
   childMemberAccess: ChildMemberAccess[];
   routineOccurrences: RoutineOccurrence[];
+  shoppingLists: ShoppingList[];
+  shoppingItems: ShoppingItem[];
 }
 
 export const SESSION_COOKIE = "nestly_session";

@@ -70,7 +70,7 @@ export function AppShell({
           <AddMenu snapshot={snapshot} />
         </div>
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--famli-border)] bg-[color:var(--famli-card)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
-          <ul className="grid grid-cols-5">
+          <ul className="grid grid-cols-6">
             {primaryNav.map((item) => {
               const Icon = item.icon;
               const active = pathname.startsWith(item.href);

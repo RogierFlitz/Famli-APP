@@ -806,7 +806,102 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     households,
     childMemberAccess,
     routineOccurrences,
+    shoppingLists: buildDemoShoppingLists(todayIso, createdAt),
+    shoppingItems: buildDemoShoppingItems(todayIso, createdAt),
   };
+}
+
+function buildDemoShoppingLists(todayIso: string, createdAt: string) {
+  return [
+    {
+      id: IDS.shoppingListDefault,
+      familyId: IDS.family,
+      name: "Boodschappen",
+      isDefault: true,
+      createdBy: IDS.emmaUser,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: IDS.shoppingListDrogist,
+      familyId: IDS.family,
+      name: "Drogist",
+      isDefault: false,
+      createdBy: IDS.emmaUser,
+      createdAt: at(parseDate(todayIso), "10:00"),
+      updatedAt: at(parseDate(todayIso), "10:00"),
+    },
+  ];
+}
+
+function buildDemoShoppingItems(todayIso: string, createdAt: string) {
+  const today = parseDate(todayIso);
+  return [
+    {
+      id: "si-melk-1111-4111-a111-111111111111",
+      familyId: IDS.family,
+      listId: IDS.shoppingListDefault,
+      name: "Melk",
+      quantity: 2,
+      unit: "pak",
+      category: "zuivel" as const,
+      note: null,
+      completed: false,
+      completedBy: null,
+      completedAt: null,
+      createdBy: IDS.emmaUser,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: "si-brood-2222-4222-a222-222222222222",
+      familyId: IDS.family,
+      listId: IDS.shoppingListDefault,
+      name: "Volkoren brood",
+      quantity: 1,
+      unit: null,
+      category: "brood" as const,
+      note: null,
+      completed: false,
+      completedBy: null,
+      completedAt: null,
+      createdBy: IDS.rogierUser,
+      createdAt: at(subDays(today, 1), "18:30"),
+      updatedAt: at(subDays(today, 1), "18:30"),
+    },
+    {
+      id: "si-banana-3333-4333-a333-333333333333",
+      familyId: IDS.family,
+      listId: IDS.shoppingListDefault,
+      name: "Bananen",
+      quantity: null,
+      unit: null,
+      category: "groente_fruit" as const,
+      note: "6 stuks",
+      completed: true,
+      completedBy: IDS.rogierUser,
+      completedAt: at(today, "09:15"),
+      createdBy: IDS.emmaUser,
+      createdAt: at(subDays(today, 2), "12:00"),
+      updatedAt: at(today, "09:15"),
+    },
+    {
+      id: "si-shampoo-4444-4444-a444-444444444444",
+      familyId: IDS.family,
+      listId: IDS.shoppingListDrogist,
+      name: "Shampoo",
+      quantity: 1,
+      unit: null,
+      category: "verzorging" as const,
+      note: null,
+      completed: false,
+      completedBy: null,
+      completedAt: null,
+      createdBy: IDS.emmaUser,
+      createdAt: at(today, "08:00"),
+      updatedAt: at(today, "08:00"),
+    },
+  ];
 }
 
 function parseDate(value: string) {

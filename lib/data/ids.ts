@@ -13,4 +13,6 @@ export const IDS = {
   noah: "dddd4444-4444-4444-a444-444444444444",
   sophie: "dddd4444-4444-4444-a444-444444444444",
   schedule: "eeee5555-5555-4555-a555-555555555555",
+  shoppingListDefault: "sl111111-1111-4111-a111-111111111111",
+  shoppingListDrogist: "sl222222-2222-4222-a222-222222222222",
 } as const;
