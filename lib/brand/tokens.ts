@@ -11,7 +11,7 @@ export const famliBrand = {
   wordmark: "famli",
   sloganNl: "Samen ouders. Alles geregeld.",
   sloganEn: "Family life, simplified.",
-  onboardingLine: "Meer overzicht. Minder afstemmen.",
+  onboardingLine: "Minder onthouden. Minder afstemmen.",
   onboardingBody:
     "Organiseer jullie agenda, wisseldagen, afspraken en kosten op één rustige plek.",
   metadata: {

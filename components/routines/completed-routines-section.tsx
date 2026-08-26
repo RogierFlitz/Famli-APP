@@ -4,8 +4,11 @@ import { formatDayLong } from "@/lib/dates";
 import { occurrenceStatusLabel } from "@/lib/queries/routines";
 import { parentName } from "@/lib/queries/family-view";
 import { routineById } from "@/lib/routines/generate";
+import { reopenRoutineOccurrenceAction } from "@/lib/actions/routines";
 import type { FamilySnapshot, RoutineOccurrence } from "@/lib/domain/types";
 import { CollapsibleSection, ExpandableList } from "@/components/ui/collapsible-section";
+import { ReopenButton } from "@/components/completion/reopen-button";
+import { formatCompletedAt } from "@/lib/completion/format";
 
 function CompletedOccurrenceCard({
   snapshot,
@@ -17,22 +20,30 @@ function CompletedOccurrenceCard({
   const routine = routineById(snapshot, occurrence.routineId);
   if (!routine) return null;
   const child = snapshot.children.find((item) => item.id === occurrence.childId);
+  const completedBy = occurrence.completedByMemberId
+    ? parentName(snapshot, occurrence.completedByMemberId)
+    : null;
 
   return (
     <article className="famli-card opacity-80" id={occurrence.id}>
-      <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">
-        {routine.kind === "care" ? "Zorg" : "Routine"} · {occurrence.time}
-      </p>
-      <p className="mt-1 text-lg font-medium line-through">
-        {routine.kind === "care" ? routine.careLabel ?? routine.title : routine.title}
-        {child ? ` · ${child.firstName}` : ""}
-      </p>
-      <p className="text-sm text-[color:var(--famli-muted)]">
-        {formatDayLong(occurrence.date)}
-        {occurrence.assigneeMemberId ? ` · ${parentName(snapshot, occurrence.assigneeMemberId)}` : ""}
-        {occurrence.completedAt ? ` · ✓ ${formatDayLong(occurrence.completedAt)}` : ""}
-      </p>
-      <p className="mt-1 text-sm font-medium text-[color:var(--famli-muted)]">{occurrenceStatusLabel(occurrence.status)}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">
+            {routine.kind === "care" ? "Zorg" : "Routine"} · {occurrence.time}
+          </p>
+          <p className="mt-1 text-lg font-medium line-through">
+            {routine.kind === "care" ? routine.careLabel ?? routine.title : routine.title}
+            {child ? ` · ${child.firstName}` : ""}
+          </p>
+          <p className="text-sm text-[color:var(--famli-muted)]">
+            {formatDayLong(occurrence.date)}
+            {occurrence.completedAt ? ` · ✓ ${formatCompletedAt(occurrence.completedAt)}` : ""}
+            {completedBy ? ` · door ${completedBy}` : ""}
+          </p>
+          <p className="mt-1 text-sm font-medium text-[color:var(--famli-muted)]">{occurrenceStatusLabel(occurrence.status)}</p>
+        </div>
+        <ReopenButton compact onReopen={() => reopenRoutineOccurrenceAction(occurrence.id)} />
+      </div>
     </article>
   );
 }

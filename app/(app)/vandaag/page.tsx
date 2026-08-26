@@ -1,242 +1,459 @@
 import Link from "next/link";
-import { addDays } from "date-fns";
+
 import { requireSnapshot } from "@/lib/auth/session";
+
 import { greetingForHour } from "@/lib/domain/labels";
+
 import { formatDayLong, toISODate } from "@/lib/dates";
-import { timelineForDate } from "@/lib/calendar/timeline";
+
 import { nextHandover, parentName, urgentActions } from "@/lib/queries/family-view";
-import { childPlace, comingSoon, forgetNot, neededHeadline, stayHeadline } from "@/lib/queries/child-life";
+
+import { childPlace, forgetNot, neededHeadline } from "@/lib/queries/child-life";
+
 import { myOpenDutiesToday, myCompletedDutiesToday } from "@/lib/queries/routines";
-import { completeRoutineOccurrenceAction } from "@/lib/actions/routines";
+
 import { canAcceptChangeRequests } from "@/lib/members/permissions";
+
+import { handoverIsSoon } from "@/lib/queries/handover";
+
+import { allSettledMessage, childDaySections } from "@/lib/queries/vandaag";
+
+import { eventResponsibilityLines } from "@/lib/queries/responsibility";
+
 import { AddMenu } from "@/components/compose/add-menu";
+
 import { ChangeReviewCard } from "@/components/requests/change-review";
+
 import { EmptyState } from "@/components/empty-state";
 
+import { SmartHandover } from "@/components/handover/smart-handover";
+
+import { OpenDutyCard, CompletedDutyCard } from "@/components/completion/duty-cards";
+
+
+
 export default async function TodayPage() {
+
   const snapshot = await requireSnapshot();
+
   const now = new Date();
+
   const today = toISODate(now);
-  const tomorrow = toISODate(addDays(now, 1));
-  const todayItems = timelineForDate(snapshot, today);
-  const tomorrowItems = timelineForDate(snapshot, tomorrow);
+
   const actions = urgentActions(snapshot, now);
+
   const next = nextHandover(snapshot, today);
+
+  const showHandover = next && handoverIsSoon(next, today);
+
   const incoming = canAcceptChangeRequests(snapshot)
+
     ? snapshot.changeRequests.filter(
+
         (item) => item.status === "pending" && item.requestedByMemberId !== snapshot.currentMember.id,
+
       )
+
     : [];
-  const remember = forgetNot(snapshot, now);
-  const soon = comingSoon(snapshot, now);
+
+  const remember = forgetNot(snapshot, now).slice(0, 5);
+
   const duties = myOpenDutiesToday(snapshot, now);
+
   const completedDuties = myCompletedDutiesToday(snapshot, now);
 
+  const childSections = childDaySections(snapshot, today);
+
+  const settled = allSettledMessage(snapshot, now);
+
+  const attentionActions = actions.filter((item) => item.kind !== "change");
+
+
+
   return (
+
     <div className="space-y-8">
+
       <header className="flex items-start justify-between gap-3">
+
         <div>
+
           <p className="text-sm text-[color:var(--famli-muted)]">{formatDayLong(now)}</p>
+
           <h1 className="mt-1 text-4xl font-semibold tracking-tight">
+
             {greetingForHour(now.getHours())}, {snapshot.currentProfile.firstName}
+
           </h1>
-          <p className="mt-2 text-lg text-[color:var(--famli-ink)]">{stayHeadline(snapshot, now)}</p>
-          {next ? (
-            <p className="mt-1 text-sm text-[color:var(--famli-muted)]">
-              Volgende wissel {formatDayLong(next.date)} · {next.time}
-            </p>
-          ) : null}
+
+          <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
+
+            Famli onthoudt het, zodat jij het niet hoeft te onthouden.
+
+          </p>
+
         </div>
+
         <div className="hidden lg:block">
+
           <AddMenu snapshot={snapshot} compact />
+
         </div>
+
       </header>
 
-      <section className="grid gap-2">
-        {snapshot.children.map((child) => {
-          const place = childPlace(snapshot, child, now);
-          const travel = snapshot.travelPlans.find(
-            (plan) => plan.childIds.includes(child.id) && plan.startsOn <= today && plan.endsOn >= today,
-          );
-          return (
-            <Link key={child.id} href={place.href} className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4">
-              <p className="text-sm text-[color:var(--famli-muted)]">{child.firstName}</p>
-              <p className="text-lg font-semibold">{place.label}</p>
-              {place.detail ? <p className="text-sm text-[color:var(--famli-muted)]">{place.detail}</p> : null}
-              {travel ? (
-                <p className="mt-2 text-sm font-medium text-[color:var(--famli-brand)]">Bekijk reisgegevens</p>
-              ) : null}
-            </Link>
-          );
-        })}
-      </section>
 
-      {duties.length || completedDuties.length ? (
-        <section>
-          <h2 className="mb-3 text-2xl font-semibold">Voor jou vandaag</h2>
-          <div className="space-y-2">
-            {duties.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4"
-              >
-                <p className="text-sm text-[color:var(--famli-muted)]">{item.time}</p>
-                <p className="text-lg font-medium">{item.title}</p>
-                {item.subtitle ? <p className="text-sm text-[color:var(--famli-muted)]">{item.subtitle}</p> : null}
-                {item.packingItems.length ? (
-                  <p className="mt-2 text-sm text-[color:var(--famli-muted)]">🎒 {item.packingItems.join(", ")}</p>
-                ) : null}
-                {item.occurrence?.status === "pending" ? (
-                  <form action={completeRoutineOccurrenceAction} className="mt-3">
-                    <input type="hidden" name="occurrenceId" value={item.occurrence.id} />
-                    <button className="famli-btn famli-btn-primary h-10 px-4 text-sm">Afronden</button>
-                  </form>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          {completedDuties.length ? (
-            <div className="mt-4 space-y-2">
-              <h3 className="text-lg font-semibold text-[color:var(--famli-muted)]">Afgerond vandaag</h3>
-              {completedDuties.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4 opacity-80"
-                >
-                  <p className="text-sm text-[color:var(--famli-muted)]">{item.time}</p>
-                  <p className="text-lg font-medium line-through">{item.title}</p>
-                  {item.subtitle ? <p className="text-sm text-[color:var(--famli-muted)]">{item.subtitle}</p> : null}
-                  <p className="mt-1 text-sm text-[color:var(--famli-muted)]">✓ Afgerond</p>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
 
       <section>
-        <h2 className="mb-3 text-2xl font-semibold">Vandaag</h2>
-        <div className="space-y-2">
-          {todayItems.map((item) => (
-            <Link key={item.id} href={item.href} className="block rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4">
-              <p className="text-sm text-[color:var(--famli-muted)]">{item.time ?? "Hele dag"}</p>
-              <p className="text-lg font-medium">{item.title}</p>
-              {item.subtitle ? <p className="text-sm text-[color:var(--famli-muted)]">{item.subtitle}</p> : null}
-              {item.event?.dropoffMemberId || item.event?.pickupMemberId ? (
-                <p className="mt-1 text-sm text-[color:var(--famli-muted)]">
-                  {item.event.dropoffMemberId ? `Brengen: ${parentName(snapshot, item.event.dropoffMemberId)}` : ""}
-                  {item.event.dropoffMemberId && item.event.pickupMemberId ? " · " : ""}
-                  {item.event.pickupMemberId ? `Halen: ${parentName(snapshot, item.event.pickupMemberId)}` : ""}
-                </p>
-              ) : null}
-              {item.packingList.length ? (
-                <p className="mt-2 text-sm text-[color:var(--famli-muted)]">🎒 {item.packingList.join(", ")}</p>
-              ) : null}
-            </Link>
-          ))}
-          {!todayItems.length ? (
-            <EmptyState title="Een rustige dag" body="Geen afspraken of wissels voor vandaag." />
-          ) : null}
-        </div>
-      </section>
 
-      {incoming.length || remember.length ? (
-        <section>
-          <h2 className="mb-3 text-2xl font-semibold">Niet vergeten</h2>
-          {incoming.length ? (
-            <div className="mb-3 space-y-3">
-              {incoming.slice(0, 1).map((request) => (
-                <ChangeReviewCard key={request.id} snapshot={snapshot} request={request} />
-              ))}
-            </div>
-          ) : null}
-          <div className="space-y-2">
-            {remember.map((item) => {
-              const child = snapshot.children.find((row) => row.id === item.childId);
-              return (
-                <Link
-                  key={item.id}
-                  href={`/kinderen/${item.childId}?tab=nodig`}
-                  className="block rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4"
-                >
-                  <p className="font-medium">{item.title}</p>
-                  <p className="text-sm text-[color:var(--famli-muted)]">
-                    {[child?.firstName, item.size ? `maat ${item.size}` : null].filter(Boolean).join(" · ")}
-                  </p>
-                  <p className="mt-1 text-sm">{neededHeadline(item, snapshot)}</p>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
+        <h2 className="mb-3 text-2xl font-semibold">Waar zijn ze?</h2>
 
-      {soon.length ? (
-        <section>
-          <h2 className="mb-3 text-2xl font-semibold">Binnenkort</h2>
-          <div className="space-y-2">
-            {soon.map((item) => (
-              <Link key={item.id} href={item.href} className="flex items-center justify-between rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4">
-                <div>
-                  <p className="font-medium">{item.title}</p>
-                  <p className="text-sm text-[color:var(--famli-muted)]">{item.detail}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : null}
+        <div className="grid gap-2">
 
-      <section>
-        <h2 className="mb-3 text-2xl font-semibold">Actie nodig</h2>
-        <div className="space-y-2">
-          {actions
-            .filter((item) => item.kind !== "change")
-            .slice(0, 3)
-            .map((item) => (
+          {snapshot.children.map((child) => {
+
+            const place = childPlace(snapshot, child, now);
+
+            const travel = snapshot.travelPlans.find(
+
+              (plan) => plan.childIds.includes(child.id) && plan.startsOn <= today && plan.endsOn >= today,
+
+            );
+
+            return (
+
               <Link
-                key={item.id}
-                href={item.href}
-                className="flex items-center justify-between gap-3 rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4"
+
+                key={child.id}
+
+                href={place.href}
+
+                className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4"
+
               >
-                <div>
-                  <p className="font-medium">{item.title}</p>
-                  <p className="text-sm text-[color:var(--famli-muted)]">{item.detail}</p>
-                </div>
-                <span className="text-sm font-medium text-[color:var(--famli-brand)]">{item.cta}</span>
+
+                <p className="text-sm text-[color:var(--famli-muted)]">{child.firstName}</p>
+
+                <p className="text-lg font-semibold">Nu: {place.label}</p>
+
+                {place.nextLabel && place.nextTime ? (
+
+                  <p className="text-sm text-[color:var(--famli-muted)]">
+
+                    Vanaf {place.nextTime}: {place.nextLabel}
+
+                  </p>
+
+                ) : place.detail ? (
+
+                  <p className="text-sm text-[color:var(--famli-muted)]">{place.detail}</p>
+
+                ) : null}
+
+                {travel ? (
+
+                  <p className="mt-2 text-sm font-medium text-[color:var(--famli-brand)]">Bekijk reisgegevens</p>
+
+                ) : null}
+
               </Link>
-            ))}
+
+            );
+
+          })}
+
         </div>
-        {!incoming.length && !actions.length ? (
-          <p className="text-sm text-[color:var(--famli-muted)]">Alles geregeld ✓</p>
-        ) : null}
+
       </section>
 
+
+
+      {showHandover && next ? <SmartHandover snapshot={snapshot} handover={next} /> : null}
+
+
+
       <section>
-        <div className="mb-3 flex items-end justify-between">
-          <h2 className="text-2xl font-semibold">Morgen</h2>
-          <Link href={`/agenda?date=${tomorrow}&view=day`} className="text-sm font-medium text-[color:var(--famli-brand)]">
-            Bekijk morgen →
-          </Link>
+
+        <h2 className="mb-3 text-2xl font-semibold">Vandaag</h2>
+
+        <div className="space-y-4">
+
+          {childSections.map((section) => (
+
+            <div key={section.childId}>
+
+              <h3 className="mb-2 text-lg font-semibold">
+
+                {section.childName} — {section.custodyLabel}
+
+              </h3>
+
+              {section.entries.length ? (
+
+                <div className="space-y-2">
+
+                  {section.entries.map((entry) => (
+
+                    <Link
+
+                      key={entry.id}
+
+                      href={entry.href}
+
+                      className="flex gap-4 rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-3"
+
+                    >
+
+                      <span className="w-12 shrink-0 text-sm text-[color:var(--famli-muted)]">
+
+                        {entry.time ?? "Dag"}
+
+                      </span>
+
+                      <div className="min-w-0">
+
+                        <p className="font-medium">{entry.title}</p>
+
+                        {entry.subtitle ? (
+
+                          <p className="text-sm text-[color:var(--famli-muted)]">{entry.subtitle}</p>
+
+                        ) : null}
+
+                        {entry.event ? (
+
+                          <p className="mt-0.5 text-sm text-[color:var(--famli-muted)]">
+
+                            {eventResponsibilityLines(snapshot, entry.event).join(" · ")}
+
+                          </p>
+
+                        ) : null}
+
+                      </div>
+
+                    </Link>
+
+                  ))}
+
+                </div>
+
+              ) : (
+
+                <p className="text-sm text-[color:var(--famli-muted)]">Geen afspraken vandaag.</p>
+
+              )}
+
+            </div>
+
+          ))}
+
+          {!childSections.length ? (
+
+            <EmptyState title="Een rustige dag" body="Geen afspraken of wissels voor vandaag." />
+
+          ) : null}
+
         </div>
-        <div className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4">
-          {tomorrowItems.length ? (
-            <ul className="space-y-2">
-              {tomorrowItems.slice(0, 4).map((item) => (
-                <li key={item.id} className="flex gap-3 text-sm">
-                  <span className="w-12 text-[color:var(--famli-muted)]">{item.time ?? "Dag"}</span>
-                  <span>
-                    {item.title}
-                    {item.subtitle ? ` · ${item.subtitle}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-[color:var(--famli-muted)]">Morgen is nog open.</p>
-          )}
-        </div>
+
       </section>
+
+
+
+      <section>
+
+        <h2 className="mb-3 text-2xl font-semibold">Voor jou vandaag</h2>
+
+        {duties.length ? (
+
+          <div className="space-y-2">
+
+            {duties.map((item) => (
+
+              <OpenDutyCard key={item.id} item={item} />
+
+            ))}
+
+          </div>
+
+        ) : (
+
+          <p className="text-sm text-[color:var(--famli-muted)]">Niets specifiek voor jou vandaag.</p>
+
+        )}
+
+      </section>
+
+
+
+      {(incoming.length || remember.length) ? (
+
+        <section>
+
+          <div className="mb-3 flex items-end justify-between">
+
+            <h2 className="text-2xl font-semibold">Niet vergeten</h2>
+
+            <Link href="/regelen?tab=nodig" className="text-sm font-medium text-[color:var(--famli-brand)]">
+
+              Bekijk alles
+
+            </Link>
+
+          </div>
+
+          {incoming.length ? (
+
+            <div className="mb-3 space-y-3">
+
+              {incoming.slice(0, 1).map((request) => (
+
+                <ChangeReviewCard key={request.id} snapshot={snapshot} request={request} />
+
+              ))}
+
+            </div>
+
+          ) : null}
+
+          <div className="space-y-2">
+
+            {remember.map((item) => {
+
+              const child = snapshot.children.find((row) => row.id === item.childId);
+
+              return (
+
+                <Link
+
+                  key={item.id}
+
+                  href={`/kinderen/${item.childId}?tab=nodig`}
+
+                  className="block rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4"
+
+                >
+
+                  <p className="font-medium">{item.title}</p>
+
+                  <p className="text-sm text-[color:var(--famli-muted)]">
+
+                    {[child?.firstName, item.size ? `maat ${item.size}` : null].filter(Boolean).join(" · ")}
+
+                  </p>
+
+                  <p className="mt-1 text-sm">{neededHeadline(item, snapshot)}</p>
+
+                </Link>
+
+              );
+
+            })}
+
+          </div>
+
+        </section>
+
+      ) : null}
+
+
+
+      <section
+
+        className={`rounded-3xl border px-5 py-4 ${
+
+          settled.ok
+
+            ? "border-[color:var(--famli-border)] bg-[color:var(--famli-card)]"
+
+            : "border-[color:var(--famli-brand)]/25 bg-[color:var(--famli-brand-soft)]/30"
+
+        }`}
+
+      >
+
+        <h2 className="text-lg font-semibold">Alles geregeld</h2>
+
+        <p className="mt-1 text-[color:var(--famli-muted)]">{settled.message}</p>
+
+        {!settled.ok && attentionActions.length ? (
+
+          <ul className="mt-3 space-y-2">
+
+            {attentionActions.slice(0, 3).map((item) => (
+
+              <li key={item.id}>
+
+                <Link href={item.href} className="flex items-center justify-between gap-3 text-sm">
+
+                  <span>{item.title}</span>
+
+                  <span className="font-medium text-[color:var(--famli-brand)]">{item.cta}</span>
+
+                </Link>
+
+              </li>
+
+            ))}
+
+          </ul>
+
+        ) : null}
+
+      </section>
+
+
+
+      {completedDuties.length ? (
+
+        <section>
+
+          <h2 className="mb-3 text-2xl font-semibold text-[color:var(--famli-muted)]">Afgerond vandaag</h2>
+
+          <div className="space-y-2">
+
+            {completedDuties.map((item) => (
+
+              <CompletedDutyCard key={item.id} item={item} />
+
+            ))}
+
+          </div>
+
+        </section>
+
+      ) : null}
+
+
+
+      {next && !showHandover ? (
+
+        <section className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4">
+
+          <p className="text-sm text-[color:var(--famli-muted)]">Volgende wissel</p>
+
+          <p className="mt-1 font-medium">
+
+            {formatDayLong(next.date)} · {next.time} · {parentName(snapshot, next.fromMemberId)} →{" "}
+
+            {parentName(snapshot, next.toMemberId)}
+
+          </p>
+
+          <Link href={`/agenda?date=${next.date}&view=wissels`} className="mt-2 inline-flex text-sm font-medium text-[color:var(--famli-brand)]">
+
+            Bekijk overdracht →
+
+          </Link>
+
+        </section>
+
+      ) : null}
+
     </div>
+
   );
+
 }
+
+

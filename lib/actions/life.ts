@@ -92,6 +92,15 @@ export async function purchaseNeededAction(formData: FormData) {
   refreshFamily();
 }
 
+export async function unmarkNeededItemBoughtAction(itemId: string) {
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_tasks",
+    rateLimit: "mutation",
+  });
+  await getRepository().unmarkNeededItemBought(itemId, snapshot.currentProfile.id);
+  refreshFamily();
+}
+
 export async function neededToExpenseAction(formData: FormData) {
   const { snapshot } = await requireAuthorizedMutation({
     capability: "edit_expenses",

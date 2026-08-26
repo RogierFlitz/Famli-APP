@@ -141,9 +141,15 @@ export function myCompletedDutiesToday(snapshot: FamilySnapshot, now = new Date(
   return items.sort((a, b) => a.time.localeCompare(b.time));
 }
 
-export function completedOneOffTasks(snapshot: FamilySnapshot) {
+export function completedOneOffTasks(snapshot: FamilySnapshot, daysBack = 14) {
+  const cutoff = toISODate(addDays(new Date(), -daysBack));
   return snapshot.tasks
-    .filter((item) => item.kind === "one_off" && item.status === "done")
+    .filter(
+      (item) =>
+        item.kind === "one_off" &&
+        item.status === "done" &&
+        item.updatedAt.slice(0, 10) >= cutoff,
+    )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 

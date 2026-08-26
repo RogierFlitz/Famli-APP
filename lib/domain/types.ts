@@ -376,7 +376,11 @@ export interface Expense {
   childId: string | null;
   category: ExpenseCategory;
   paidByMemberId: string;
-  receiptUrl: string | null;
+  /** Private storage path (family-documents bucket), not a public URL. */
+  receiptStoragePath: string | null;
+  receiptFilename: string | null;
+  receiptUploadedAt: string | null;
+  receiptMimeType: string | null;
   notes: string | null;
   recurringExpenseId: string | null;
   voidedAt: string | null;
@@ -516,6 +520,76 @@ export type NeededCategory =
 
 export type NeededStatus = "nodig" | "wordt_geregeld" | "gekocht" | "niet_meer_nodig";
 
+export type NeededItemLocation =
+  | "bij_papa"
+  | "bij_mama"
+  | "op_school"
+  | "bij_sportclub"
+  | "bij_oma"
+  | "bij_kind"
+  | "onderweg"
+  | "onbekend"
+  | "custom";
+
+export type ContextMessageKind = "update" | "confirmation";
+
+export type ContextMessageStatus = "sent" | "read" | "confirmed" | "declined";
+
+export type ContextResourceType = "event" | "task" | "needed_item" | "handover";
+
+export interface ContextMessage {
+  id: string;
+  familyId: string;
+  resourceType: ContextResourceType;
+  resourceId: string;
+  kind: ContextMessageKind;
+  body: string;
+  authorMemberId: string;
+  sentAt: string;
+  readAt: string | null;
+  status: ContextMessageStatus;
+  responseBody: string | null;
+  respondedAt: string | null;
+}
+
+/** Placeholder — photo/PDF/email import (no parser yet). */
+export type ImportSourceKind = "photo" | "pdf" | "email";
+
+export interface ImportJob {
+  id: string;
+  familyId: string;
+  source: ImportSourceKind;
+  status: "pending" | "processing" | "done" | "failed";
+  createdAt: string;
+}
+
+/** External calendar privacy — "Bezet" blocks without details. */
+export interface ExternalBusyBlock {
+  id: string;
+  userId: string;
+  startsAt: string;
+  endsAt: string;
+  label: string;
+}
+
+/** Guest link for oma/babysitter (architecture prep). */
+export interface GuestLinkToken {
+  id: string;
+  familyId: string;
+  label: string;
+  token: string;
+  expiresAt: string;
+  scopes: string[];
+}
+
+/** Manual check-in at handover ("Ik ben er"). */
+export interface HandoverCheckIn {
+  id: string;
+  handoverId: string;
+  memberId: string;
+  checkedInAt: string;
+}
+
 export interface ChildSizes {
   childId: string;
   clothing: string | null;
@@ -548,6 +622,8 @@ export interface NeededItem {
   size: string | null;
   dueOn: string | null;
   assigneeMemberId: string | null;
+  location?: NeededItemLocation | null;
+  locationCustom?: string | null;
   budgetCents: number | null;
   status: NeededStatus;
   notes: string | null;
@@ -674,6 +750,11 @@ export interface FamilySnapshot {
   travelPlans: TravelPlan[];
   travelSegments: TravelSegment[];
   childUpdates: ChildUpdate[];
+  contextMessages: ContextMessage[];
+  importJobs: ImportJob[];
+  externalBusyBlocks: ExternalBusyBlock[];
+  guestLinkTokens: GuestLinkToken[];
+  handoverCheckIns: HandoverCheckIn[];
   households: Household[];
   childMemberAccess: ChildMemberAccess[];
   routineOccurrences: RoutineOccurrence[];

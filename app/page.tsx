@@ -38,7 +38,7 @@ export default async function LandingPage() {
             {famliBrand.sloganNl}
           </h1>
           <p className="mt-5 max-w-lg text-base leading-7 text-[color:var(--famli-muted)]">
-            Famli brengt jullie agenda, wisseldagen, afspraken en kosten samen op één rustige plek.
+            Minder onthouden. Minder afstemmen. Famli onthoudt het, zodat jij het niet hoeft te onthouden.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/signup" className="famli-btn famli-btn-primary">
@@ -56,16 +56,16 @@ export default async function LandingPage() {
         <div className="grid gap-4 md:grid-cols-3">
           {[
             {
-              title: "Eén gezamenlijke agenda",
-              text: "Altijd duidelijk wie wanneer waar moet zijn.",
+              title: "Waar zijn ze en wat gebeurt vandaag?",
+              text: "Per kind overzicht — school, sport, wissels — zonder gedoe.",
             },
             {
-              title: "Minder afstemmen",
-              text: "Wisseldagen, wijzigingen en afspraken overzichtelijk geregeld.",
+              title: "Minder onthouden",
+              text: "Gymschoenen, hockeytas, cadeaus en studiedagen: Famli herinnert je op tijd.",
             },
             {
-              title: "Kosten eerlijk verdeeld",
-              text: "Zie precies wie wat heeft betaald en wat nog openstaat.",
+              title: "Wie doet wat — helder",
+              text: "Ophalen, regelen, meenemen: altijd duidelijk wie wat doet.",
             },
           ].map((item) => (
             <div key={item.title} className="famli-card">

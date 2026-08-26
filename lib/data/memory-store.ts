@@ -15,6 +15,13 @@ import {
 } from "@/lib/members/permissions";
 import { markPastOccurrencesUnregistered } from "@/lib/queries/routines";
 import { refreshRoutineOccurrences } from "@/lib/routines/generate";
+import {
+  deleteExpenseReceiptBlob,
+  expenseReceiptStoragePath,
+  expenseReceiptViewUrl,
+  newExpenseReceiptFilename,
+  storeExpenseReceiptBlob,
+} from "@/lib/storage/expense-receipts";
 import type { FamilyRepository } from "@/lib/data/repository";
 import type {
   ActivityLogEntry,
@@ -556,7 +563,10 @@ export const memoryRepository: FamilyRepository = {
       childId: input.childId,
       category: input.category,
       paidByMemberId: input.paidByMemberId,
-      receiptUrl: input.receiptUrl ?? null,
+      receiptStoragePath: null,
+      receiptFilename: null,
+      receiptUploadedAt: null,
+      receiptMimeType: null,
       notes: input.notes,
       recurringExpenseId: null,
       voidedAt: null,
@@ -930,6 +940,19 @@ export const memoryRepository: FamilyRepository = {
     });
   },
 
+  async unmarkNeededItemBought(id, actorUserId) {
+    mutateFamilyFromUser(actorUserId, (snap) => {
+      const item = snap.neededItems.find((row) => row.id === id);
+      if (!item || item.status !== "gekocht") return;
+      if (item.expenseId) throw new Error("Kan niet terugzetten: al gekoppeld aan kosten.");
+      item.status = item.assigneeMemberId ? "wordt_geregeld" : "nodig";
+      item.purchasedAt = null;
+      item.purchasedByMemberId = null;
+      item.priceCents = null;
+      item.receiptUrl = null;
+    });
+  },
+
   async neededToExpense(input) {
     let createdExpense: Expense | null = null;
     mutateFamilyFromUser(input.actorUserId, (snap) => {
@@ -947,7 +970,10 @@ export const memoryRepository: FamilyRepository = {
         childId: item.childId,
         category: item.category === "school" || item.category === "sport" || item.category === "kleding" ? item.category : "overig",
         paidByMemberId: input.paidByMemberId,
-        receiptUrl: item.receiptUrl,
+        receiptStoragePath: null,
+        receiptFilename: null,
+        receiptUploadedAt: null,
+        receiptMimeType: null,
         notes: item.notes,
         recurringExpenseId: null,
         voidedAt: null,
@@ -1172,6 +1198,86 @@ export const memoryRepository: FamilyRepository = {
       occurrence.completedByMemberId = input.actorMemberId;
       occurrence.notes = input.notes ?? null;
     });
+  },
+
+  async reopenRoutineOccurrence(occurrenceId, actorUserId) {
+    mutateFamilyFromUser(actorUserId, (snap) => {
+      const occurrence = snap.routineOccurrences.find((item) => item.id === occurrenceId);
+      if (!occurrence || occurrence.status !== "done") return;
+      occurrence.status = "pending";
+      occurrence.completedAt = null;
+      occurrence.completedByMemberId = null;
+      occurrence.notes = null;
+    });
+  },
+
+  async uploadExpenseReceipt(input) {
+    const familyId = getStore().userFamily.get(input.actorUserId);
+    if (!familyId) throw new Error("Geen gezin gevonden.");
+    const snap = getStore().families.get(familyId);
+    const expense = snap?.expenses.find((item) => item.id === input.expenseId);
+    if (!expense) throw new Error("Kostenpost niet gevonden.");
+
+    const storageFilename = newExpenseReceiptFilename(input.originalFilename);
+    const storagePath = expenseReceiptStoragePath(expense.familyId, storageFilename);
+    const previousPath = expense.receiptStoragePath;
+
+    await storeExpenseReceiptBlob({
+      familyId: expense.familyId,
+      storagePath,
+      data: input.data,
+      mimeType: input.mimeType,
+    });
+    if (previousPath) await deleteExpenseReceiptBlob(previousPath);
+
+    const uploadedAt = nowIso();
+    mutateFamily(familyId, (family) => {
+      const row = family.expenses.find((item) => item.id === input.expenseId);
+      if (!row) return;
+      row.receiptStoragePath = storagePath;
+      row.receiptFilename = input.originalFilename;
+      row.receiptUploadedAt = uploadedAt;
+      row.receiptMimeType = input.mimeType;
+      row.updatedAt = uploadedAt;
+      log(family, input.actorUserId, "expense.receipt_uploaded", "expense", row.id, null, {
+        receiptFilename: input.originalFilename,
+      });
+    });
+
+    const updated = getStore().families.get(familyId)?.expenses.find((item) => item.id === input.expenseId);
+    if (!updated) throw new Error("Kostenpost niet gevonden.");
+    return clone(updated);
+  },
+
+  async removeExpenseReceipt(input) {
+    const familyId = getStore().userFamily.get(input.actorUserId);
+    if (!familyId) throw new Error("Geen gezin gevonden.");
+    const snap = getStore().families.get(familyId);
+    const expense = snap?.expenses.find((item) => item.id === input.expenseId);
+    if (!expense?.receiptStoragePath) return;
+
+    await deleteExpenseReceiptBlob(expense.receiptStoragePath);
+    mutateFamily(familyId, (family) => {
+      const row = family.expenses.find((item) => item.id === input.expenseId);
+      if (!row?.receiptStoragePath) return;
+      log(family, input.actorUserId, "expense.receipt_removed", "expense", row.id, {
+        receiptFilename: row.receiptFilename,
+      }, null);
+      row.receiptStoragePath = null;
+      row.receiptFilename = null;
+      row.receiptUploadedAt = null;
+      row.receiptMimeType = null;
+      row.updatedAt = nowIso();
+    });
+  },
+
+  async getExpenseReceiptViewUrl(input) {
+    const familyId = getStore().userFamily.get(input.actorUserId);
+    if (!familyId) return null;
+    const snap = getStore().families.get(familyId);
+    const expense = snap?.expenses.find((item) => item.id === input.expenseId);
+    if (!expense?.receiptStoragePath) return null;
+    return expenseReceiptViewUrl(expense.receiptStoragePath, expense.id);
   },
 };
 

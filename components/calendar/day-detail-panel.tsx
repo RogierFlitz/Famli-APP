@@ -6,6 +6,7 @@ import Link from "next/link";
 import { timelineForDate } from "@/lib/calendar/timeline";
 import { filteredEventsOn, filteredTasksOn, type CalendarFilterState } from "@/lib/calendar/helpers";
 import { handoverOn, parentName, pendingChangeForDate } from "@/lib/queries/family-view";
+import { taskResponsibilityLine } from "@/lib/queries/responsibility";
 import type { CalendarEvent, FamilySnapshot } from "@/lib/domain/types";
 import { CustodyHeadline } from "@/components/calendar/custody-indicator";
 import { HandoverDetail } from "@/components/calendar/handover-event";
@@ -92,9 +93,7 @@ export function DayDetailPanel({
                 className="block rounded-2xl border border-[color:var(--famli-border)] px-3 py-2.5 hover:bg-[color:var(--famli-bg)]"
               >
                 <p className="font-medium">{task.title}</p>
-                <p className="text-sm text-[color:var(--famli-muted)]">
-                  {task.assigneeMemberId ? parentName(snapshot, task.assigneeMemberId) : "Nog niet toegewezen"}
-                </p>
+                <p className="text-sm text-[color:var(--famli-muted)]">{taskResponsibilityLine(snapshot, task)}</p>
               </Link>
             ))}
           </div>

@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Receipt } from "lucide-react";
 import { formatEuro } from "@/lib/money";
 import { parentName } from "@/lib/queries/family-view";
 import { markSplitPaidAction } from "@/lib/actions/family";
 import { EmptyState } from "@/components/empty-state";
+import { CostDetail } from "@/components/costs/cost-detail";
+import { ResponsiveSheet } from "@/components/layout/responsive-sheet";
 import { CollapsibleSection, ExpandableList } from "@/components/ui/collapsible-section";
 import type { Expense, ExpenseSplit, FamilySnapshot } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
@@ -16,6 +19,10 @@ type CostItem = {
   open: boolean;
 };
 
+function hasReceipt(expense: Expense): boolean {
+  return Boolean(expense.receiptStoragePath);
+}
+
 function ExpenseCard({
   snapshot,
   expense,
@@ -23,6 +30,7 @@ function ExpenseCard({
   open,
   focusId,
   me,
+  onView,
 }: {
   snapshot: FamilySnapshot;
   expense: Expense;
@@ -30,6 +38,7 @@ function ExpenseCard({
   open: boolean;
   focusId?: string;
   me: string;
+  onView: (expenseId: string) => void;
 }) {
   const child = snapshot.children.find((item) => item.id === expense.childId);
   const otherSplit = related.find((split) => split.memberId !== expense.paidByMemberId);
@@ -46,7 +55,12 @@ function ExpenseCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className={cn("text-lg font-semibold", !open && "line-through")}>{expense.description}</p>
+          <div className="flex items-center gap-2">
+            <p className={cn("text-lg font-semibold", !open && "line-through")}>{expense.description}</p>
+            {hasReceipt(expense) ? (
+              <Receipt className="size-4 shrink-0 text-[color:var(--famli-brand)]" aria-label="Bon toegevoegd" />
+            ) : null}
+          </div>
           {child ? <p className="text-sm text-[color:var(--famli-muted)]">{child.firstName}</p> : null}
           <p className="mt-2 text-2xl font-semibold">{formatEuro(expense.amountCents)}</p>
           <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
@@ -62,9 +76,13 @@ function ExpenseCard({
             </p>
           ) : null}
         </div>
-        <Link href={`/kosten?id=${expense.id}`} className="text-sm font-medium text-[color:var(--famli-brand)]">
+        <button
+          type="button"
+          onClick={() => onView(expense.id)}
+          className="text-sm font-medium text-[color:var(--famli-brand)]"
+        >
           Bekijk
-        </Link>
+        </button>
       </div>
       {mine ? (
         <form action={markSplitPaidAction} className="mt-4">
@@ -88,8 +106,14 @@ export function CostList({
   snapshot: FamilySnapshot;
   focusId?: string;
 }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<"all" | "open" | "done">("open");
+  const [selectedId, setSelectedId] = useState<string | null>(focusId ?? null);
   const me = snapshot.currentMember.id;
+
+  useEffect(() => {
+    setSelectedId(focusId ?? null);
+  }, [focusId]);
 
   const allItems = useMemo<CostItem[]>(() => {
     return snapshot.expenses
@@ -114,6 +138,24 @@ export function CostList({
   }, [filter, allItems, openItems, doneItems]);
 
   const showSplitSections = filter === "all";
+  const selectedItem = allItems.find((item) => item.expense.id === selectedId) ?? null;
+
+  function openDetail(expenseId: string) {
+    setSelectedId(expenseId);
+    router.replace(`/kosten?id=${expenseId}`, { scroll: false });
+  }
+
+  function closeDetail() {
+    setSelectedId(null);
+    router.replace("/kosten", { scroll: false });
+  }
+
+  const cardProps = {
+    snapshot,
+    focusId,
+    me,
+    onView: openDetail,
+  };
 
   return (
     <div className="space-y-4">
@@ -154,12 +196,10 @@ export function CostList({
               openItems.map(({ expense, related, open }) => (
                 <ExpenseCard
                   key={expense.id}
-                  snapshot={snapshot}
                   expense={expense}
                   related={related}
                   open={open}
-                  focusId={focusId}
-                  me={me}
+                  {...cardProps}
                 />
               ))
             ) : (
@@ -174,12 +214,10 @@ export function CostList({
                 renderItem={({ expense, related, open }) => (
                   <ExpenseCard
                     key={expense.id}
-                    snapshot={snapshot}
                     expense={expense}
                     related={related}
                     open={open}
-                    focusId={focusId}
-                    me={me}
+                    {...cardProps}
                   />
                 )}
               />
@@ -201,16 +239,32 @@ export function CostList({
           {filteredItems.map(({ expense, related, open }) => (
             <ExpenseCard
               key={expense.id}
-              snapshot={snapshot}
               expense={expense}
               related={related}
               open={open}
-              focusId={focusId}
-              me={me}
+              {...cardProps}
             />
           ))}
         </>
       )}
+
+      <ResponsiveSheet
+        open={Boolean(selectedItem)}
+        onOpenChange={(open) => {
+          if (!open) closeDetail();
+        }}
+        title={selectedItem?.expense.description ?? "Kosten"}
+        wide
+      >
+        {selectedItem ? (
+          <CostDetail
+            snapshot={snapshot}
+            expense={selectedItem.expense}
+            related={selectedItem.related}
+            open={selectedItem.open}
+          />
+        ) : null}
+      </ResponsiveSheet>
     </div>
   );
 }

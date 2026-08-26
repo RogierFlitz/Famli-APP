@@ -6,6 +6,7 @@ import type {
   FamilyRole,
   MemberRelationType,
   NeededCategory,
+  NeededItemLocation,
   NeededStatus,
   PermissionPreset,
   PlanId,
@@ -138,6 +139,18 @@ export const neededCategoryLabel: Record<NeededCategory, string> = {
   cadeau: "Cadeau",
   reizen: "Reizen",
   overig: "Overig",
+};
+
+export const neededLocationLabel: Record<NeededItemLocation, string> = {
+  bij_papa: "Bij papa",
+  bij_mama: "Bij mama",
+  op_school: "Op school",
+  bij_sportclub: "Bij sportclub",
+  bij_oma: "Bij oma",
+  bij_kind: "Bij kind",
+  onderweg: "Onderweg",
+  onbekend: "Onbekend",
+  custom: "Andere locatie",
 };
 
 export const sizeFieldLabel: Record<string, string> = {

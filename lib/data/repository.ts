@@ -79,7 +79,6 @@ export interface CreateExpenseInput {
   paidByMemberId: string;
   splitPercents: Record<string, number>;
   notes: string | null;
-  receiptUrl?: string | null;
 }
 
 export interface CreateHandoverInput {
@@ -196,6 +195,7 @@ export interface FamilyRepository {
     actorMemberId: string;
     notes?: string | null;
   }): Promise<void>;
+  reopenRoutineOccurrence(occurrenceId: string, actorUserId: string): Promise<void>;
   updateTaskStatus(taskId: string, status: TaskStatus, actorUserId: string): Promise<void>;
   createEvent(input: CreateEventInput): Promise<CalendarEvent>;
   createHandover(input: CreateHandoverInput): Promise<void>;
@@ -260,6 +260,7 @@ export interface FamilyRepository {
     priceCents: number | null;
     receiptUrl: string | null;
   }): Promise<void>;
+  unmarkNeededItemBought(id: string, actorUserId: string): Promise<void>;
   neededToExpense(input: {
     id: string;
     actorUserId: string;
@@ -299,4 +300,19 @@ export interface FamilyRepository {
     returnDeparts: string | null;
     returnArrives: string | null;
   }): Promise<TravelPlan>;
+  uploadExpenseReceipt(input: {
+    expenseId: string;
+    actorUserId: string;
+    data: Buffer;
+    mimeType: string;
+    originalFilename: string;
+  }): Promise<Expense>;
+  removeExpenseReceipt(input: {
+    expenseId: string;
+    actorUserId: string;
+  }): Promise<void>;
+  getExpenseReceiptViewUrl(input: {
+    expenseId: string;
+    actorUserId: string;
+  }): Promise<string | null>;
 }

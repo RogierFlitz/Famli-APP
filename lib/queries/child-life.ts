@@ -1,11 +1,15 @@
 import { addDays, differenceInCalendarDays, parseISO } from "date-fns";
 import { formatDayLong, formatTime, toISODate } from "@/lib/dates";
+import { custodianForChild } from "@/lib/calendar/helpers";
+import { neededLocationLabel } from "@/lib/domain/labels";
 import { overnightMemberId, parentName } from "@/lib/queries/family-view";
 import type { Child, FamilySnapshot, NeededItem } from "@/lib/domain/types";
 
 export type ChildPlace = {
   label: string;
   detail: string | null;
+  nextLabel: string | null;
+  nextTime: string | null;
   href: string;
   kind: "ouder" | "school" | "sport" | "feestje" | "reis" | "overig";
 };
@@ -13,6 +17,7 @@ export type ChildPlace = {
 export function childPlace(snapshot: FamilySnapshot, child: Child, now = new Date()): ChildPlace {
   const today = toISODate(now);
   const stamp = now.toISOString().slice(0, 16);
+  const emptyNext = { nextLabel: null as string | null, nextTime: null as string | null };
 
   const travel = snapshot.travelPlans.find(
     (plan) => plan.childIds.includes(child.id) && plan.startsOn <= today && plan.endsOn >= today,
@@ -22,6 +27,7 @@ export function childPlace(snapshot: FamilySnapshot, child: Child, now = new Dat
     return {
       label: `Op vakantie met ${withName.toLowerCase()}`,
       detail: `${travel.destination} · terug ${formatDayLong(travel.endsOn)}`,
+      ...emptyNext,
       href: `/kinderen/${child.id}?tab=reizen`,
       kind: "reis",
     };
@@ -43,30 +49,82 @@ export function childPlace(snapshot: FamilySnapshot, child: Child, now = new Dat
     return start <= stamp && end >= stamp;
   });
   if (current) {
+    const next = nextPlaceTransition(snapshot, child, now);
     if (current.category === "school" && current.schoolKind !== "studiedag") {
-      return { label: "Op school", detail: current.location, href: `/agenda?date=${today}&focus=${current.id}`, kind: "school" };
+      return {
+        label: "Op school",
+        detail: current.location,
+        ...next,
+        href: `/agenda?date=${today}&focus=${current.id}`,
+        kind: "school",
+      };
     }
     if (current.category === "sport") {
-      return { label: current.title, detail: current.location, href: `/agenda?date=${today}&focus=${current.id}`, kind: "sport" };
+      return { label: current.title, detail: current.location, ...next, href: `/agenda?date=${today}&focus=${current.id}`, kind: "sport" };
     }
     if (current.category === "feestje") {
-      return { label: current.title, detail: current.location, href: `/agenda?date=${today}&focus=${current.id}`, kind: "feestje" };
+      return { label: current.title, detail: current.location, ...next, href: `/agenda?date=${today}&focus=${current.id}`, kind: "feestje" };
     }
   }
 
-  const memberId = overnightMemberId(snapshot, today);
+  const memberId = custodianForChild(snapshot, today, child.id) ?? overnightMemberId(snapshot, today);
+  const custodyLabel =
+    memberId === snapshot.currentMember.id
+      ? "Bij jou"
+      : memberId
+        ? `Bij ${parentName(snapshot, memberId).toLowerCase()}`
+        : "Nog niet ingepland";
+
+  const next = nextPlaceTransition(snapshot, child, now);
+
   if (memberId === snapshot.currentMember.id) {
-    return { label: "Bij jou", detail: null, href: `/kinderen/${child.id}`, kind: "ouder" };
+    return { label: custodyLabel, detail: null, ...next, href: `/kinderen/${child.id}`, kind: "ouder" };
   }
   if (memberId) {
-    return {
-      label: `Bij ${parentName(snapshot, memberId).toLowerCase()}`,
-      detail: null,
-      href: `/kinderen/${child.id}`,
-      kind: "ouder",
-    };
+    return { label: custodyLabel, detail: null, ...next, href: `/kinderen/${child.id}`, kind: "ouder" };
   }
-  return { label: "Nog niet ingepland", detail: null, href: `/kinderen/${child.id}`, kind: "overig" };
+  return { label: "Nog niet ingepland", detail: null, ...emptyNext, href: `/kinderen/${child.id}`, kind: "overig" };
+}
+
+function nextPlaceTransition(snapshot: FamilySnapshot, child: Child, now: Date) {
+  const today = toISODate(now);
+  const stamp = now.toISOString().slice(0, 16);
+
+  const handover = snapshot.handovers.find(
+    (item) => !item.cancelledAt && item.date === today && item.childIds.includes(child.id) && `${item.date}T${item.time}` > stamp,
+  );
+  if (handover) {
+    const toName =
+      handover.toMemberId === snapshot.currentMember.id
+        ? "bij jou"
+        : `bij ${parentName(snapshot, handover.toMemberId).toLowerCase()}`;
+    return { nextLabel: toName, nextTime: handover.time };
+  }
+
+  const nextEvent = snapshot.events
+    .filter(
+      (event) =>
+        !event.cancelledAt &&
+        event.childIds.includes(child.id) &&
+        event.startsAt.slice(0, 10) === today &&
+        event.startsAt.slice(0, 16) > stamp &&
+        (event.category === "school" || /ophalen/i.test(event.title) || event.category === "overdracht"),
+    )
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
+
+  if (nextEvent) {
+    if (nextEvent.category === "school" && nextEvent.schoolKind !== "studiedag") {
+      return { nextLabel: "op school", nextTime: formatTime(nextEvent.startsAt) };
+    }
+    if (/ophalen/i.test(nextEvent.title)) {
+      const who = nextEvent.pickupMemberId ?? nextEvent.memberIds[0];
+      const label =
+        who === snapshot.currentMember.id ? "jij haalt op" : `${parentName(snapshot, who).toLowerCase()} haalt op`;
+      return { nextLabel: label, nextTime: formatTime(nextEvent.startsAt) };
+    }
+  }
+
+  return { nextLabel: null, nextTime: null };
 }
 
 export type ImportantBit = { id: string; title: string; detail: string; href: string };
@@ -166,6 +224,13 @@ export function neededHeadline(item: NeededItem, snapshot: FamilySnapshot) {
   if (item.status === "wordt_geregeld" && item.assigneeMemberId) {
     if (item.assigneeMemberId === snapshot.currentMember.id) return "Jij regelt dit";
     return `${parentName(snapshot, item.assigneeMemberId)} regelt dit`;
+  }
+  if (item.location && item.location !== "onbekend") {
+    const loc =
+      item.location === "custom" && item.locationCustom
+        ? item.locationCustom
+        : neededLocationLabel[item.location].toLowerCase();
+    return `Staat ${loc}`;
   }
   return "Nog kopen";
 }

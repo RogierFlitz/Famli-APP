@@ -6,6 +6,13 @@ import { addDaysIso, toISODate } from "@/lib/dates";
 import { famliColor } from "@/lib/brand/tokens";
 import { emptyLifeFields, applyPrivacy } from "@/lib/life/privacy";
 import { parentPermissions, presetPermissions } from "@/lib/members/permissions";
+import {
+  deleteExpenseReceiptBlob,
+  expenseReceiptStoragePath,
+  expenseReceiptViewUrl,
+  newExpenseReceiptFilename,
+  storeExpenseReceiptBlob,
+} from "@/lib/storage/expense-receipts";
 import type { FamilyRepository } from "@/lib/data/repository";
 import type {
   CalendarEvent,
@@ -285,7 +292,10 @@ export const supabaseRepository: FamilyRepository = {
       childId: row.child_id,
       category: row.category,
       paidByMemberId: row.paid_by_member_id,
-      receiptUrl: row.receipt_url,
+      receiptStoragePath: row.receipt_url,
+      receiptFilename: row.receipt_filename,
+      receiptUploadedAt: row.receipt_uploaded_at,
+      receiptMimeType: row.receipt_mime_type,
       notes: row.notes,
       recurringExpenseId: row.recurring_expense_id,
       voidedAt: row.voided_at,
@@ -714,7 +724,10 @@ export const supabaseRepository: FamilyRepository = {
       childId: input.childId,
       category: input.category,
       paidByMemberId: input.paidByMemberId,
-      receiptUrl: null,
+      receiptStoragePath: null,
+      receiptFilename: null,
+      receiptUploadedAt: null,
+      receiptMimeType: null,
       notes: input.notes,
       recurringExpenseId: null,
       voidedAt: null,
@@ -928,6 +941,9 @@ export const supabaseRepository: FamilyRepository = {
   async purchaseNeededItem() {
     throw new Error("Nodig-items volgen later in Supabase.");
   },
+  async unmarkNeededItemBought() {
+    throw new Error("Nodig-items volgen later in Supabase.");
+  },
   async neededToExpense() {
     throw new Error("Nodig-items volgen later in Supabase.");
   },
@@ -945,5 +961,98 @@ export const supabaseRepository: FamilyRepository = {
   },
   async completeRoutineOccurrence() {
     throw new Error("Routines volgen later in Supabase.");
+  },
+  async reopenRoutineOccurrence() {
+    throw new Error("Routines volgen later in Supabase.");
+  },
+
+  async uploadExpenseReceipt(input) {
+    const supabase = await db();
+    const { data: row, error: fetchError } = await supabase
+      .from("expenses")
+      .select("id, family_id, receipt_url")
+      .eq("id", input.expenseId)
+      .maybeSingle();
+    if (fetchError || !row) throw new Error("Kostenpost niet gevonden.");
+
+    const storageFilename = newExpenseReceiptFilename(input.originalFilename);
+    const storagePath = expenseReceiptStoragePath(row.family_id, storageFilename);
+    const previousPath = row.receipt_url as string | null;
+    const uploadedAt = new Date().toISOString();
+
+    await storeExpenseReceiptBlob({
+      familyId: row.family_id,
+      storagePath,
+      data: input.data,
+      mimeType: input.mimeType,
+    });
+    if (previousPath) await deleteExpenseReceiptBlob(previousPath);
+
+    const { data: updated, error } = await supabase
+      .from("expenses")
+      .update({
+        receipt_url: storagePath,
+        receipt_filename: input.originalFilename,
+        receipt_uploaded_at: uploadedAt,
+        receipt_mime_type: input.mimeType,
+        updated_at: uploadedAt,
+      })
+      .eq("id", input.expenseId)
+      .select("*")
+      .single();
+    if (error || !updated) throw error ?? new Error("Bon kon niet worden opgeslagen.");
+
+    return {
+      id: updated.id,
+      familyId: updated.family_id,
+      description: updated.description,
+      amountCents: updated.amount_cents,
+      currency: updated.currency,
+      date: updated.date,
+      childId: updated.child_id,
+      category: updated.category,
+      paidByMemberId: updated.paid_by_member_id,
+      receiptStoragePath: updated.receipt_url,
+      receiptFilename: updated.receipt_filename,
+      receiptUploadedAt: updated.receipt_uploaded_at,
+      receiptMimeType: updated.receipt_mime_type,
+      notes: updated.notes,
+      recurringExpenseId: updated.recurring_expense_id,
+      voidedAt: updated.voided_at,
+      createdAt: updated.created_at,
+      updatedAt: updated.updated_at,
+      createdBy: updated.created_by,
+    };
+  },
+
+  async removeExpenseReceipt(input) {
+    const supabase = await db();
+    const { data: row } = await supabase
+      .from("expenses")
+      .select("receipt_url")
+      .eq("id", input.expenseId)
+      .maybeSingle();
+    if (row?.receipt_url) await deleteExpenseReceiptBlob(row.receipt_url);
+    await supabase
+      .from("expenses")
+      .update({
+        receipt_url: null,
+        receipt_filename: null,
+        receipt_uploaded_at: null,
+        receipt_mime_type: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.expenseId);
+  },
+
+  async getExpenseReceiptViewUrl(input) {
+    const supabase = await db();
+    const { data: row } = await supabase
+      .from("expenses")
+      .select("receipt_url")
+      .eq("id", input.expenseId)
+      .maybeSingle();
+    if (!row?.receipt_url) return null;
+    return expenseReceiptViewUrl(row.receipt_url, input.expenseId);
   },
 };

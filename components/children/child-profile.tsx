@@ -70,13 +70,29 @@ export function ChildProfile({
           </div>
           <div>
             <h1 className="text-4xl font-semibold tracking-tight">{child.firstName}</h1>
-            <p className="text-[color:var(--famli-muted)]">{age} jaar</p>
+            <p className="text-[color:var(--famli-muted)]">
+              {age} jaar · {place.label}
+            </p>
           </div>
         </div>
+        {important.length ? (
+          <section className="mt-4">
+            <h2 className="mb-3 text-2xl font-semibold">Nu belangrijk</h2>
+            <div className="space-y-2">
+              {important.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className="block rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-3"
+                >
+                  <p className="font-medium">{item.title}</p>
+                  <p className="text-sm text-[color:var(--famli-muted)]">{item.detail}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
         <div className="mt-4 grid gap-2">
-          <p>
-            Vandaag: <strong>{place.label}</strong>
-          </p>
           {nextEvent ? (
             <p>
               Volgende afspraak:{" "}
@@ -112,7 +128,7 @@ export function ChildProfile({
         ))}
       </nav>
 
-      {tab === "overzicht" ? <Overview snapshot={snapshot} child={child} important={important} onOpenInfo={() => setTab("informatie")} /> : null}
+      {tab === "overzicht" ? <Overview snapshot={snapshot} child={child} onOpenInfo={() => setTab("informatie")} /> : null}
       {tab === "agenda" ? <AgendaTab snapshot={snapshot} childId={child.id} today={today} /> : null}
       {tab === "nodig" ? <NeededTab snapshot={snapshot} childId={child.id} /> : null}
       {tab === "taken" ? <TasksRoutinesTab snapshot={snapshot} childId={child.id} today={today} /> : null}
@@ -128,12 +144,10 @@ export function ChildProfile({
 function Overview({
   snapshot,
   child,
-  important,
   onOpenInfo,
 }: {
   snapshot: FamilySnapshot;
   child: Child;
-  important: { id: string; title: string; detail: string; href: string }[];
   onOpenInfo: () => void;
 }) {
   const sizes = snapshot.sizes.find((item) => item.childId === child.id);
@@ -142,18 +156,6 @@ function Overview({
 
   return (
     <div className="space-y-4">
-      <section>
-        <h2 className="mb-3 text-2xl font-semibold">Nu belangrijk</h2>
-        <div className="space-y-2">
-          {important.map((item) => (
-            <Link key={item.id} href={item.href} className="block rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-3">
-              <p className="font-medium">{item.title}</p>
-              {item.detail ? <p className="text-sm text-[color:var(--famli-muted)]">{item.detail}</p> : null}
-            </Link>
-          ))}
-          {!important.length ? <p className="text-sm text-[color:var(--famli-muted)]">Niets extra’s op dit moment.</p> : null}
-        </div>
-      </section>
       {sizes ? (
         <button type="button" onClick={onOpenInfo} className="famli-card block w-full text-left">
           <p className="text-sm text-[color:var(--famli-muted)]">Maten</p>

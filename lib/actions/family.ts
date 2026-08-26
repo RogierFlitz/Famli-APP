@@ -5,6 +5,7 @@ import { getRepository } from "@/lib/data";
 import { writeAuditLog } from "@/lib/security/audit";
 import { requireAuthorizedMutation } from "@/lib/security/guard";
 import { parseEuroToCents } from "@/lib/money";
+import { validateUpload } from "@/lib/security/storage";
 import type { ExpenseCategory, RecurrenceInterval, TaskStatus } from "@/lib/domain/types";
 
 export async function createExpenseAction(formData: FormData) {
@@ -22,8 +23,6 @@ export async function createExpenseAction(formData: FormData) {
   const myPercent = split === "custom" ? Number(formData.get("customPercent") ?? "50") : Number(split);
   const splitPercents: Record<string, number> = { [me]: myPercent };
   if (other) splitPercents[other] = 100 - myPercent;
-  const receipt = formData.get("receipt");
-  const receiptUrl = receipt instanceof File && receipt.size > 0 ? receipt.name : null;
 
   const expense = await getRepository().createExpense({
     familyId: snapshot.family.id,
@@ -36,8 +35,29 @@ export async function createExpenseAction(formData: FormData) {
     paidByMemberId: String(formData.get("paidByMemberId") ?? me),
     splitPercents,
     notes: String(formData.get("notes") ?? "") || null,
-    receiptUrl,
   });
+
+  const receipt = formData.get("receipt");
+  if (receipt instanceof File && receipt.size > 0) {
+    validateUpload({
+      filename: receipt.name,
+      mimeType: receipt.type || "application/octet-stream",
+      sizeBytes: receipt.size,
+    });
+    await getRepository().uploadExpenseReceipt({
+      expenseId: expense.id,
+      actorUserId: snapshot.currentProfile.id,
+      data: Buffer.from(await receipt.arrayBuffer()),
+      mimeType: receipt.type,
+      originalFilename: receipt.name,
+    });
+    await writeAuditLog(snapshot, {
+      action: "upload",
+      resourceType: "expense_receipt",
+      resourceId: expense.id,
+      metadata: { filename: receipt.name },
+    });
+  }
   await writeAuditLog(snapshot, {
     action: "create",
     resourceType: "expense",
@@ -137,6 +157,24 @@ export async function updateTaskStatusAction(formData: FormData) {
   });
   revalidatePath("/regelen");
   revalidatePath("/vandaag");
+  revalidatePath("/kinderen");
+}
+
+export async function reopenTaskAction(taskId: string) {
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_tasks",
+    rateLimit: "mutation",
+  });
+  await getRepository().updateTaskStatus(taskId, "open", snapshot.currentProfile.id);
+  await writeAuditLog(snapshot, {
+    action: "update",
+    resourceType: "task",
+    resourceId: taskId,
+    metadata: { reopened: true },
+  });
+  revalidatePath("/regelen");
+  revalidatePath("/vandaag");
+  revalidatePath("/kinderen");
 }
 
 export async function updateCalendarPrivacyAction(formData: FormData) {

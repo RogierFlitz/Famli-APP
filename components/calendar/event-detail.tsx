@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { formatTime } from "@/lib/dates";
 import { childNames, overnightMemberId, parentName } from "@/lib/queries/family-view";
+import { eventResponsibilityLines, wieBrengt, wieHaalt } from "@/lib/queries/responsibility";
 import type { CalendarEvent, FamilySnapshot } from "@/lib/domain/types";
 import { HandoverDetail } from "@/components/calendar/handover-event";
+import { ContextMessages } from "@/components/messages/context-messages";
 
 export function EventDetail({ snapshot, event }: { snapshot: FamilySnapshot; event: CalendarEvent }) {
   const handover = snapshot.handovers.find((item) => item.id === event.handoverId);
@@ -38,15 +40,19 @@ export function EventDetail({ snapshot, event }: { snapshot: FamilySnapshot; eve
       {event.dropoffMemberId || event.pickupMemberId ? (
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-2xl bg-[color:var(--famli-bg)] p-3">
-            <p className="text-xs text-[color:var(--famli-muted)]">Brengen</p>
-            <p className="font-medium">{event.dropoffMemberId ? parentName(snapshot, event.dropoffMemberId) : "—"}</p>
+            <p className="text-xs text-[color:var(--famli-muted)]">Wie brengt</p>
+            <p className="font-medium">{wieBrengt(snapshot, event.dropoffMemberId)}</p>
           </div>
           <div className="rounded-2xl bg-[color:var(--famli-bg)] p-3">
-            <p className="text-xs text-[color:var(--famli-muted)]">Halen</p>
-            <p className="font-medium">{event.pickupMemberId ? parentName(snapshot, event.pickupMemberId) : "—"}</p>
+            <p className="text-xs text-[color:var(--famli-muted)]">Wie haalt</p>
+            <p className="font-medium">{wieHaalt(snapshot, event.pickupMemberId)}</p>
           </div>
         </div>
       ) : null}
+      {eventResponsibilityLines(snapshot, event).length ? (
+        <p className="text-[color:var(--famli-muted)]">{eventResponsibilityLines(snapshot, event).join(" · ")}</p>
+      ) : null}
+      <ContextMessages snapshot={snapshot} resourceType="event" resourceId={event.id} />
       {party ? (
         <div className="rounded-2xl bg-[color:var(--famli-bg)] p-4">
           <p>Voor {snapshot.children.find((item) => item.id === party.forChildId)?.firstName}</p>

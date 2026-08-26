@@ -39,7 +39,17 @@ export function searchFamily(snapshot: FamilySnapshot, query: string): SearchHit
   }
   for (const party of snapshot.parties) {
     const event = snapshot.events.find((item) => item.id === party.eventId);
-    if (event) push(party.id, event.title, party.hostName, `/agenda?date=${event.startsAt.slice(0, 10)}&focus=${event.id}`);
+    if (event) {
+      push(party.id, event.title, party.hostName, `/agenda?date=${event.startsAt.slice(0, 10)}&focus=${event.id}`);
+      push(`${party.id}-host`, party.hostName, event.title, `/agenda?date=${event.startsAt.slice(0, 10)}&focus=${event.id}`);
+    }
+  }
+  for (const club of snapshot.clubs) {
+    const child = snapshot.children.find((row) => row.id === club.childId);
+    push(club.id, club.sport, [child?.firstName, club.club, club.team].filter(Boolean).join(" · "), `/kinderen/${club.childId}?tab=school`);
+  }
+  for (const task of snapshot.tasks.filter((item) => item.kind === "one_off")) {
+    push(task.id, task.title, task.description ?? "", `/regelen?tab=voor-jou&id=${task.id}`);
   }
   for (const doc of snapshot.documents) {
     if (snapshot.currentMember.role === "viewer" && (doc.sensitive || doc.category === "identiteit")) continue;

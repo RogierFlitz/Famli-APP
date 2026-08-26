@@ -76,3 +76,20 @@ export async function completeRoutineOccurrenceAction(formData: FormData) {
   revalidatePath("/vandaag");
   revalidatePath("/kinderen");
 }
+
+export async function reopenRoutineOccurrenceAction(occurrenceId: string) {
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "edit_tasks",
+    rateLimit: "mutation",
+  });
+  await getRepository().reopenRoutineOccurrence(occurrenceId, snapshot.currentProfile.id);
+  await writeAuditLog(snapshot, {
+    action: "update",
+    resourceType: "routine_occurrence",
+    resourceId: occurrenceId,
+    metadata: { reopened: true },
+  });
+  revalidatePath("/regelen");
+  revalidatePath("/vandaag");
+  revalidatePath("/kinderen");
+}

@@ -2,23 +2,29 @@ import Link from "next/link";
 import { requireSnapshot } from "@/lib/auth/session";
 import { ChangeReviewCard } from "@/components/requests/change-review";
 import { EmptyState } from "@/components/empty-state";
-import { createTaskAction, updateTaskStatusAction } from "@/lib/actions/family";
-import { parentName } from "@/lib/queries/family-view";
-import { formatDayLong } from "@/lib/dates";
 import { NeededList } from "@/components/children/needed-list";
 import { RoutineOccurrenceCard } from "@/components/routines/routine-list";
 import { CompletedRoutineOccurrencesSection } from "@/components/routines/completed-routines-section";
-import { CompletedTasksSection } from "@/components/tasks/completed-tasks-section";
+import { CompletedRegelenSection } from "@/components/completion/completed-regelen-section";
+import { RegelenTaskCard } from "@/components/tasks/regelen-task-card";
 import {
   completedOneOffTasks,
   completedRoutineOccurrences,
-  myOpenDutiesToday,
   myCompletedDutiesToday,
+  myOpenDutiesToday,
   routinesOnly,
 } from "@/lib/queries/routines";
-import { canAcceptChangeRequests } from "@/lib/members/permissions";
 import { weekdayLabel } from "@/lib/domain/labels";
 import { createRoutineAction } from "@/lib/actions/routines";
+import {
+  changeRequestsForBucket,
+  completedNeededItems,
+  neededForBucket,
+  tasksForBucket,
+} from "@/lib/queries/regelen-view";
+import { wieRegelt } from "@/lib/queries/responsibility";
+import { neededHeadline } from "@/lib/queries/child-life";
+import { CompletedDutyCard } from "@/components/completion/duty-cards";
 
 export default async function ArrangePage({
   searchParams,
@@ -26,30 +32,37 @@ export default async function ArrangePage({
   searchParams: Promise<{ tab?: string; id?: string }>;
 }) {
   const snapshot = await requireSnapshot();
-  const { tab = "vandaag", id } = await searchParams;
+  const { tab = "voor-jou", id } = await searchParams;
   const todayDuties = myOpenDutiesToday(snapshot);
   const todayCompleted = myCompletedDutiesToday(snapshot);
-  const pending = canAcceptChangeRequests(snapshot)
-    ? snapshot.changeRequests.filter((item) => item.status === "pending" || item.status === "alternative_proposed")
-    : [];
-  const tasks = snapshot.tasks.filter((task) => task.kind === "one_off" && task.status !== "done");
+  const voorJouTasks = tasksForBucket(snapshot, "voor_jou");
+  const samenTasks = tasksForBucket(snapshot, "samen");
+  const laterTasks = tasksForBucket(snapshot, "later");
+  const verzoeken = changeRequestsForBucket(snapshot, "verzoeken");
   const routines = routinesOnly(snapshot);
   const routineOccurrences = snapshot.routineOccurrences
     .filter((item) => item.status === "pending" || item.status === "unregistered")
     .slice(0, 20);
   const completedTasks = completedOneOffTasks(snapshot);
+  const completedNeeded = completedNeededItems(snapshot);
+  const myCompletedTasks = completedTasks.filter((task) => task.assigneeMemberId === snapshot.currentMember.id);
+  const myCompletedNeeded = completedNeeded.filter(
+    (item) =>
+      item.purchasedByMemberId === snapshot.currentMember.id ||
+      item.assigneeMemberId === snapshot.currentMember.id,
+  );
   const completedOccurrences = completedRoutineOccurrences(snapshot);
-  const myOpenSplits = snapshot.splits.filter((split) => {
-    const expense = snapshot.expenses.find((item) => item.id === split.expenseId);
-    return split.status === "pending" && expense && expense.paidByMemberId !== snapshot.currentMember.id && split.memberId === snapshot.currentMember.id;
-  });
-  const needsAction = pending.length + myOpenSplits.length + tasks.filter((task) => task.assigneeMemberId === snapshot.currentMember.id).length;
+  const needsAction =
+    voorJouTasks.length +
+    samenTasks.filter((task) => !task.assigneeMemberId).length +
+    verzoeken.length;
 
   const tabs = [
-    { id: "vandaag", label: "Vandaag" },
-    { id: "taken", label: "Taken" },
-    { id: "routines", label: "Routines" },
+    { id: "voor-jou", label: "Voor jou" },
+    { id: "samen", label: "Samen" },
     { id: "verzoeken", label: "Verzoeken" },
+    { id: "later", label: "Later" },
+    { id: "routines", label: "Routines" },
     { id: "nodig", label: "Nodig" },
   ] as const;
 
@@ -62,7 +75,7 @@ export default async function ArrangePage({
         </p>
       </header>
 
-      <nav className="flex gap-2">
+      <nav className="flex flex-wrap gap-2">
         {tabs.map((item) => (
           <Link
             key={item.id}
@@ -76,9 +89,10 @@ export default async function ArrangePage({
         ))}
       </nav>
 
-      {tab === "vandaag" ? (
+      {tab === "voor-jou" ? (
         <div className="space-y-4">
-          <div className="space-y-3">
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold">Vandaag</h2>
             {todayDuties.map((item) => (
               <article key={item.id} className="famli-card">
                 <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">{item.time}</p>
@@ -89,83 +103,77 @@ export default async function ArrangePage({
             {!todayDuties.length && !todayCompleted.length ? (
               <EmptyState title="Niets gepland voor vandaag" body="Taken en routines voor jou verschijnen hier." />
             ) : null}
-          </div>
+          </section>
+          {voorJouTasks.length ? (
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold">Jouw taken</h2>
+              {voorJouTasks.map((task) => (
+                <RegelenTaskCard key={task.id} snapshot={snapshot} task={task} highlight={id === task.id} />
+              ))}
+            </section>
+          ) : null}
+          {neededForBucket(snapshot, "voor_jou").length ? (
+            <section>
+              <h2 className="mb-3 text-lg font-semibold">Nodig — jij regelt</h2>
+              <NeededList snapshot={snapshot} items={neededForBucket(snapshot, "voor_jou")} compact />
+            </section>
+          ) : null}
           {todayCompleted.length ? (
             <section className="space-y-3">
               <h2 className="text-lg font-semibold">Afgerond vandaag</h2>
               {todayCompleted.map((item) => (
-                <article key={item.id} className="famli-card opacity-80">
-                  <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">{item.time}</p>
-                  <p className="mt-1 text-lg font-medium line-through">{item.title}</p>
-                  {item.subtitle ? <p className="text-sm text-[color:var(--famli-muted)]">{item.subtitle}</p> : null}
-                  <p className="mt-1 text-sm text-[color:var(--famli-muted)]">✓ Afgerond</p>
-                </article>
+                <CompletedDutyCard key={item.id} item={item} />
               ))}
             </section>
+          ) : null}
+          <CompletedRegelenSection snapshot={snapshot} tasks={myCompletedTasks} neededItems={myCompletedNeeded} />
+        </div>
+      ) : null}
+
+      {tab === "samen" ? (
+        <div className="space-y-3">
+          {samenTasks.map((task) => (
+            <RegelenTaskCard key={task.id} snapshot={snapshot} task={task} highlight={id === task.id} />
+          ))}
+          {neededForBucket(snapshot, "samen").map((item) => (
+            <Link key={item.id} href={`/kinderen/${item.childId}?tab=nodig`} className="famli-card block">
+              <p className="font-medium">{item.title}</p>
+              <p className="text-sm text-[color:var(--famli-muted)]">{wieRegelt(snapshot, item.assigneeMemberId)}</p>
+            </Link>
+          ))}
+          {!samenTasks.length && !neededForBucket(snapshot, "samen").length ? (
+            <EmptyState title="Niets open voor jullie beiden" body="Samen-taken verschijnen hier als iets nog niet is toegewezen." />
           ) : null}
         </div>
       ) : null}
 
       {tab === "verzoeken" ? (
         <div className="space-y-3">
-          {pending.map((request) => (
+          {verzoeken.map((request) => (
             <div key={request.id} id={request.id} className={id === request.id ? "rounded-3xl ring-2 ring-[color:var(--famli-brand)]" : ""}>
               <ChangeReviewCard snapshot={snapshot} request={request} />
             </div>
           ))}
-          {!pending.length ? (
+          {!verzoeken.length ? (
             <EmptyState title="Geen openstaande verzoeken" body="Wijzigingsvoorstellen verschijnen hier." />
           ) : null}
         </div>
       ) : null}
 
-      {tab === "taken" ? (
-        <div className="space-y-4">
-          <form action={createTaskAction} className="famli-card grid gap-2 md:grid-cols-2">
-            <h2 className="text-lg font-semibold md:col-span-2">Taak toevoegen</h2>
-            <input name="title" required placeholder="Titel" className="famli-input" />
-            <select name="childId" className="famli-input">
-              <option value="">Kind</option>
-              {snapshot.children.map((child) => (
-                <option key={child.id} value={child.id}>
-                  {child.firstName}
-                </option>
-              ))}
-            </select>
-            <select name="assigneeMemberId" defaultValue={snapshot.currentMember.id} className="famli-input">
-              {snapshot.members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {parentName(snapshot, member.id)}
-                </option>
-              ))}
-            </select>
-            <input name="dueAt" type="datetime-local" className="famli-input" />
-            <textarea name="description" placeholder="Optionele notitie" className="famli-input md:col-span-2" />
-            <button className="famli-btn famli-btn-primary md:col-span-2">Opslaan</button>
-          </form>
-          {tasks.map((task) => (
-            <article key={task.id} id={task.id} className="famli-card">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-medium">{task.title}</p>
-                  <p className="text-sm text-[color:var(--famli-muted)]">
-                    {task.childId ? snapshot.children.find((child) => child.id === task.childId)?.firstName : "Gezin"}
-                    {task.assigneeMemberId ? ` · ${parentName(snapshot, task.assigneeMemberId)}` : ""}
-                    {task.dueAt ? ` · voor ${formatDayLong(task.dueAt)}` : ""}
-                  </p>
-                  {task.description ? <p className="mt-1 text-sm">{task.description}</p> : null}
-                </div>
-                <form action={updateTaskStatusAction}>
-                  <input type="hidden" name="taskId" value={task.id} />
-                  <button name="status" value="done" className="famli-btn famli-btn-secondary h-11 px-4">
-                    Afronden
-                  </button>
-                </form>
-              </div>
-            </article>
+      {tab === "later" ? (
+        <div className="space-y-3">
+          {laterTasks.map((task) => (
+            <RegelenTaskCard key={task.id} snapshot={snapshot} task={task} highlight={id === task.id} />
           ))}
-          {!tasks.length ? <EmptyState title="Geen open taken" body="Voeg een taak toe als er iets geregeld moet worden." /> : null}
-          <CompletedTasksSection snapshot={snapshot} tasks={completedTasks} />
+          {neededForBucket(snapshot, "later").map((item) => (
+            <Link key={item.id} href={`/kinderen/${item.childId}?tab=nodig`} className="famli-card block">
+              <p className="font-medium">{item.title}</p>
+              <p className="text-sm text-[color:var(--famli-muted)]">{neededHeadline(item, snapshot)}</p>
+            </Link>
+          ))}
+          {!laterTasks.length && !neededForBucket(snapshot, "later").length ? (
+            <EmptyState title="Niets voor later" body="Niet-urgente taken komen hier terecht." />
+          ) : null}
         </div>
       ) : null}
 
@@ -235,16 +243,16 @@ export default async function ArrangePage({
               <EmptyState title="Geen open routines" body="Voeg een routine toe voor terugkerende taken." />
             ) : null}
           </div>
-          <CompletedRoutineOccurrencesSection
-            snapshot={snapshot}
-            occurrences={completedOccurrences}
-            groupByDate
-          />
+          <CompletedRoutineOccurrencesSection snapshot={snapshot} occurrences={completedOccurrences} groupByDate />
         </div>
       ) : null}
 
       {tab === "nodig" ? (
-        <NeededList snapshot={snapshot} items={snapshot.neededItems.filter((item) => item.status !== "niet_meer_nodig")} />
+        <NeededList
+          snapshot={snapshot}
+          items={snapshot.neededItems.filter((item) => item.status !== "niet_meer_nodig")}
+          showCompleted
+        />
       ) : null}
     </div>
   );
