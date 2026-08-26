@@ -19,11 +19,13 @@ export async function createChangeRequestAction(formData: FormData) {
       ),
       time: String(formData.get("time") ?? ""),
       location: String(formData.get("location") ?? ""),
+      pickupMemberId: String(formData.get("pickupMemberId") ?? ""),
     },
   });
   revalidatePath("/agenda");
   revalidatePath("/regelen");
   revalidatePath("/vandaag");
+  revalidatePath("/kinderen");
 }
 
 export async function respondToChangeRequestAction(formData: FormData) {
@@ -41,6 +43,7 @@ export async function respondToChangeRequestAction(formData: FormData) {
   revalidatePath("/agenda");
   revalidatePath("/regelen");
   revalidatePath("/vandaag");
+  revalidatePath("/kinderen");
 }
 
 export async function createEventAction(formData: FormData) {
@@ -63,10 +66,35 @@ export async function createEventAction(formData: FormData) {
       .map((item) => item.trim())
       .filter(Boolean),
     childIds,
-    memberIds: [],
+    memberIds: formData.getAll("memberIds").map(String),
+    allDay: String(formData.get("allDay") ?? "") === "true",
   });
   revalidatePath("/agenda");
   revalidatePath("/vandaag");
+  revalidatePath("/kinderen");
+}
+
+export async function createHandoverAction(formData: FormData) {
+  const snapshot = await requireSnapshot();
+  const childIds = formData.getAll("childIds").map(String);
+  await getRepository().createHandover({
+    familyId: snapshot.family.id,
+    createdBy: snapshot.currentProfile.id,
+    date: String(formData.get("date") ?? ""),
+    time: String(formData.get("time") ?? "17:00"),
+    fromMemberId: String(formData.get("fromMemberId") ?? snapshot.currentMember.id),
+    toMemberId: String(formData.get("toMemberId") ?? snapshot.currentMember.id),
+    location: String(formData.get("location") ?? "") || null,
+    packingList: String(formData.get("packingList") ?? "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+    notes: String(formData.get("notes") ?? "") || null,
+    childIds: childIds.length ? childIds : snapshot.children.map((child) => child.id),
+  });
+  revalidatePath("/agenda");
+  revalidatePath("/vandaag");
+  revalidatePath("/kinderen");
 }
 
 export async function createVacationAction(formData: FormData) {

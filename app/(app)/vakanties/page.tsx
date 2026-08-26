@@ -31,6 +31,19 @@ export default async function VacationsPage() {
               {vacation.startsOn} – {vacation.endsOn}
               {vacation.withMemberId ? ` · met ${memberLabel(snapshot.members, vacation.withMemberId).toLowerCase()}` : ""}
             </p>
+            {vacation.region ? <p className="text-sm text-[color:var(--famli-muted)]">Regio {vacation.region}</p> : null}
+            {(vacation.stays ?? []).length ? (
+              <ul className="mt-2 space-y-1 text-sm">
+                {vacation.stays!.map((stay) => {
+                  const child = snapshot.children.find((item) => item.id === stay.childId);
+                  return (
+                    <li key={`${stay.childId}-${stay.from}`}>
+                      {child?.firstName}: {stay.from}–{stay.to} bij {memberLabel(snapshot.members, stay.memberId).toLowerCase()}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
             {vacation.status === "requested" && vacation.createdBy !== snapshot.currentProfile.id ? (
               <form action={respondToVacationAction} className="mt-3 flex gap-2">
                 <input type="hidden" name="id" value={vacation.id} />

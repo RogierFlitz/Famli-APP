@@ -33,20 +33,20 @@ export default async function LandingPage() {
 
       <section className="mx-auto max-w-6xl px-5 pb-16 pt-8 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-12 lg:pt-16">
         <div>
-          <p className="mb-4 text-sm text-[color:var(--famli-muted)]">{famliBrand.sloganEn}</p>
+          <p className="mb-4 text-sm text-[color:var(--famli-muted)]">{famliBrand.onboardingLine}</p>
           <h1 className="max-w-xl text-5xl leading-[1.05] font-semibold tracking-tight text-[color:var(--famli-ink)] sm:text-6xl">
             {famliBrand.sloganNl}
           </h1>
           <p className="mt-5 max-w-lg text-base leading-7 text-[color:var(--famli-muted)]">
-            Agenda’s, wisseldagen, afspraken en kosten op één rustige plek — voor beide ouders.
+            Famli brengt jullie agenda, wisseldagen, afspraken en kosten samen op één rustige plek.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/signup" className="famli-btn famli-btn-primary">
               Gratis beginnen
             </Link>
-            <a href="#hoe-het-werkt" className="famli-btn famli-btn-secondary">
-              Bekijk hoe het werkt
-            </a>
+            <Link href="/login" className="famli-btn famli-btn-secondary">
+              Inloggen
+            </Link>
           </div>
         </div>
         <ProductMockups />
@@ -56,16 +56,16 @@ export default async function LandingPage() {
         <div className="grid gap-4 md:grid-cols-3">
           {[
             {
-              title: "Eén agenda",
-              text: "Zie in één oogopslag waar de kinderen zijn, wat er speelt en wie haalt of brengt.",
+              title: "Eén gezamenlijke agenda",
+              text: "Altijd duidelijk wie wanneer waar moet zijn.",
             },
             {
-              title: "Wijzigingen zonder gedoe",
-              text: "Stel een ruil voor, kies een alternatief en bewaar de historie automatisch.",
+              title: "Minder afstemmen",
+              text: "Wisseldagen, wijzigingen en afspraken overzichtelijk geregeld.",
             },
             {
-              title: "Kosten die kloppen",
-              text: "Niet alleen losse bonnetjes, maar een helder saldo: jij krijgt, of jij betaalt.",
+              title: "Kosten eerlijk verdeeld",
+              text: "Zie precies wie wat heeft betaald en wat nog openstaat.",
             },
           ].map((item) => (
             <div key={item.title} className="famli-card">

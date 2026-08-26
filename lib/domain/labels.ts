@@ -4,21 +4,26 @@ import type {
   EventCategory,
   ExpenseCategory,
   FamilyRole,
+  MemberRelationType,
+  NeededCategory,
+  NeededStatus,
+  PermissionPreset,
   PlanId,
   TaskStatus,
 } from "./types";
 
 export const eventCategoryLabel: Record<EventCategory, string> = {
-  verblijf: "Thuis",
-  overdracht: "Overdracht",
+  verblijf: "Verblijf",
+  overdracht: "Wisselmoment",
   school: "School",
   sport: "Sport",
   medisch: "Medisch",
   opvang: "Opvang",
   vakantie: "Vakantie",
   verjaardag: "Verjaardag",
-  activiteit: "Activiteit",
-  overig: "Overig",
+  feestje: "Kinderfeestje",
+  activiteit: "Afspraak",
+  overig: "Notitie",
 };
 
 export const eventCategoryTone: Record<EventCategory, string> = {
@@ -30,6 +35,7 @@ export const eventCategoryTone: Record<EventCategory, string> = {
   opvang: "bg-[color:var(--famli-child)]/20 text-[color:var(--famli-ink)]",
   vakantie: "bg-[color:var(--famli-parent-2)]/15 text-[color:var(--famli-ink)]",
   verjaardag: "bg-[color:var(--famli-child)]/22 text-[color:var(--famli-ink)]",
+  feestje: "bg-[color:var(--famli-child)]/22 text-[color:var(--famli-ink)]",
   activiteit: "bg-[color:var(--famli-sport)]/15 text-[color:var(--famli-ink)]",
   overig: "bg-[color:var(--famli-bg)] text-[color:var(--famli-muted)]",
 };
@@ -58,23 +64,50 @@ export const documentCategoryLabel: Record<DocumentCategory, string> = {
 export const changeRequestLabel: Record<ChangeRequestType, string> = {
   swap_day: "Dag ruilen",
   extra_day: "Extra dag",
-  pickup_time: "Andere ophaaltijd",
-  location: "Andere overdrachtslocatie",
+  pickup: "Ophalen/brengen",
+  pickup_time: "Tijd wijzigen",
+  location: "Locatie wijzigen",
   vacation: "Vakantie aanpassen",
   other: "Anders",
 };
 
 export const taskStatusLabel: Record<TaskStatus, string> = {
   open: "Open",
-  in_progress: "Bezig",
+  in_progress: "Open",
   done: "Afgerond",
 };
 
 export const roleLabel: Record<FamilyRole, string> = {
   owner: "Eigenaar",
   parent: "Ouder",
-  guardian: "Extra ouder",
+  guardian: "Gezinslid",
   viewer: "Alleen kijken",
+};
+
+export const relationTypeLabel: Record<MemberRelationType, string> = {
+  ouder: "Ouder",
+  partner: "Partner",
+  bonusouder: "Bonusouder",
+  opa_oma: "Opa/oma",
+  verzorger: "Verzorger",
+  oppas: "Oppas",
+  anders: "Anders",
+};
+
+export const permissionPresetLabel: Record<PermissionPreset, string> = {
+  practical: "Alleen praktisch",
+  involved: "Betrokken bij gezin",
+  custom: "Aangepast",
+};
+
+export const weekdayLabel: Record<number, string> = {
+  1: "Ma",
+  2: "Di",
+  3: "Wo",
+  4: "Do",
+  5: "Vr",
+  6: "Za",
+  7: "Zo",
 };
 
 export const planLabel: Record<PlanId, string> = {
@@ -88,6 +121,34 @@ export function greetingForHour(hour: number): string {
   if (hour < 18) return "Goedemiddag";
   return "Goedenavond";
 }
+
+export const neededStatusLabel: Record<NeededStatus, string> = {
+  nodig: "Nog kopen",
+  wordt_geregeld: "Wordt geregeld",
+  gekocht: "Gekocht",
+  niet_meer_nodig: "Niet meer nodig",
+};
+
+export const neededCategoryLabel: Record<NeededCategory, string> = {
+  kleding: "Kleding",
+  schoenen: "Schoenen",
+  school: "School",
+  sport: "Sport",
+  verzorging: "Verzorging",
+  cadeau: "Cadeau",
+  reizen: "Reizen",
+  overig: "Overig",
+};
+
+export const sizeFieldLabel: Record<string, string> = {
+  clothing: "Kleding",
+  shoes: "Schoenen",
+  jacket: "Jas",
+  trousers: "Broek",
+  sport: "Sportkleding",
+  helmet: "Fietshelm",
+  other: "Overig",
+};
 
 export function notificationPrefLabel(key: string): string {
   const labels: Record<string, string> = {

@@ -13,9 +13,11 @@ export async function createExpenseAction(formData: FormData) {
   const parents = snapshot.members.filter((member) => member.role !== "viewer");
   const me = snapshot.currentMember.id;
   const other = parents.find((member) => member.id !== me)?.id;
-  const myPercent = Number(split);
+  const myPercent = split === "custom" ? Number(formData.get("customPercent") ?? "50") : Number(split);
   const splitPercents: Record<string, number> = { [me]: myPercent };
   if (other) splitPercents[other] = 100 - myPercent;
+  const receipt = formData.get("receipt");
+  const receiptUrl = receipt instanceof File && receipt.size > 0 ? receipt.name : null;
 
   await getRepository().createExpense({
     familyId: snapshot.family.id,
@@ -28,10 +30,12 @@ export async function createExpenseAction(formData: FormData) {
     paidByMemberId: String(formData.get("paidByMemberId") ?? me),
     splitPercents,
     notes: String(formData.get("notes") ?? "") || null,
+    receiptUrl,
   });
   revalidatePath("/kosten");
   revalidatePath("/vandaag");
   revalidatePath("/regelen");
+  revalidatePath("/kinderen");
 }
 
 export async function markSplitPaidAction(formData: FormData) {
@@ -39,6 +43,7 @@ export async function markSplitPaidAction(formData: FormData) {
   await getRepository().markSplitPaid(String(formData.get("splitId") ?? ""), snapshot.currentProfile.id);
   revalidatePath("/kosten");
   revalidatePath("/regelen");
+  revalidatePath("/vandaag");
 }
 
 export async function createRecurringExpenseAction(formData: FormData) {

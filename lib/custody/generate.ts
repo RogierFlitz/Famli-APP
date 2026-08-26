@@ -113,7 +113,13 @@ export function generateHandovers(params: {
     if (today.custodianMemberId === tomorrow.custodianMemberId) continue;
     const existing = kept.get(today.date);
     if (existing) {
-      generated.push(existing);
+      generated.push({
+        ...existing,
+        fromMemberId: today.custodianMemberId,
+        toMemberId: tomorrow.custodianMemberId,
+        pickupMemberId: existing.pickupMemberId ?? tomorrow.custodianMemberId,
+        dropoffMemberId: existing.dropoffMemberId ?? today.custodianMemberId,
+      });
       continue;
     }
     generated.push({

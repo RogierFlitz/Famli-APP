@@ -1,5 +1,17 @@
 export type FamilyRole = "owner" | "parent" | "guardian" | "viewer";
+export type MemberRelationType =
+  | "ouder"
+  | "partner"
+  | "bonusouder"
+  | "opa_oma"
+  | "verzorger"
+  | "oppas"
+  | "anders";
+export type PermissionPreset = "practical" | "involved" | "custom";
 export type MemberStatus = "active" | "invited" | "revoked";
+export type TaskKind = "one_off" | "routine" | "care";
+export type RoutineAssignMode = "fixed" | "stay";
+export type RoutineOccurrenceStatus = "pending" | "done" | "unregistered";
 export type PlanId = "free" | "plus" | "family";
 export type SubscriptionStatus =
   | "none"
@@ -17,6 +29,7 @@ export type EventCategory =
   | "opvang"
   | "vakantie"
   | "verjaardag"
+  | "feestje"
   | "activiteit"
   | "overig";
 
@@ -35,6 +48,7 @@ export type TaskStatus = "open" | "in_progress" | "done";
 export type ChangeRequestType =
   | "swap_day"
   | "extra_day"
+  | "pickup"
   | "pickup_time"
   | "location"
   | "vacation"
@@ -126,15 +140,51 @@ export interface Family {
   createdBy: string;
 }
 
+export interface MemberPermissions {
+  viewCalendar: boolean;
+  viewCustody: boolean;
+  editCustody: boolean;
+  acceptChangeRequests: boolean;
+  viewExpenses: boolean;
+  editExpenses: boolean;
+  viewMedical: boolean;
+  viewDocuments: boolean;
+  editTasks: boolean;
+  completeTasks: boolean;
+  manageMembers: boolean;
+}
+
+export interface Household {
+  id: string;
+  familyId: string;
+  name: string;
+  memberIds: string[];
+}
+
+export interface ChildMemberAccess {
+  id: string;
+  memberId: string;
+  childId: string;
+  canView: boolean;
+  canEdit: boolean;
+}
+
 export interface FamilyMember {
   id: string;
   familyId: string;
   userId: string | null;
   role: FamilyRole;
+  relationType: MemberRelationType;
+  permissionPreset: PermissionPreset;
+  permissions: MemberPermissions;
   parentLabel: string;
   displayColor: string;
   invitedEmail: string | null;
   status: MemberStatus;
+  householdId: string | null;
+  contactOnly: boolean;
+  linkedParentMemberId: string | null;
+  phone: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -160,6 +210,8 @@ export interface Child {
   sports: string[];
   clothingSize: string | null;
   shoeSize: string | null;
+  passportExpiresOn: string | null;
+  passportNumber: string | null;
   emergencyContacts: EmergencyContact[];
   notes: string | null;
   color: string;
@@ -215,6 +267,8 @@ export interface CustodyOccurrence {
   updatedAt: string;
 }
 
+export type SchoolEventKind = "les" | "studiedag" | "schoolreis" | "ouderavond" | "rapport";
+
 export interface CalendarEvent {
   id: string;
   familyId: string;
@@ -230,6 +284,9 @@ export interface CalendarEvent {
   childIds: string[];
   memberIds: string[];
   handoverId: string | null;
+  dropoffMemberId?: string | null;
+  pickupMemberId?: string | null;
+  schoolKind?: SchoolEventKind | null;
   cancelledAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -281,10 +338,32 @@ export interface TaskItem {
   assigneeMemberId: string | null;
   dueAt: string | null;
   status: TaskStatus;
+  kind: TaskKind;
+  weekdays?: number[];
+  times?: string[];
+  assignMode?: RoutineAssignMode;
+  careLabel?: string | null;
+  careInstructions?: string | null;
+  packingItems?: string[];
+  active?: boolean;
   attachmentUrl: string | null;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+}
+
+export interface RoutineOccurrence {
+  id: string;
+  routineId: string;
+  familyId: string;
+  childId: string | null;
+  date: string;
+  time: string;
+  assigneeMemberId: string | null;
+  status: RoutineOccurrenceStatus;
+  completedAt: string | null;
+  completedByMemberId: string | null;
+  notes: string | null;
 }
 
 export interface Expense {
@@ -343,6 +422,9 @@ export interface FamilyDocument {
   category: DocumentCategory;
   storagePath: string | null;
   mimeType: string | null;
+  travelPlanId?: string | null;
+  sensitive?: boolean;
+  expiresOn?: string | null;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
@@ -407,9 +489,157 @@ export interface Vacation {
   endsOn: string;
   status: "planned" | "requested" | "accepted" | "declined";
   notes: string | null;
+  region?: string | null;
+  childIds?: string[];
+  stays?: VacationStay[];
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+}
+
+export interface VacationStay {
+  childId: string;
+  from: string;
+  to: string;
+  memberId: string;
+}
+
+export type NeededCategory =
+  | "kleding"
+  | "schoenen"
+  | "school"
+  | "sport"
+  | "verzorging"
+  | "cadeau"
+  | "reizen"
+  | "overig";
+
+export type NeededStatus = "nodig" | "wordt_geregeld" | "gekocht" | "niet_meer_nodig";
+
+export interface ChildSizes {
+  childId: string;
+  clothing: string | null;
+  shoes: string | null;
+  jacket: string | null;
+  trousers: string | null;
+  sport: string | null;
+  helmet: string | null;
+  other: string | null;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface SizeHistoryEntry {
+  id: string;
+  childId: string;
+  field: string;
+  fromValue: string | null;
+  toValue: string | null;
+  changedAt: string;
+  changedBy: string;
+}
+
+export interface NeededItem {
+  id: string;
+  familyId: string;
+  childId: string;
+  title: string;
+  category: NeededCategory;
+  size: string | null;
+  dueOn: string | null;
+  assigneeMemberId: string | null;
+  budgetCents: number | null;
+  status: NeededStatus;
+  notes: string | null;
+  photoUrl: string | null;
+  hiddenFromChild: boolean;
+  purchasedAt: string | null;
+  purchasedByMemberId: string | null;
+  priceCents: number | null;
+  receiptUrl: string | null;
+  expenseId: string | null;
+  eventId: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface Party {
+  id: string;
+  familyId: string;
+  eventId: string;
+  forChildId: string;
+  hostName: string;
+  address: string | null;
+  contact: string | null;
+  rsvp: "pending" | "accepted" | "declined";
+  giftNeededItemId: string | null;
+  giftBudgetCents: number | null;
+  notes: string | null;
+}
+
+export interface ChildSchool {
+  childId: string;
+  name: string;
+  className: string;
+  teacher: string | null;
+  contact: string | null;
+  hours: string | null;
+  gymDays: string | null;
+}
+
+export interface ChildClub {
+  id: string;
+  childId: string;
+  sport: string;
+  club: string;
+  team: string | null;
+  training: string | null;
+  matchDay: string | null;
+  location: string | null;
+  trainer: string | null;
+  contact: string | null;
+  gear: string[];
+}
+
+export interface TravelPlan {
+  id: string;
+  familyId: string;
+  title: string;
+  destination: string;
+  startsOn: string;
+  endsOn: string;
+  withMemberId: string;
+  childIds: string[];
+  transport: string | null;
+  stayName: string | null;
+  stayAddress: string | null;
+  stayContact: string | null;
+  bookingRef: string | null;
+  notes: string | null;
+  createdBy: string;
+}
+
+export interface TravelSegment {
+  id: string;
+  travelPlanId: string;
+  kind: "outbound" | "return" | "other";
+  carrier: string | null;
+  number: string | null;
+  fromPlace: string | null;
+  toPlace: string | null;
+  departsAt: string | null;
+  arrivesAt: string | null;
+}
+
+export interface ChildUpdate {
+  id: string;
+  familyId: string;
+  childId: string;
+  body: string;
+  category: string | null;
+  authorMemberId: string;
+  createdAt: string;
+  photoUrl: string | null;
 }
 
 export interface FamilySnapshot {
@@ -435,6 +665,18 @@ export interface FamilySnapshot {
   activityLog: ActivityLogEntry[];
   invites: Invite[];
   vacations: Vacation[];
+  sizes: ChildSizes[];
+  sizeHistory: SizeHistoryEntry[];
+  neededItems: NeededItem[];
+  parties: Party[];
+  schools: ChildSchool[];
+  clubs: ChildClub[];
+  travelPlans: TravelPlan[];
+  travelSegments: TravelSegment[];
+  childUpdates: ChildUpdate[];
+  households: Household[];
+  childMemberAccess: ChildMemberAccess[];
+  routineOccurrences: RoutineOccurrence[];
 }
 
 export const SESSION_COOKIE = "nestly_session";

@@ -31,6 +31,10 @@ export async function startDemoRogier() {
   await startDemo("33333333-3333-4333-a333-333333333333");
 }
 
+export async function startDemoSanne() {
+  await startDemo("44444444-4444-4444-a444-444444444444");
+}
+
 export async function signUpLocal(formData: FormData) {
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();

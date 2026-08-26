@@ -7,6 +7,8 @@ import { primaryNav, secondaryNav } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import type { FamilySnapshot } from "@/lib/domain/types";
 import { signOut } from "@/lib/auth/actions";
+import { AddMenu } from "@/components/compose/add-menu";
+import { FamilySearch } from "@/components/search/family-search";
 
 export function AppShell({
   snapshot,
@@ -48,15 +50,22 @@ export function AppShell({
       </aside>
 
       <div className="flex min-h-dvh flex-col">
-        <header className="flex items-center gap-3 px-4 pt-4 lg:hidden">
+        <header className="flex items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] lg:hidden">
           <Link href="/vandaag" aria-label="Famli, naar Vandaag">
-            <FamliAppIcon className="size-8" />
+            <FamliAppIcon className="size-8 shrink-0" />
           </Link>
+          <FamilySearch snapshot={snapshot} />
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-24 pt-4 lg:px-10 lg:pb-10 lg:pt-8">
+        <div className="hidden px-10 pt-6 lg:block">
+          <FamilySearch snapshot={snapshot} />
+        </div>
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 lg:px-10 lg:pb-10 lg:pt-6">
           {children}
         </main>
-        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--famli-border)] bg-[color:var(--famli-card)]/95 backdrop-blur lg:hidden">
+        <div className="lg:hidden">
+          <AddMenu snapshot={snapshot} />
+        </div>
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--famli-border)] bg-[color:var(--famli-card)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
           <ul className="grid grid-cols-5">
             {primaryNav.map((item) => {
               const Icon = item.icon;

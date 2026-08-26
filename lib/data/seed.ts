@@ -1,6 +1,10 @@
-import { addDays, addMonths, format, startOfWeek, subDays } from "date-fns";
+import { addDays, addMonths, format, getISODay, startOfWeek, subDays } from "date-fns";
 import { nl } from "date-fns/locale";
 import { generateHandovers, generateOccurrences } from "@/lib/custody/generate";
+import { buildDemoLife } from "@/lib/data/seed-life";
+import { buildDemoRoutines } from "@/lib/data/seed-routines";
+import { defaultChildAccess, parentPermissions, presetPermissions } from "@/lib/members/permissions";
+import { generateRoutineOccurrences } from "@/lib/routines/generate";
 import { splitAmounts } from "@/lib/money";
 import { famliColor } from "@/lib/brand/tokens";
 import { IDS } from "@/lib/data/ids";
@@ -8,10 +12,10 @@ import type {
   CalendarEvent,
   ChangeRequest,
   Child,
+  CustodyOccurrence,
   Expense,
   ExpenseSplit,
   FamilySnapshot,
-  Handover,
   Profile,
   TaskItem,
 } from "@/lib/domain/types";
@@ -36,6 +40,58 @@ function defaultPrefs() {
   };
 }
 
+function baseEvent(
+  id: string,
+  date: Date | string,
+  time: string,
+  end: string,
+  fields: Partial<CalendarEvent> & Pick<CalendarEvent, "title" | "category">,
+): CalendarEvent {
+  const day = typeof date === "string" ? date : iso(date);
+  const createdAt = `${day}T08:00:00`;
+  return {
+    id,
+    familyId: IDS.family,
+    description: null,
+    startsAt: `${day}T${time}:00`,
+    endsAt: `${day}T${end}:00`,
+    allDay: false,
+    location: null,
+    notes: null,
+    packingList: [],
+    childIds: [IDS.roxy, IDS.sophie],
+    memberIds: [],
+    handoverId: null,
+    cancelledAt: null,
+    createdAt,
+    updatedAt: createdAt,
+    createdBy: IDS.emmaUser,
+    ...fields,
+  };
+}
+
+function ensureHandoverToday(occurrences: CustodyOccurrence[], todayIso: string, tomorrowIso: string) {
+  const todayOcc = occurrences.find((item) => item.date === todayIso);
+  const tomorrowOcc = occurrences.find((item) => item.date === tomorrowIso);
+  if (!todayOcc || !tomorrowOcc) return;
+  todayOcc.custodianMemberId = IDS.emmaMember;
+  todayOcc.isOverride = true;
+  todayOcc.source = "manual";
+  tomorrowOcc.custodianMemberId = IDS.rogierMember;
+  tomorrowOcc.isOverride = true;
+  tomorrowOcc.source = "manual";
+}
+
+function nextThursdayWith(occurrences: CustodyOccurrence[], memberId: string, from: Date): string {
+  for (let i = 1; i <= 21; i += 1) {
+    const date = addDays(from, i);
+    if (getISODay(date) !== 4) continue;
+    const occ = occurrences.find((item) => item.date === iso(date));
+    if (occ?.custodianMemberId === memberId) return iso(date);
+  }
+  return iso(addDays(from, ((4 - getISODay(from) + 7) % 7) || 7));
+}
+
 export function createDemoSnapshot(now = new Date()): FamilySnapshot {
   const today = new Date(now);
   const monday = startOfWeek(today, { weekStartsOn: 1 });
@@ -43,10 +99,12 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
   const rangeStart = subDays(today, 45);
   const rangeEnd = addMonths(today, 5);
   const createdAt = at(subDays(today, 40), "09:00");
+  const todayIso = iso(today);
+  const tomorrowIso = iso(addDays(today, 1));
 
   const emma: Profile = {
     id: IDS.emmaUser,
-    email: "emma@nestly.test",
+    email: "emma@famli.test",
     firstName: "Emma",
     lastName: "Bakker",
     avatarUrl: null,
@@ -61,11 +119,26 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
 
   const rogier: Profile = {
     id: IDS.rogierUser,
-    email: "rogier@nestly.test",
+    email: "rogier@famli.test",
     firstName: "Rogier",
     lastName: "Bakker",
     avatarUrl: null,
     phone: "+31 6 8821 4409",
+    locale: "nl-NL",
+    timezone: "Europe/Amsterdam",
+    notificationPrefs: defaultPrefs(),
+    onboardingCompletedAt: createdAt,
+    createdAt,
+    updatedAt: createdAt,
+  };
+
+  const sanne: Profile = {
+    id: IDS.sanneUser,
+    email: "sanne@famli.test",
+    firstName: "Sanne",
+    lastName: "Visser",
+    avatarUrl: null,
+    phone: "+31 6 7711 2200",
     locale: "nl-NL",
     timezone: "Europe/Amsterdam",
     notificationPrefs: defaultPrefs(),
@@ -88,36 +161,36 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
       dentist: "Tandartspraktijk Smit",
       daycare: null,
       sports: ["Hockey"],
-      clothingSize: "134",
-      shoeSize: "33",
-      emergencyContacts: [
-        { name: "Oma Lien", relation: "Oma", phone: "+31 6 4412 7788" },
-      ],
-      notes: "Bitje verplicht bij hockey. Neemt water mee.",
+      clothingSize: "146 / 152",
+      shoeSize: "36",
+      passportExpiresOn: iso(addMonths(today, 2)),
+      passportNumber: "NXB12R37",
+      emergencyContacts: [{ name: "Oma Lien", relation: "Oma", phone: "+31 6 4412 7788" }],
+      notes: "Bitje verplicht bij hockey.",
       color: famliColor.child,
       createdAt,
       updatedAt: createdAt,
       createdBy: IDS.emmaUser,
     },
     {
-      id: IDS.noah,
+      id: IDS.sophie,
       familyId: IDS.family,
-      firstName: "Noah",
+      firstName: "Sophie",
       lastName: "Bakker",
-      dateOfBirth: "2020-11-02",
+      dateOfBirth: "2019-08-20",
       photoUrl: null,
       school: "OBS De Linden",
-      className: "Groep 2",
+      className: "Groep 3",
       doctor: "Huisartsenpraktijk Parkzicht",
       dentist: "Tandartspraktijk Smit",
-      daycare: "Kinderopvang De Klimop",
+      daycare: null,
       sports: ["Zwemles"],
-      clothingSize: "116",
-      shoeSize: "28",
-      emergencyContacts: [
-        { name: "Oma Lien", relation: "Oma", phone: "+31 6 4412 7788" },
-      ],
-      notes: "Pinda-allergie. EpiPen zit in de schooltas.",
+      clothingSize: "128",
+      shoeSize: "31",
+      passportExpiresOn: iso(addMonths(today, 18)),
+      passportNumber: null,
+      emergencyContacts: [{ name: "Oma Lien", relation: "Oma", phone: "+31 6 4412 7788" }],
+      notes: "Houdt van voorlezen voor het slapen.",
       color: famliColor.sport,
       createdAt,
       updatedAt: createdAt,
@@ -149,17 +222,24 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     from: iso(rangeStart),
     to: iso(rangeEnd),
   });
+  ensureHandoverToday(occurrences, todayIso, tomorrowIso);
+  const thursday = nextThursdayWith(occurrences, IDS.rogierMember, today);
+  const thursdayOcc = occurrences.find((item) => item.date === thursday);
+  if (thursdayOcc) {
+    thursdayOcc.custodianMemberId = IDS.rogierMember;
+    thursdayOcc.isOverride = true;
+    thursdayOcc.source = "manual";
+  }
 
   let handovers = generateHandovers({
     familyId: IDS.family,
     occurrences,
-    childIds: [IDS.roxy, IDS.noah],
+    childIds: [IDS.roxy, IDS.sophie],
     createdBy: IDS.emmaUser,
     time: "17:00",
     location: "School",
   });
 
-  const todayIso = iso(today);
   const todayHandoverIndex = handovers.findIndex((item) => item.date === todayIso);
   if (todayHandoverIndex >= 0) {
     const current = handovers[todayHandoverIndex];
@@ -167,129 +247,97 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
       ...handovers.slice(0, todayHandoverIndex),
       {
         ...current,
-        location: "Schoolplein OBS De Linden",
+        location: "School",
         pickupMemberId: current.toMemberId,
         dropoffMemberId: current.fromMemberId,
-        packingList: ["Schooltas", "Hockeyspullen", "Medicijnen"],
+        packingList: ["schooltas", "hockeytas", "medicijnen"],
         notes: "Roxy heeft na school hockey.",
       },
       ...handovers.slice(todayHandoverIndex + 1),
     ];
   }
 
-  const hockeyDay =
-    handovers.find((item) => item.date >= todayIso)?.date ?? todayIso;
-  const nextSaturday = nextWeekday(today, 6);
+  const events: CalendarEvent[] = [];
+  const rangeFrom = subDays(today, 7);
+  const rangeTo = addDays(today, 14);
 
-  const events: CalendarEvent[] = [
-    {
-      id: "evt-school-today",
-      familyId: IDS.family,
-      title: "School",
-      description: "OBS De Linden",
-      category: "school",
-      startsAt: at(today, "08:30"),
-      endsAt: at(today, "15:00"),
-      allDay: false,
-      location: "OBS De Linden",
-      notes: null,
-      packingList: ["Lunch", "Gymspullen"],
-      childIds: [IDS.roxy, IDS.noah],
-      memberIds: [],
-      handoverId: null,
-      cancelledAt: null,
-      createdAt,
-      updatedAt: createdAt,
-      createdBy: IDS.emmaUser,
-    },
-    {
-      id: "evt-hockey",
-      familyId: IDS.family,
-      title: "Hockey Roxy",
-      description: "Training MHC",
-      category: "sport",
-      startsAt: `${hockeyDay}T18:00:00`,
-      endsAt: `${hockeyDay}T19:15:00`,
-      allDay: false,
-      location: "Sportpark",
-      notes: null,
-      packingList: ["Stick", "Bitje", "Bidon"],
-      childIds: [IDS.roxy],
-      memberIds: [],
-      handoverId: null,
-      cancelledAt: null,
-      createdAt,
-      updatedAt: createdAt,
-      createdBy: IDS.emmaUser,
-    },
-    {
-      id: "evt-zwemles",
-      familyId: IDS.family,
-      title: "Zwemles Noah",
-      description: null,
-      category: "sport",
-      startsAt: at(addDays(today, 2), "16:30"),
-      endsAt: at(addDays(today, 2), "17:15"),
-      allDay: false,
-      location: "Zwembad De Golfbreker",
-      notes: "Handdoek in de tas",
-      packingList: ["Zwemkleding", "Handdoek"],
-      childIds: [IDS.noah],
-      memberIds: [],
-      handoverId: null,
-      cancelledAt: null,
-      createdAt,
-      updatedAt: createdAt,
-      createdBy: IDS.emmaUser,
-    },
-    {
-      id: "evt-tandarts",
-      familyId: IDS.family,
+  for (let cursor = new Date(rangeFrom); cursor <= rangeTo; cursor = addDays(cursor, 1)) {
+    const day = getISODay(cursor);
+    const occ = occurrences.find((item) => item.date === iso(cursor));
+    if (day <= 5) {
+      events.push(
+        baseEvent(`evt-school-${iso(cursor)}`, cursor, "08:30", "15:00", {
+          title: "School",
+          category: "school",
+          location: "OBS De Linden",
+        }),
+        baseEvent(`evt-pickup-${iso(cursor)}`, cursor, "15:15", "15:30", {
+          title: "Ophalen van school",
+          category: "activiteit",
+          location: "OBS De Linden",
+          memberIds: occ ? [occ.custodianMemberId] : [IDS.emmaMember],
+        }),
+      );
+    }
+    if (day === 2) {
+      events.push(
+        baseEvent(`evt-hockey-${iso(cursor)}`, cursor, "18:00", "19:15", {
+          title: "Hockey Roxy",
+          category: "sport",
+          location: "Sportpark",
+          childIds: [IDS.roxy],
+          packingList: ["Stick", "bitje", "bidon"],
+          dropoffMemberId: occ?.custodianMemberId ?? IDS.emmaMember,
+          pickupMemberId: occ?.custodianMemberId ?? IDS.emmaMember,
+        }),
+      );
+    }
+    if (day === 3) {
+      events.push(
+        baseEvent(`evt-zwem-${iso(cursor)}`, cursor, "17:30", "18:15", {
+          title: "Zwemles Sophie",
+          category: "sport",
+          location: "Zwembad De Golfbreker",
+          childIds: [IDS.sophie],
+          packingList: ["Zwemkleding", "handdoek"],
+          dropoffMemberId: occ?.custodianMemberId ?? IDS.emmaMember,
+          pickupMemberId: occ?.custodianMemberId ?? IDS.emmaMember,
+        }),
+      );
+    }
+  }
+
+  events.push(
+    baseEvent("evt-tandarts", addDays(today, 6), "15:40", "16:10", {
       title: "Tandarts Roxy",
-      description: "Controle",
       category: "medisch",
-      startsAt: at(addDays(today, 6), "15:40"),
-      endsAt: at(addDays(today, 6), "16:10"),
-      allDay: false,
       location: "Tandartspraktijk Smit",
-      notes: null,
-      packingList: [],
       childIds: [IDS.roxy],
       memberIds: [IDS.emmaMember],
-      handoverId: null,
-      cancelledAt: null,
-      createdAt,
-      updatedAt: createdAt,
-      createdBy: IDS.emmaUser,
-    },
-    {
-      id: "evt-verjaardag",
-      familyId: IDS.family,
+    }),
+    baseEvent("evt-verjaardag", addDays(today, 11), "14:00", "17:00", {
       title: "Verjaardag oma Lien",
-      description: null,
       category: "verjaardag",
-      startsAt: at(addDays(today, 11), "14:00"),
-      endsAt: at(addDays(today, 11), "17:00"),
-      allDay: false,
       location: "Bij oma",
-      notes: null,
-      packingList: [],
-      childIds: [IDS.roxy, IDS.noah],
-      memberIds: [IDS.emmaMember, IDS.rogierMember],
-      handoverId: null,
-      cancelledAt: null,
-      createdAt,
-      updatedAt: createdAt,
-      createdBy: IDS.emmaUser,
+    }),
+    {
+      ...baseEvent("evt-weekend", addDays(today, ((6 - getISODay(today) + 7) % 7) || 7), "10:00", "18:00", {
+        title: "Weekend bij papa",
+        category: "verblijf",
+        location: null,
+      }),
+      allDay: true,
+      startsAt: `${iso(addDays(today, ((6 - getISODay(today) + 7) % 7) || 7))}T00:00:00`,
+      endsAt: `${iso(addDays(today, ((6 - getISODay(today) + 7) % 7) || 7))}T23:59:00`,
     },
-  ];
+  );
 
   const handoverEvents: CalendarEvent[] = handovers
     .filter((item) => item.date >= iso(subDays(today, 7)) && item.date <= iso(addMonths(today, 2)))
     .map((item) => ({
       id: `evt-han-${item.id}`,
       familyId: IDS.family,
-      title: "Overdracht",
+      title: "Wisselmoment",
       description: null,
       category: "overdracht" as const,
       startsAt: `${item.date}T${item.time}:00`,
@@ -313,16 +361,19 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     eventId: `evt-han-${item.id}`,
   }));
 
+  const life = buildDemoLife(today, createdAt);
+  events.push(...life.extraEvents);
+
   const changeRequests: ChangeRequest[] = [
     {
-      id: "cr-saturday",
+      id: "cr-thursday",
       familyId: IDS.family,
       type: "swap_day",
       status: "pending",
-      requestedByMemberId: IDS.rogierMember,
-      targetDate: iso(nextSaturday),
-      payload: { requestedCustodianMemberId: IDS.rogierMember },
-      message: `Kun jij ${format(nextSaturday, "EEEE d MMMM", { locale: nl })} overnemen? Ik heb die dag een late klus.`,
+      requestedByMemberId: IDS.emmaMember,
+      targetDate: thursday,
+      payload: { requestedCustodianMemberId: IDS.emmaMember },
+      message: "Kunnen de kinderen donderdag bij mij blijven? Ik ben die middag vrij.",
       responseMessage: null,
       alternativePayload: null,
       resolvedAt: null,
@@ -331,52 +382,165 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     },
   ];
 
+  const friday = iso(addDays(today, ((5 - getISODay(today) + 7) % 7) || 7));
+  const demoRoutines = buildDemoRoutines(createdAt);
   const tasks: TaskItem[] = [
-    {
-      id: "task-form",
-      familyId: IDS.family,
-      title: "Schoolformulier kamp invullen",
-      description: "Kamp groep 5, uiterlijk deze week.",
-      childId: IDS.roxy,
-      assigneeMemberId: IDS.emmaMember,
-      dueAt: at(addDays(today, 2), "18:00"),
-      status: "open",
-      attachmentUrl: null,
-      createdAt,
-      updatedAt: createdAt,
-      createdBy: IDS.emmaUser,
-    },
     {
       id: "task-hockeyshirt",
       familyId: IDS.family,
       title: "Hockeyshirt bestellen",
-      description: "Maat 134, clubshop MHC",
+      description: "Maat 152, clubshop MHC",
       childId: IDS.roxy,
       assigneeMemberId: IDS.rogierMember,
-      dueAt: at(addDays(today, 8), "12:00"),
-      status: "in_progress",
+      dueAt: `${friday}T18:00:00`,
+      status: "open",
+      kind: "one_off",
       attachmentUrl: null,
       createdAt,
       updatedAt: createdAt,
       createdBy: IDS.rogierUser,
     },
     {
-      id: "task-passport",
+      id: "task-tandarts",
       familyId: IDS.family,
-      title: "Paspoort Noah vernieuwen",
-      description: "Afspraak gemeente, meenemen oude paspoort.",
-      childId: IDS.noah,
+      title: "Tandarts bellen vóór vrijdag",
+      description: "Controle Roxy bevestigen.",
+      childId: IDS.roxy,
       assigneeMemberId: IDS.emmaMember,
-      dueAt: at(addDays(today, 21), "09:00"),
+      dueAt: `${friday}T12:00:00`,
       status: "open",
+      kind: "one_off",
       attachmentUrl: null,
       createdAt,
       updatedAt: createdAt,
       createdBy: IDS.emmaUser,
     },
+    {
+      id: "task-passport",
+      familyId: IDS.family,
+      title: "Paspoort Roxy vernieuwen",
+      description: "Verloopt binnenkort. Afspraak gemeente.",
+      childId: IDS.roxy,
+      assigneeMemberId: IDS.emmaMember,
+      dueAt: at(addDays(today, 12), "09:00"),
+      status: "open",
+      kind: "one_off",
+      attachmentUrl: null,
+      createdAt,
+      updatedAt: createdAt,
+      createdBy: IDS.emmaUser,
+    },
+    ...demoRoutines,
   ];
 
   const { expenses, splits } = buildExpenses(today);
+  const childIds = [IDS.roxy, IDS.sophie];
+  const households = [
+    {
+      id: IDS.householdEmma,
+      familyId: IDS.family,
+      name: "Huishouden Emma",
+      memberIds: [IDS.emmaMember],
+    },
+    {
+      id: IDS.householdRogier,
+      familyId: IDS.family,
+      name: "Huishouden Rogier",
+      memberIds: [IDS.rogierMember, IDS.sanneMember],
+    },
+  ];
+  const members = [
+    {
+      id: IDS.emmaMember,
+      familyId: IDS.family,
+      userId: IDS.emmaUser,
+      role: "owner" as const,
+      relationType: "ouder" as const,
+      permissionPreset: "custom" as const,
+      permissions: parentPermissions(),
+      parentLabel: "Mama",
+      displayColor: famliColor.parent1,
+      invitedEmail: emma.email,
+      status: "active" as const,
+      householdId: IDS.householdEmma,
+      contactOnly: false,
+      linkedParentMemberId: null,
+      phone: emma.phone,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: IDS.rogierMember,
+      familyId: IDS.family,
+      userId: IDS.rogierUser,
+      role: "parent" as const,
+      relationType: "ouder" as const,
+      permissionPreset: "custom" as const,
+      permissions: parentPermissions(),
+      parentLabel: "Papa",
+      displayColor: famliColor.parent2,
+      invitedEmail: rogier.email,
+      status: "active" as const,
+      householdId: IDS.householdRogier,
+      contactOnly: false,
+      linkedParentMemberId: null,
+      phone: rogier.phone,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: IDS.sanneMember,
+      familyId: IDS.family,
+      userId: IDS.sanneUser,
+      role: "guardian" as const,
+      relationType: "partner" as const,
+      permissionPreset: "involved" as const,
+      permissions: presetPermissions("involved", "partner"),
+      parentLabel: "Partner",
+      displayColor: "#7c9cff",
+      invitedEmail: sanne.email,
+      status: "active" as const,
+      householdId: IDS.householdRogier,
+      contactOnly: false,
+      linkedParentMemberId: IDS.rogierMember,
+      phone: sanne.phone,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: IDS.omaElsMember,
+      familyId: IDS.family,
+      userId: null,
+      role: "viewer" as const,
+      relationType: "opa_oma" as const,
+      permissionPreset: "practical" as const,
+      permissions: presetPermissions("practical", "opa_oma"),
+      parentLabel: "Oma Els",
+      displayColor: "#d4a574",
+      invitedEmail: null,
+      status: "active" as const,
+      householdId: null,
+      contactOnly: true,
+      linkedParentMemberId: IDS.rogierMember,
+      phone: "+31 6 4412 7788",
+      createdAt,
+      updatedAt: createdAt,
+    },
+  ];
+  const childMemberAccess = [
+    ...defaultChildAccess(IDS.sanneMember, childIds, true, false),
+  ];
+  const routineOccurrences = generateRoutineOccurrences(
+    {
+      family: { id: IDS.family } as FamilySnapshot["family"],
+      tasks,
+      occurrences,
+      travelPlans: life.travelPlans,
+      routineOccurrences: [],
+    },
+    iso(subDays(today, 7)),
+    iso(addDays(today, 30)),
+  );
 
   return {
     family: {
@@ -403,49 +567,32 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
       familyId: IDS.family,
       userId: IDS.emmaUser,
       role: "owner",
+      relationType: "ouder",
+      permissionPreset: "custom",
+      permissions: parentPermissions(),
       parentLabel: "Mama",
       displayColor: famliColor.parent1,
       invitedEmail: emma.email,
       status: "active",
+      householdId: IDS.householdEmma,
+      contactOnly: false,
+      linkedParentMemberId: null,
+      phone: emma.phone,
       createdAt,
       updatedAt: createdAt,
     },
     profiles: {
       [IDS.emmaUser]: emma,
       [IDS.rogierUser]: rogier,
+      [IDS.sanneUser]: sanne,
     },
-    members: [
-      {
-        id: IDS.emmaMember,
-        familyId: IDS.family,
-        userId: IDS.emmaUser,
-        role: "owner",
-        parentLabel: "Mama",
-        displayColor: famliColor.parent1,
-        invitedEmail: emma.email,
-        status: "active",
-        createdAt,
-        updatedAt: createdAt,
-      },
-      {
-        id: IDS.rogierMember,
-        familyId: IDS.family,
-        userId: IDS.rogierUser,
-        role: "parent",
-        parentLabel: "Papa",
-        displayColor: famliColor.parent2,
-        invitedEmail: rogier.email,
-        status: "active",
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ],
+    members,
     children,
     guardians: [
       { id: "g1", childId: IDS.roxy, memberId: IDS.emmaMember, relationship: "Moeder", isPrimary: true },
       { id: "g2", childId: IDS.roxy, memberId: IDS.rogierMember, relationship: "Vader", isPrimary: true },
-      { id: "g3", childId: IDS.noah, memberId: IDS.emmaMember, relationship: "Moeder", isPrimary: true },
-      { id: "g4", childId: IDS.noah, memberId: IDS.rogierMember, relationship: "Vader", isPrimary: true },
+      { id: "g3", childId: IDS.sophie, memberId: IDS.emmaMember, relationship: "Moeder", isPrimary: true },
+      { id: "g4", childId: IDS.sophie, memberId: IDS.rogierMember, relationship: "Vader", isPrimary: true },
     ],
     schedule,
     occurrences,
@@ -456,24 +603,6 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     expenses,
     splits,
     recurringExpenses: [
-      {
-        id: "rec-opvang",
-        familyId: IDS.family,
-        description: "Kinderopvang De Klimop",
-        amountCents: 42000,
-        currency: "EUR",
-        category: "opvang",
-        interval: "monthly",
-        intervalConfig: {},
-        nextDueDate: iso(addDays(today, 6)),
-        paidByMemberId: IDS.emmaMember,
-        splitPercents: { [IDS.emmaMember]: 50, [IDS.rogierMember]: 50 },
-        childId: IDS.noah,
-        active: true,
-        createdAt,
-        updatedAt: createdAt,
-        createdBy: IDS.emmaUser,
-      },
       {
         id: "rec-hockey",
         familyId: IDS.family,
@@ -494,36 +623,13 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
       },
     ],
     documents: [
+      ...life.extraDocuments,
       {
-        id: "doc-paspoort",
+        id: "doc-school",
         familyId: IDS.family,
-        childId: IDS.roxy,
-        title: "Paspoort Roxy",
-        category: "identiteit",
-        storagePath: null,
-        mimeType: "application/pdf",
-        createdAt,
-        updatedAt: createdAt,
-        createdBy: IDS.emmaUser,
-      },
-      {
-        id: "doc-ouderschapsplan",
-        familyId: IDS.family,
-        childId: null,
-        title: "Ouderschapsplan",
-        category: "overeenkomst",
-        storagePath: null,
-        mimeType: "application/pdf",
-        createdAt,
-        updatedAt: createdAt,
-        createdBy: IDS.emmaUser,
-      },
-      {
-        id: "doc-allergie",
-        familyId: IDS.family,
-        childId: IDS.noah,
-        title: "Allergie-informatie Noah",
-        category: "medisch",
+        childId: IDS.sophie,
+        title: "Schoolkaart Sophie",
+        category: "school",
         storagePath: null,
         mimeType: "application/pdf",
         createdAt,
@@ -533,43 +639,31 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     ],
     notifications: [
       {
-        id: "n1",
+        id: "n-rogier-change",
         familyId: IDS.family,
-        userId: IDS.emmaUser,
+        userId: IDS.rogierUser,
         type: "change_request",
-        title: "Wijziging van Papa",
-        body: "Rogier vraagt of jij zaterdag kunt overnemen.",
-        payload: { changeRequestId: "cr-saturday" },
+        title: "Wijzigingsvoorstel van Emma",
+        body: `Emma vraagt ${format(parseDate(thursday), "EEEE d MMMM", { locale: nl })} te ruilen.`,
+        payload: { changeRequestId: "cr-thursday" },
         readAt: null,
         channel: "in_app",
         createdAt: at(subDays(today, 1), "20:14"),
       },
       {
-        id: "n2",
+        id: "n-emma-cost",
         familyId: IDS.family,
         userId: IDS.emmaUser,
         type: "expense",
-        title: "Nieuwe gedeelde kosten",
-        body: "Hockeycontributie €300 — jouw deel staat open.",
+        title: "Hockeycontributie",
+        body: "Jouw deel van de hockeycontributie staat open.",
         payload: { expenseId: "exp-hockey" },
         readAt: null,
         channel: "in_app",
         createdAt: at(subDays(today, 4), "11:02"),
       },
     ],
-    calendarConnections: [
-      {
-        id: "cal-emma",
-        userId: IDS.emmaUser,
-        familyId: IDS.family,
-        provider: "microsoft",
-        privacyMode: "busy",
-        status: "disconnected",
-        syncOutbound: false,
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ],
+    calendarConnections: [],
     activityLog: [
       {
         id: "log-1",
@@ -585,21 +679,10 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
       {
         id: "log-2",
         familyId: IDS.family,
-        actorId: IDS.rogierUser,
-        action: "expense.created",
-        entityType: "expense",
-        entityId: "exp-hockey",
-        before: null,
-        after: { amountCents: 30000 },
-        createdAt: at(subDays(today, 4), "11:02"),
-      },
-      {
-        id: "log-3",
-        familyId: IDS.family,
-        actorId: IDS.rogierUser,
+        actorId: IDS.emmaUser,
         action: "change_request.created",
         entityType: "change_request",
-        entityId: "cr-saturday",
+        entityId: "cr-thursday",
         before: null,
         after: { type: "swap_day" },
         createdAt: at(subDays(today, 1), "20:14"),
@@ -616,10 +699,11 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
         startsOn: iso(addDays(today, 40)),
         endsOn: iso(addDays(today, 48)),
         status: "planned",
-        notes: "Later automatisch in te laden vanuit Nederlandse schoolvakanties.",
+        notes: null,
         createdAt,
         updatedAt: createdAt,
         createdBy: IDS.emmaUser,
+        ...life.vacationPatch,
       },
       {
         id: "vac-papa",
@@ -636,14 +720,23 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
         createdBy: IDS.rogierUser,
       },
     ],
+    sizes: life.sizes,
+    sizeHistory: life.sizeHistory,
+    neededItems: life.neededItems,
+    parties: life.parties,
+    schools: life.schools,
+    clubs: life.clubs,
+    travelPlans: life.travelPlans,
+    travelSegments: life.travelSegments,
+    childUpdates: life.childUpdates,
+    households,
+    childMemberAccess,
+    routineOccurrences,
   };
 }
 
-function nextWeekday(from: Date, weekday: number): Date {
-  const date = new Date(from);
-  const current = date.getDay();
-  const delta = (weekday - current + 7) % 7 || 7;
-  return addDays(date, delta);
+function parseDate(value: string) {
+  return new Date(`${value}T12:00:00`);
 }
 
 function buildExpenses(today: Date): { expenses: Expense[]; splits: ExpenseSplit[] } {
@@ -651,21 +744,10 @@ function buildExpenses(today: Date): { expenses: Expense[]; splits: ExpenseSplit
   const emma = IDS.emmaMember;
   const papa = IDS.rogierMember;
 
-  const defs: Array<{
-    id: string;
-    description: string;
-    amountCents: number;
-    date: string;
-    childId: string;
-    category: "sport" | "kleding" | "school";
-    paidByMemberId: string;
-    percents: Record<string, number>;
-    notes: string | null;
-    createdBy: string;
-  }> = [
+  const defs = [
     {
       id: "exp-hockey",
-      description: "Hockeycontributie MHC",
+      description: "Hockeycontributie",
       amountCents: 30000,
       date: iso(subDays(today, 4)),
       childId: IDS.roxy,
@@ -676,24 +758,24 @@ function buildExpenses(today: Date): { expenses: Expense[]; splits: ExpenseSplit
       createdBy: IDS.rogierUser,
     },
     {
-      id: "exp-jas",
-      description: "Winterjas Noah",
-      amountCents: 7900,
-      date: iso(subDays(today, 12)),
-      childId: IDS.noah,
-      category: "kleding" as const,
+      id: "exp-sport",
+      description: "Sportkosten",
+      amountCents: 8500,
+      date: iso(subDays(today, 6)),
+      childId: IDS.roxy,
+      category: "sport" as const,
       paidByMemberId: emma,
       percents: { [papa]: 50, [emma]: 50 },
-      notes: null,
+      notes: "Toernooi zaterdag",
       createdBy: IDS.emmaUser,
     },
     {
-      id: "exp-schoolreis",
-      description: "Schoolreis groep 5",
-      amountCents: 4250,
-      date: iso(subDays(today, 18)),
-      childId: IDS.roxy,
-      category: "school" as const,
+      id: "exp-jas",
+      description: "Regenjas Sophie",
+      amountCents: 4000,
+      date: iso(subDays(today, 12)),
+      childId: IDS.sophie,
+      category: "kleding" as const,
       paidByMemberId: emma,
       percents: { [papa]: 50, [emma]: 50 },
       notes: null,
@@ -730,7 +812,7 @@ function buildExpenses(today: Date): { expenses: Expense[]; splits: ExpenseSplit
         expenseId: def.id,
         memberId,
         shareCents,
-        sharePercent: def.percents[memberId] ?? 0,
+        sharePercent: (def.percents as Record<string, number>)[memberId] ?? 0,
         paidAt: memberId === def.paidByMemberId ? createdAt : null,
         status: memberId === def.paidByMemberId ? "paid" : "pending",
       });

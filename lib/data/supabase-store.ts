@@ -4,6 +4,8 @@ import { splitAmounts } from "@/lib/money";
 import { generateHandovers, generateOccurrences } from "@/lib/custody/generate";
 import { addDaysIso, toISODate } from "@/lib/dates";
 import { famliColor } from "@/lib/brand/tokens";
+import { emptyLifeFields, applyPrivacy } from "@/lib/life/privacy";
+import { parentPermissions, presetPermissions } from "@/lib/members/permissions";
 import type { FamilyRepository } from "@/lib/data/repository";
 import type {
   CalendarEvent,
@@ -118,10 +120,17 @@ export const supabaseRepository: FamilyRepository = {
       familyId: row.family_id,
       userId: row.user_id,
       role: row.role,
+      relationType: row.relation_type ?? "ouder",
+      permissionPreset: row.permission_preset ?? "custom",
+      permissions: row.permissions ?? parentPermissions(),
       parentLabel: row.parent_label,
       displayColor: row.display_color,
       invitedEmail: row.invited_email,
       status: row.status,
+      householdId: row.household_id ?? null,
+      contactOnly: row.contact_only ?? false,
+      linkedParentMemberId: row.linked_parent_member_id ?? null,
+      phone: row.phone ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -159,6 +168,8 @@ export const supabaseRepository: FamilyRepository = {
       sports: row.sports ?? [],
       clothingSize: row.clothing_size,
       shoeSize: row.shoe_size,
+      passportExpiresOn: row.passport_expires_on ?? null,
+      passportNumber: row.passport_number ?? null,
       emergencyContacts: row.emergency_contacts ?? [],
       notes: row.notes,
       color: row.color,
@@ -338,6 +349,14 @@ export const supabaseRepository: FamilyRepository = {
         assigneeMemberId: row.assignee_member_id,
         dueAt: row.due_at,
         status: row.status,
+        kind: row.kind ?? "one_off",
+        weekdays: row.weekdays ?? undefined,
+        times: row.times ?? undefined,
+        assignMode: row.assign_mode ?? undefined,
+        careLabel: row.care_label ?? null,
+        careInstructions: row.care_instructions ?? null,
+        packingItems: row.packing_items ?? undefined,
+        active: row.active ?? true,
         attachmentUrl: row.attachment_url,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -434,9 +453,10 @@ export const supabaseRepository: FamilyRepository = {
         updatedAt: row.updated_at,
         createdBy: row.created_by,
       })),
+      ...emptyLifeFields(),
     };
 
-    return snapshot;
+    return applyPrivacy(snapshot);
   },
 
   async getProfile(userId) {
@@ -736,6 +756,7 @@ export const supabaseRepository: FamilyRepository = {
       assigneeMemberId: input.assigneeMemberId,
       dueAt: input.dueAt,
       status: "open",
+      kind: "one_off",
       attachmentUrl: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -790,6 +811,40 @@ export const supabaseRepository: FamilyRepository = {
       updatedAt: new Date().toISOString(),
       createdBy: input.createdBy,
     };
+  },
+
+  async createHandover(input) {
+    const supabase = await db();
+    const handoverId = randomUUID();
+    const eventId = randomUUID();
+    const starts = `${input.date}T${input.time}:00`;
+    await supabase.from("events").insert({
+      id: eventId,
+      family_id: input.familyId,
+      title: "Wisselmoment",
+      category: "overdracht",
+      starts_at: starts,
+      ends_at: starts,
+      location: input.location,
+      notes: input.notes,
+      packing_list: input.packingList,
+      created_by: input.createdBy,
+    });
+    await supabase.from("handovers").insert({
+      id: handoverId,
+      family_id: input.familyId,
+      event_id: eventId,
+      date: input.date,
+      time: input.time,
+      from_member_id: input.fromMemberId,
+      to_member_id: input.toMemberId,
+      location: input.location,
+      pickup_member_id: input.toMemberId,
+      dropoff_member_id: input.fromMemberId,
+      notes: input.notes,
+      packing_list: input.packingList,
+      created_by: input.createdBy,
+    });
   },
 
   async createVacation(input) {
@@ -859,5 +914,36 @@ export const supabaseRepository: FamilyRepository = {
       .update({ read_at: new Date().toISOString() })
       .eq("user_id", userId)
       .is("read_at", null);
+  },
+
+  async updateChildSizes() {
+    throw new Error("Maten bijwerken volgt later in Supabase.");
+  },
+  async createNeededItem() {
+    throw new Error("Nodig-items volgen later in Supabase.");
+  },
+  async claimNeededItem() {
+    throw new Error("Nodig-items volgen later in Supabase.");
+  },
+  async purchaseNeededItem() {
+    throw new Error("Nodig-items volgen later in Supabase.");
+  },
+  async neededToExpense() {
+    throw new Error("Nodig-items volgen later in Supabase.");
+  },
+  async createChildUpdate() {
+    throw new Error("Updates volgen later in Supabase.");
+  },
+  async createTravelPlan() {
+    throw new Error("Reizen volgen later in Supabase.");
+  },
+  async inviteMember() {
+    throw new Error("Gezinsleden beheren volgt later in Supabase.");
+  },
+  async createRoutine() {
+    throw new Error("Routines volgen later in Supabase.");
+  },
+  async completeRoutineOccurrence() {
+    throw new Error("Routines volgen later in Supabase.");
   },
 };

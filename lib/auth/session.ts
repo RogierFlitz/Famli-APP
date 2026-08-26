@@ -46,4 +46,5 @@ export async function getOptionalSnapshot(): Promise<FamilySnapshot | null> {
 export const DEMO_USERS = [
   { userId: IDS.emmaUser, label: "Emma (mama)", description: "Family owner" },
   { userId: IDS.rogierUser, label: "Rogier (papa)", description: "Ouder" },
+  { userId: IDS.sanneUser, label: "Sanne (partner)", description: "Partner van Rogier" },
 ] as const;

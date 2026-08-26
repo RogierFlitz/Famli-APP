@@ -215,7 +215,7 @@ alter table public.events
 create table public.change_requests (
   id uuid primary key default gen_random_uuid(),
   family_id uuid not null references public.families (id) on delete cascade,
-  type text not null check (type in ('swap_day', 'extra_day', 'pickup_time', 'location', 'vacation', 'other')),
+  type text not null check (type in ('swap_day', 'extra_day', 'pickup', 'pickup_time', 'location', 'vacation', 'other')),
   status text not null default 'pending'
     check (status in ('pending', 'accepted', 'declined', 'alternative_proposed', 'cancelled')),
   requested_by_member_id uuid not null references public.family_members (id),

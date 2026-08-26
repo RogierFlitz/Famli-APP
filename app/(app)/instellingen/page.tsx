@@ -1,8 +1,8 @@
 import { requireSnapshot } from "@/lib/auth/session";
 import { calendarProviders } from "@/lib/calendar/providers";
-import { planLabel, roleLabel, notificationPrefLabel } from "@/lib/domain/labels";
-import { inviteParentAction } from "@/lib/actions/onboarding";
+import { planLabel, notificationPrefLabel } from "@/lib/domain/labels";
 import { updateCalendarPrivacyAction } from "@/lib/actions/family";
+import { FamilyMembersPanel } from "@/components/settings/family-members";
 import { signOut } from "@/lib/auth/actions";
 
 export default async function SettingsPage() {
@@ -20,29 +20,7 @@ export default async function SettingsPage() {
         </p>
       </header>
 
-      <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
-        <h2 className="font-[family-name:var(--font-display)] text-2xl">Gezin</h2>
-        <ul className="mt-4 space-y-2 text-sm">
-          {snapshot.members.map((member) => (
-            <li key={member.id} className="flex justify-between">
-              <span>
-                {member.parentLabel}
-                {member.userId && snapshot.profiles[member.userId]
-                  ? ` · ${snapshot.profiles[member.userId].firstName}`
-                  : ""}
-              </span>
-              <span className="text-[color:var(--nest-muted)]">
-                {roleLabel[member.role]} · {member.status}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <form action={inviteParentAction} className="mt-4 grid gap-2 sm:grid-cols-[1fr_8rem_auto]">
-          <input name="email" type="email" required placeholder="E-mail andere ouder" className="h-12 rounded-2xl border border-[color:var(--nest-border)] px-3" />
-          <input name="parentLabel" defaultValue="Papa" className="h-12 rounded-2xl border border-[color:var(--nest-border)] px-3" />
-          <button className="h-12 rounded-full bg-[color:var(--nest-ink)] px-4 text-white">Uitnodigen</button>
-        </form>
-      </section>
+      <FamilyMembersPanel snapshot={snapshot} />
 
       <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
         <h2 className="font-[family-name:var(--font-display)] text-2xl">Persoonlijke agenda</h2>

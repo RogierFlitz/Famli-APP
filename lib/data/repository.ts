@@ -4,16 +4,26 @@ import type {
   ChangeRequest,
   ChangeRequestType,
   Child,
+  ChildSizes,
+  ChildUpdate,
   CustodyPattern,
   CustodyScheduleConfig,
   Expense,
   ExpenseCategory,
   FamilyRole,
   FamilySnapshot,
+  NeededCategory,
+  NeededItem,
   RecurrenceInterval,
+  SchoolEventKind,
   TaskItem,
   TaskStatus,
+  TravelPlan,
   Vacation,
+  MemberRelationType,
+  PermissionPreset,
+  RoutineAssignMode,
+  TaskKind,
 } from "@/lib/domain/types";
 
 export interface CreateFamilyInput {
@@ -69,6 +79,34 @@ export interface CreateExpenseInput {
   paidByMemberId: string;
   splitPercents: Record<string, number>;
   notes: string | null;
+  receiptUrl?: string | null;
+}
+
+export interface CreateHandoverInput {
+  familyId: string;
+  createdBy: string;
+  date: string;
+  time: string;
+  fromMemberId: string;
+  toMemberId: string;
+  location: string | null;
+  packingList: string[];
+  notes: string | null;
+  childIds: string[];
+}
+
+export interface InviteMemberInput {
+  familyId: string;
+  email: string | null;
+  parentLabel: string;
+  relationType: MemberRelationType;
+  permissionPreset?: PermissionPreset;
+  householdId?: string | null;
+  linkedParentMemberId?: string | null;
+  contactOnly?: boolean;
+  phone?: string | null;
+  displayColor?: string;
+  childIds?: string[];
 }
 
 export interface CreateTaskInput {
@@ -79,6 +117,23 @@ export interface CreateTaskInput {
   childId: string | null;
   assigneeMemberId: string | null;
   dueAt: string | null;
+  kind?: TaskKind;
+}
+
+export interface CreateRoutineInput {
+  familyId: string;
+  createdBy: string;
+  title: string;
+  description: string | null;
+  childId: string | null;
+  assigneeMemberId: string | null;
+  kind: "routine" | "care";
+  weekdays: number[];
+  times: string[];
+  assignMode?: RoutineAssignMode;
+  careLabel?: string | null;
+  careInstructions?: string | null;
+  packingItems?: string[];
 }
 
 export interface CreateEventInput {
@@ -94,6 +149,17 @@ export interface CreateEventInput {
   childIds: string[];
   memberIds: string[];
   allDay?: boolean;
+  dropoffMemberId?: string | null;
+  pickupMemberId?: string | null;
+  schoolKind?: SchoolEventKind | null;
+  party?: {
+    hostName: string;
+    forChildId: string;
+    address?: string | null;
+    contact?: string | null;
+    giftBudgetCents?: number | null;
+    notes?: string | null;
+  } | null;
 }
 
 export interface FamilyRepository {
@@ -107,6 +173,7 @@ export interface FamilyRepository {
   createFamily(input: CreateFamilyInput): Promise<FamilySnapshot>;
   addChild(input: AddChildInput): Promise<Child>;
   inviteParent(input: InviteParentInput): Promise<{ token: string }>;
+  inviteMember(input: InviteMemberInput): Promise<{ token: string }>;
   acceptInvite(token: string, userId: string): Promise<FamilySnapshot>;
   saveSchedule(input: SaveScheduleInput): Promise<void>;
   completeOnboarding(userId: string): Promise<void>;
@@ -122,8 +189,16 @@ export interface FamilyRepository {
   createExpense(input: CreateExpenseInput): Promise<Expense>;
   markSplitPaid(splitId: string, actorUserId: string): Promise<void>;
   createTask(input: CreateTaskInput): Promise<TaskItem>;
+  createRoutine(input: CreateRoutineInput): Promise<TaskItem>;
+  completeRoutineOccurrence(input: {
+    occurrenceId: string;
+    actorUserId: string;
+    actorMemberId: string;
+    notes?: string | null;
+  }): Promise<void>;
   updateTaskStatus(taskId: string, status: TaskStatus, actorUserId: string): Promise<void>;
   createEvent(input: CreateEventInput): Promise<CalendarEvent>;
+  createHandover(input: CreateHandoverInput): Promise<void>;
   createVacation(input: {
     familyId: string;
     createdBy: string;
@@ -152,4 +227,76 @@ export interface FamilyRepository {
     childId: string | null;
   }): Promise<void>;
   markNotificationsRead(userId: string): Promise<void>;
+  updateChildSizes(input: {
+    childId: string;
+    actorUserId: string;
+    clothing: string | null;
+    shoes: string | null;
+    jacket: string | null;
+    trousers: string | null;
+    sport: string | null;
+    helmet: string | null;
+    other: string | null;
+  }): Promise<ChildSizes>;
+  createNeededItem(input: {
+    familyId: string;
+    createdBy: string;
+    childId: string;
+    title: string;
+    category: NeededCategory;
+    size: string | null;
+    dueOn: string | null;
+    assigneeMemberId: string | null;
+    budgetCents: number | null;
+    notes: string | null;
+    hiddenFromChild: boolean;
+    eventId: string | null;
+  }): Promise<NeededItem>;
+  claimNeededItem(id: string, actorUserId: string, actorMemberId: string): Promise<void>;
+  purchaseNeededItem(input: {
+    id: string;
+    actorUserId: string;
+    actorMemberId: string;
+    priceCents: number | null;
+    receiptUrl: string | null;
+  }): Promise<void>;
+  neededToExpense(input: {
+    id: string;
+    actorUserId: string;
+    paidByMemberId: string;
+    splitPercents: Record<string, number>;
+  }): Promise<Expense>;
+  createChildUpdate(input: {
+    familyId: string;
+    childId: string;
+    body: string;
+    category: string | null;
+    authorMemberId: string;
+  }): Promise<ChildUpdate>;
+  createTravelPlan(input: {
+    familyId: string;
+    createdBy: string;
+    title: string;
+    destination: string;
+    startsOn: string;
+    endsOn: string;
+    withMemberId: string;
+    childIds: string[];
+    transport: string | null;
+    stayName: string | null;
+    stayAddress: string | null;
+    stayContact: string | null;
+    bookingRef: string | null;
+    notes: string | null;
+    outboundNumber: string | null;
+    outboundFrom: string | null;
+    outboundTo: string | null;
+    outboundDeparts: string | null;
+    outboundArrives: string | null;
+    returnNumber: string | null;
+    returnFrom: string | null;
+    returnTo: string | null;
+    returnDeparts: string | null;
+    returnArrives: string | null;
+  }): Promise<TravelPlan>;
 }

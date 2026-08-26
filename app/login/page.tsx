@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FamliLogo } from "@/components/brand/logo";
 import { FamliWash } from "@/components/brand/wash";
-import { startDemoEmma, startDemoRogier, signInLocal } from "@/lib/auth/actions";
+import { startDemoEmma, startDemoRogier, startDemoSanne, signInLocal } from "@/lib/auth/actions";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { famliBrand } from "@/lib/brand/tokens";
 
@@ -58,6 +58,12 @@ export default async function LoginPage({
                 <button className="famli-btn famli-btn-secondary w-full justify-between">
                   <span>Rogier (papa)</span>
                   <span className="text-xs text-[color:var(--famli-muted)]">Ouder</span>
+                </button>
+              </form>
+              <form action={startDemoSanne}>
+                <button className="famli-btn famli-btn-secondary w-full justify-between">
+                  <span>Sanne (partner)</span>
+                  <span className="text-xs text-[color:var(--famli-muted)]">Partner Rogier</span>
                 </button>
               </form>
             </div>
