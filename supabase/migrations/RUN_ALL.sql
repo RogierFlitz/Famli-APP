@@ -1,3 +1,10 @@
+-- Famli: run all migrations in order (Supabase SQL Editor)
+-- Generated: 2026-08-26 12:20
+
+-- =============================================================================
+-- SECTION: 0001_init.sql
+-- =============================================================================
+
 -- Nestly family / co-parenting schema
 -- Run in the Supabase SQL editor or via `supabase db push`.
 
@@ -620,3 +627,593 @@ with check (
   bucket_id = 'family-documents'
   and public.has_family_role((storage.foldername(name))[1]::uuid, array['owner', 'parent', 'guardian'])
 );
+
+
+-- =============================================================================
+-- SECTION: 0002_security_foundation.sql
+-- =============================================================================
+
+-- Famli security foundation: permissions, child access, audit log, hardened RLS
+
+-- ---------------------------------------------------------------------------
+-- Schema extensions
+-- ---------------------------------------------------------------------------
+
+alter table public.family_members
+  add column if not exists relation_type text not null default 'ouder'
+    check (relation_type in ('ouder', 'partner', 'bonusouder', 'opa_oma', 'verzorger', 'oppas', 'anders')),
+  add column if not exists permission_preset text not null default 'custom'
+    check (permission_preset in ('practical', 'involved', 'custom')),
+  add column if not exists permissions jsonb not null default '{}'::jsonb,
+  add column if not exists household_id uuid,
+  add column if not exists contact_only boolean not null default false,
+  add column if not exists linked_parent_member_id uuid references public.family_members (id),
+  add column if not exists phone text;
+
+alter table public.families
+  add column if not exists is_demo boolean not null default false;
+
+create table if not exists public.child_member_access (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references public.families (id) on delete cascade,
+  member_id uuid not null references public.family_members (id) on delete cascade,
+  child_id uuid not null references public.children (id) on delete cascade,
+  can_view boolean not null default true,
+  can_edit boolean not null default false,
+  permissions jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (member_id, child_id)
+);
+
+create index if not exists idx_child_member_access_family on public.child_member_access (family_id);
+create index if not exists idx_child_member_access_member on public.child_member_access (member_id);
+create index if not exists idx_child_member_access_child on public.child_member_access (child_id);
+
+create table if not exists public.audit_log (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references public.families (id) on delete cascade,
+  actor_user_id uuid not null references public.profiles (id),
+  action text not null,
+  resource_type text not null,
+  resource_id text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_audit_log_family_created on public.audit_log (family_id, created_at desc);
+create index if not exists idx_audit_log_actor on public.audit_log (actor_user_id, created_at desc);
+
+alter table public.invites
+  add column if not exists revoked_at timestamptz,
+  add column if not exists invited_by_member_id uuid references public.family_members (id),
+  add column if not exists member_id uuid references public.family_members (id),
+  add column if not exists relation_type text default 'partner',
+  add column if not exists permission_preset text default 'involved',
+  add column if not exists token_hash text;
+
+-- Replace UUID token default with secure random when inserting via app
+comment on column public.invites.token is 'Legacy UUID token; prefer token_hash for new invites';
+
+-- ---------------------------------------------------------------------------
+-- Helper functions
+-- ---------------------------------------------------------------------------
+
+create or replace function public.current_member_id(fid uuid)
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select id
+  from public.family_members
+  where family_id = fid
+    and user_id = auth.uid()
+    and status = 'active'
+  limit 1;
+$$;
+
+create or replace function public.is_parent_member(fid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.family_members
+    where family_id = fid
+      and user_id = auth.uid()
+      and status = 'active'
+      and (role in ('owner', 'parent') or relation_type = 'ouder')
+      and contact_only = false
+  );
+$$;
+
+create or replace function public.member_capability(fid uuid, cap text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when public.is_parent_member(fid) then true
+    else coalesce(
+      (select (permissions ->> cap)::boolean
+       from public.family_members
+       where family_id = fid
+         and user_id = auth.uid()
+         and status = 'active'
+         and contact_only = false
+       limit 1),
+      false
+    )
+  end;
+$$;
+
+create or replace function public.can_view_child(cid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.children c
+    where c.id = cid
+      and public.is_family_member(c.family_id)
+      and (
+        public.is_parent_member(c.family_id)
+        or exists (
+          select 1
+          from public.child_member_access cma
+          join public.family_members fm on fm.id = cma.member_id
+          where cma.child_id = cid
+            and fm.user_id = auth.uid()
+            and fm.status = 'active'
+            and cma.can_view = true
+        )
+      )
+  );
+$$;
+
+create or replace function public.can_edit_child(cid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.children c
+    where c.id = cid
+      and public.is_family_member(c.family_id)
+      and (
+        public.is_parent_member(c.family_id)
+        or exists (
+          select 1
+          from public.child_member_access cma
+          join public.family_members fm on fm.id = cma.member_id
+          where cma.child_id = cid
+            and fm.user_id = auth.uid()
+            and fm.status = 'active'
+            and cma.can_edit = true
+        )
+      )
+  );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- RLS: child_member_access & audit_log
+-- ---------------------------------------------------------------------------
+
+alter table public.child_member_access enable row level security;
+
+create policy "child_access_select" on public.child_member_access
+  for select using (public.is_family_member(family_id));
+
+create policy "child_access_write" on public.child_member_access
+  for all using (
+    public.has_family_role(family_id, array['owner', 'parent'])
+    or public.member_capability(family_id, 'manage_family_members')
+  );
+
+alter table public.audit_log enable row level security;
+
+create policy "audit_log_select" on public.audit_log
+  for select using (public.is_family_member(family_id));
+
+create policy "audit_log_insert" on public.audit_log
+  for insert with check (
+    public.is_family_member(family_id)
+    and actor_user_id = auth.uid()
+  );
+
+-- Audit log is append-only for normal users (no update/delete policies)
+
+-- ---------------------------------------------------------------------------
+-- Hardened policies: replace overly broad role checks where needed
+-- ---------------------------------------------------------------------------
+
+drop policy if exists "children_member" on public.children;
+drop policy if exists "children_write" on public.children;
+
+create policy "children_select" on public.children
+  for select using (public.can_view_child(id));
+
+create policy "children_insert" on public.children
+  for insert with check (
+    public.is_family_member(family_id)
+    and public.is_parent_member(family_id)
+  );
+
+create policy "children_update" on public.children
+  for update using (public.can_edit_child(id));
+
+create policy "children_delete" on public.children
+  for delete using (public.has_family_role(family_id, array['owner']));
+
+drop policy if exists "expenses_member" on public.expenses;
+drop policy if exists "expenses_write" on public.expenses;
+
+create policy "expenses_select" on public.expenses
+  for select using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_expenses')
+  );
+
+create policy "expenses_insert" on public.expenses
+  for insert with check (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'edit_expenses')
+  );
+
+create policy "expenses_update" on public.expenses
+  for update using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'edit_expenses')
+  );
+
+create policy "expenses_delete" on public.expenses
+  for delete using (
+    public.has_family_role(family_id, array['owner', 'parent'])
+    and public.member_capability(family_id, 'edit_expenses')
+  );
+
+drop policy if exists "documents_member" on public.documents;
+drop policy if exists "documents_write" on public.documents;
+
+create policy "documents_select" on public.documents
+  for select using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_documents')
+    and (child_id is null or public.can_view_child(child_id))
+  );
+
+create policy "documents_insert" on public.documents
+  for insert with check (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'upload_documents')
+  );
+
+create policy "documents_update" on public.documents
+  for update using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'upload_documents')
+  );
+
+create policy "documents_delete" on public.documents
+  for delete using (
+    public.has_family_role(family_id, array['owner', 'parent'])
+    and public.member_capability(family_id, 'upload_documents')
+  );
+
+drop policy if exists "schedules_member" on public.custody_schedules;
+drop policy if exists "schedules_write" on public.custody_schedules;
+
+create policy "schedules_select" on public.custody_schedules
+  for select using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_custody')
+  );
+
+create policy "schedules_write" on public.custody_schedules
+  for all using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'edit_custody')
+  );
+
+drop policy if exists "occurrences_member" on public.custody_occurrences;
+drop policy if exists "occurrences_write" on public.custody_occurrences;
+
+create policy "occurrences_select" on public.custody_occurrences
+  for select using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_custody')
+  );
+
+create policy "occurrences_write" on public.custody_occurrences
+  for all using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'edit_custody')
+  );
+
+drop policy if exists "invites_member" on public.invites;
+drop policy if exists "invites_write" on public.invites;
+
+create policy "invites_select" on public.invites
+  for select using (
+    public.is_family_member(family_id)
+    or (
+      email = (select email from public.profiles where id = auth.uid())
+      and revoked_at is null
+      and accepted_at is null
+      and expires_at > now()
+    )
+  );
+
+create policy "invites_insert" on public.invites
+  for insert with check (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'manage_family_members')
+  );
+
+create policy "invites_update" on public.invites
+  for update using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'manage_family_members')
+  );
+
+-- ---------------------------------------------------------------------------
+-- Storage: add update/delete, tighten paths
+-- ---------------------------------------------------------------------------
+
+drop policy if exists "storage_family_read" on storage.objects;
+drop policy if exists "storage_family_write" on storage.objects;
+
+create policy "storage_family_read"
+on storage.objects for select
+using (
+  bucket_id = 'family-documents'
+  and public.is_family_member((storage.foldername(name))[1]::uuid)
+  and public.member_capability((storage.foldername(name))[1]::uuid, 'view_documents')
+);
+
+create policy "storage_family_insert"
+on storage.objects for insert
+with check (
+  bucket_id = 'family-documents'
+  and public.is_family_member((storage.foldername(name))[1]::uuid)
+  and public.member_capability((storage.foldername(name))[1]::uuid, 'upload_documents')
+);
+
+create policy "storage_family_update"
+on storage.objects for update
+using (
+  bucket_id = 'family-documents'
+  and public.is_family_member((storage.foldername(name))[1]::uuid)
+  and public.member_capability((storage.foldername(name))[1]::uuid, 'upload_documents')
+);
+
+create policy "storage_family_delete"
+on storage.objects for delete
+using (
+  bucket_id = 'family-documents'
+  and public.has_family_role((storage.foldername(name))[1]::uuid, array['owner', 'parent'])
+  and public.member_capability((storage.foldername(name))[1]::uuid, 'upload_documents')
+);
+
+
+-- =============================================================================
+-- SECTION: 0003_expense_receipt_metadata.sql
+-- =============================================================================
+
+-- Expense receipt metadata (receipt_url stores private storage path)
+alter table public.expenses
+  add column if not exists receipt_filename text,
+  add column if not exists receipt_uploaded_at timestamptz,
+  add column if not exists receipt_mime_type text;
+
+-- Storage: expense receipts under {family_id}/receipts/ use expense capabilities
+create policy "storage_receipts_read"
+on storage.objects for select
+using (
+  bucket_id = 'family-documents'
+  and (storage.foldername(name))[2] = 'receipts'
+  and public.is_family_member((storage.foldername(name))[1]::uuid)
+  and public.member_capability((storage.foldername(name))[1]::uuid, 'view_expenses')
+);
+
+create policy "storage_receipts_insert"
+on storage.objects for insert
+with check (
+  bucket_id = 'family-documents'
+  and (storage.foldername(name))[2] = 'receipts'
+  and public.is_family_member((storage.foldername(name))[1]::uuid)
+  and public.member_capability((storage.foldername(name))[1]::uuid, 'edit_expenses')
+);
+
+create policy "storage_receipts_update"
+on storage.objects for update
+using (
+  bucket_id = 'family-documents'
+  and (storage.foldername(name))[2] = 'receipts'
+  and public.is_family_member((storage.foldername(name))[1]::uuid)
+  and public.member_capability((storage.foldername(name))[1]::uuid, 'edit_expenses')
+);
+
+create policy "storage_receipts_delete"
+on storage.objects for delete
+using (
+  bucket_id = 'family-documents'
+  and (storage.foldername(name))[2] = 'receipts'
+  and public.is_family_member((storage.foldername(name))[1]::uuid)
+  and public.member_capability((storage.foldername(name))[1]::uuid, 'edit_expenses')
+);
+
+
+-- =============================================================================
+-- SECTION: 0004_production_features.sql
+-- =============================================================================
+
+-- Production features: context messages, guest links, handover check-ins, import jobs
+
+-- ---------------------------------------------------------------------------
+-- context_messages
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.context_messages (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references public.families (id) on delete cascade,
+  resource_type text not null,
+  resource_id text not null,
+  kind text not null check (kind in ('update', 'confirmation')),
+  body text not null,
+  author_member_id uuid not null references public.family_members (id),
+  sent_at timestamptz not null default now(),
+  read_at timestamptz,
+  read_by_member_id uuid references public.family_members (id),
+  status text not null default 'sent'
+    check (status in ('sent', 'read', 'confirmed', 'declined')),
+  response_body text,
+  responded_at timestamptz,
+  responded_by_member_id uuid references public.family_members (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_context_messages_family
+  on public.context_messages (family_id);
+create index if not exists idx_context_messages_resource
+  on public.context_messages (family_id, resource_type, resource_id);
+
+create trigger context_messages_set_updated_at
+  before update on public.context_messages
+  for each row execute function public.set_updated_at();
+
+alter table public.context_messages enable row level security;
+
+create policy "context_messages_select" on public.context_messages
+  for select using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_calendar')
+  );
+
+create policy "context_messages_insert" on public.context_messages
+  for insert with check (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_calendar')
+    and author_member_id = public.current_member_id(family_id)
+  );
+
+create policy "context_messages_update" on public.context_messages
+  for update using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_calendar')
+  );
+
+-- ---------------------------------------------------------------------------
+-- guest_link_tokens (public access via service role only — no anon policy)
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.guest_link_tokens (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references public.families (id) on delete cascade,
+  label text not null,
+  token text not null unique,
+  expires_at timestamptz not null,
+  scopes text[] not null default '{}',
+  change_request_id uuid references public.change_requests (id) on delete set null,
+  created_by_member_id uuid not null references public.family_members (id),
+  created_at timestamptz not null default now(),
+  response text check (response in ('accepted', 'declined')),
+  responded_at timestamptz,
+  responded_by_name text
+);
+
+create index if not exists idx_guest_link_tokens_family
+  on public.guest_link_tokens (family_id);
+create index if not exists idx_guest_link_tokens_token
+  on public.guest_link_tokens (token);
+
+alter table public.guest_link_tokens enable row level security;
+
+create policy "guest_link_tokens_select" on public.guest_link_tokens
+  for select using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_custody')
+  );
+
+create policy "guest_link_tokens_insert" on public.guest_link_tokens
+  for insert with check (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'edit_custody')
+    and created_by_member_id = public.current_member_id(family_id)
+  );
+
+-- ---------------------------------------------------------------------------
+-- handover_check_ins
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.handover_check_ins (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references public.families (id) on delete cascade,
+  handover_id uuid not null references public.handovers (id) on delete cascade,
+  member_id uuid not null references public.family_members (id),
+  checked_in_at timestamptz not null default now(),
+  unique (handover_id)
+);
+
+create index if not exists idx_handover_check_ins_family
+  on public.handover_check_ins (family_id);
+
+alter table public.handover_check_ins enable row level security;
+
+create policy "handover_check_ins_select" on public.handover_check_ins
+  for select using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_custody')
+  );
+
+create policy "handover_check_ins_insert" on public.handover_check_ins
+  for insert with check (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_custody')
+    and member_id = public.current_member_id(family_id)
+  );
+
+-- ---------------------------------------------------------------------------
+-- import_jobs (placeholder — no parser yet)
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.import_jobs (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references public.families (id) on delete cascade,
+  source text not null check (source in ('photo', 'pdf', 'email')),
+  status text not null default 'pending'
+    check (status in ('pending', 'processing', 'done', 'failed')),
+  file_name text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_import_jobs_family
+  on public.import_jobs (family_id);
+
+alter table public.import_jobs enable row level security;
+
+create policy "import_jobs_select" on public.import_jobs
+  for select using (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'view_calendar')
+  );
+
+create policy "import_jobs_insert" on public.import_jobs
+  for insert with check (
+    public.is_family_member(family_id)
+    and public.member_capability(family_id, 'edit_calendar')
+  );
+
