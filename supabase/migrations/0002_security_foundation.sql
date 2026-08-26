@@ -178,9 +178,11 @@ $$;
 
 alter table public.child_member_access enable row level security;
 
+drop policy if exists "child_access_select" on public.child_member_access;
 create policy "child_access_select" on public.child_member_access
   for select using (public.is_family_member(family_id));
 
+drop policy if exists "child_access_write" on public.child_member_access;
 create policy "child_access_write" on public.child_member_access
   for all using (
     public.has_family_role(family_id, array['owner', 'parent'])
@@ -189,9 +191,11 @@ create policy "child_access_write" on public.child_member_access
 
 alter table public.audit_log enable row level security;
 
+drop policy if exists "audit_log_select" on public.audit_log;
 create policy "audit_log_select" on public.audit_log
   for select using (public.is_family_member(family_id));
 
+drop policy if exists "audit_log_insert" on public.audit_log;
 create policy "audit_log_insert" on public.audit_log
   for insert with check (
     public.is_family_member(family_id)
@@ -206,6 +210,10 @@ create policy "audit_log_insert" on public.audit_log
 
 drop policy if exists "children_member" on public.children;
 drop policy if exists "children_write" on public.children;
+drop policy if exists "children_select" on public.children;
+drop policy if exists "children_insert" on public.children;
+drop policy if exists "children_update" on public.children;
+drop policy if exists "children_delete" on public.children;
 
 create policy "children_select" on public.children
   for select using (public.can_view_child(id));
@@ -224,6 +232,10 @@ create policy "children_delete" on public.children
 
 drop policy if exists "expenses_member" on public.expenses;
 drop policy if exists "expenses_write" on public.expenses;
+drop policy if exists "expenses_select" on public.expenses;
+drop policy if exists "expenses_insert" on public.expenses;
+drop policy if exists "expenses_update" on public.expenses;
+drop policy if exists "expenses_delete" on public.expenses;
 
 create policy "expenses_select" on public.expenses
   for select using (
@@ -251,6 +263,10 @@ create policy "expenses_delete" on public.expenses
 
 drop policy if exists "documents_member" on public.documents;
 drop policy if exists "documents_write" on public.documents;
+drop policy if exists "documents_select" on public.documents;
+drop policy if exists "documents_insert" on public.documents;
+drop policy if exists "documents_update" on public.documents;
+drop policy if exists "documents_delete" on public.documents;
 
 create policy "documents_select" on public.documents
   for select using (
@@ -279,6 +295,7 @@ create policy "documents_delete" on public.documents
 
 drop policy if exists "schedules_member" on public.custody_schedules;
 drop policy if exists "schedules_write" on public.custody_schedules;
+drop policy if exists "schedules_select" on public.custody_schedules;
 
 create policy "schedules_select" on public.custody_schedules
   for select using (
@@ -294,6 +311,7 @@ create policy "schedules_write" on public.custody_schedules
 
 drop policy if exists "occurrences_member" on public.custody_occurrences;
 drop policy if exists "occurrences_write" on public.custody_occurrences;
+drop policy if exists "occurrences_select" on public.custody_occurrences;
 
 create policy "occurrences_select" on public.custody_occurrences
   for select using (
@@ -309,6 +327,9 @@ create policy "occurrences_write" on public.custody_occurrences
 
 drop policy if exists "invites_member" on public.invites;
 drop policy if exists "invites_write" on public.invites;
+drop policy if exists "invites_select" on public.invites;
+drop policy if exists "invites_insert" on public.invites;
+drop policy if exists "invites_update" on public.invites;
 
 create policy "invites_select" on public.invites
   for select using (
@@ -339,6 +360,9 @@ create policy "invites_update" on public.invites
 
 drop policy if exists "storage_family_read" on storage.objects;
 drop policy if exists "storage_family_write" on storage.objects;
+drop policy if exists "storage_family_insert" on storage.objects;
+drop policy if exists "storage_family_update" on storage.objects;
+drop policy if exists "storage_family_delete" on storage.objects;
 
 create policy "storage_family_read"
 on storage.objects for select
