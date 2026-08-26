@@ -1,8 +1,12 @@
-import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { isSupabaseConfigured, supabaseKeyType } from "@/lib/supabase/env";
 
 export async function GET() {
+  const configured = isSupabaseConfigured();
+
   return Response.json({
     ok: true,
-    mode: isSupabaseConfigured() ? "supabase" : "demo",
+    mode: configured ? "supabase" : "demo",
+    configured,
+    keyType: supabaseKeyType(),
   });
 }

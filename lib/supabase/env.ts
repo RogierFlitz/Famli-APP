@@ -1,15 +1,41 @@
-export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+export type SupabaseKeyType = "legacy-anon" | "publishable" | "missing";
+
+function trimEnv(value: string | undefined): string {
+  return value?.trim() ?? "";
+}
+
+export function supabasePublicKey(): string {
+  return (
+    trimEnv(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+    trimEnv(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
   );
 }
 
+export function supabaseKeyType(): SupabaseKeyType {
+  const anon = trimEnv(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const publishable = trimEnv(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+
+  if (!anon && !publishable) return "missing";
+
+  const key = anon || publishable;
+  if (key.startsWith("sb_publishable_")) return "publishable";
+  if (key.startsWith("eyJ")) return "legacy-anon";
+
+  // Accept non-prefixed keys; infer type from which env var supplied the value.
+  if (anon) return "legacy-anon";
+  return "publishable";
+}
+
+export function isSupabaseConfigured(): boolean {
+  return Boolean(trimEnv(process.env.NEXT_PUBLIC_SUPABASE_URL) && supabasePublicKey());
+}
+
 export function supabaseUrl(): string {
-  return process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  return trimEnv(process.env.NEXT_PUBLIC_SUPABASE_URL);
 }
 
 export function supabaseAnonKey(): string {
-  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  return supabasePublicKey();
 }
 
 /**
