@@ -5,9 +5,21 @@ import { OnboardingWizard } from "@/components/onboarding/wizard";
 
 export default async function OnboardingPage() {
   const session = await requireSession();
-  const snapshot = await getOptionalSnapshot();
+  let snapshot = null;
+  try {
+    snapshot = await getOptionalSnapshot();
+  } catch {
+    snapshot = null;
+  }
   if (snapshot?.currentProfile.onboardingCompletedAt) redirect("/vandaag");
-  const profile = snapshot?.currentProfile ?? (await getRepository().getProfile(session.userId));
+  let profile = snapshot?.currentProfile ?? null;
+  if (!profile) {
+    try {
+      profile = await getRepository().getProfile(session.userId);
+    } catch {
+      profile = null;
+    }
+  }
 
   return (
     <OnboardingWizard

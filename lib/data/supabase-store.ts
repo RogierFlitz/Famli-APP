@@ -29,7 +29,7 @@ import {
   newExpenseReceiptFilename,
   storeExpenseReceiptBlob,
 } from "@/lib/storage/expense-receipts";
-import type { FamilyRepository } from "@/lib/data/repository";
+import type { CreateFamilyInput, FamilyRepository } from "@/lib/data/repository";
 import type {
   CalendarEvent,
   ChangeRequest,
@@ -59,6 +59,59 @@ import type {
 
 async function db() {
   return createSupabaseServerClient();
+}
+
+function bootstrapDb() {
+  return hasServiceRoleKey() ? createSupabaseAdminClient() : null;
+}
+
+function toUserFacingDbError(error: unknown): string {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message: unknown }).message)
+      : error instanceof Error
+        ? error.message
+        : "Er ging iets mis. Probeer het opnieuw.";
+
+  if (/row-level security|permission denied|42501/i.test(message)) {
+    return "Geen toegang om een gezin aan te maken. Probeer opnieuw of neem contact op met support.";
+  }
+  if (/foreign key|profiles/i.test(message)) {
+    return "Je profiel kon niet worden gevonden. Log opnieuw in en probeer het nog eens.";
+  }
+  return message;
+}
+
+async function ensureProfileForUser(
+  supabase: Awaited<ReturnType<typeof db>>,
+  input: CreateFamilyInput,
+) {
+  const { data: existing, error: readError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", input.userId)
+    .maybeSingle();
+  if (readError) throw readError;
+
+  if (!existing) {
+    const { error } = await supabase.from("profiles").insert({
+      id: input.userId,
+      email: input.email,
+      first_name: input.firstName,
+      last_name: input.lastName,
+    });
+    if (error) throw error;
+    return;
+  }
+
+  const patch: Record<string, string> = {};
+  if (input.firstName) patch.first_name = input.firstName;
+  if (input.lastName) patch.last_name = input.lastName;
+  if (input.email) patch.email = input.email;
+  if (Object.keys(patch).length === 0) return;
+
+  const { error } = await supabase.from("profiles").update(patch).eq("id", input.userId);
+  if (error) throw error;
 }
 
 function mapProfile(row: Record<string, unknown>): Profile {
@@ -422,13 +475,15 @@ async function applyGuestAcceptedChange(
 export const supabaseRepository: FamilyRepository = {
   async getSnapshot(userId) {
     const supabase = await db();
-    const { data: membership, error } = await supabase
+    const { data: memberships, error } = await supabase
       .from("family_members")
       .select("*")
       .eq("user_id", userId)
       .eq("status", "active")
-      .maybeSingle();
+      .order("created_at", { ascending: false })
+      .limit(1);
     if (error) throw error;
+    const membership = memberships?.[0] ?? null;
     if (!membership) return null;
 
     const familyId = membership.family_id as string;
@@ -897,9 +952,11 @@ export const supabaseRepository: FamilyRepository = {
 
   async createFamily(input) {
     const supabase = await db();
+    await ensureProfileForUser(supabase, input);
+
     const familyId = randomUUID();
     const memberId = randomUUID();
-    const { error: familyError } = await supabase.from("families").insert({
+    const familyRow = {
       id: familyId,
       name: input.familyName,
       owner_id: input.userId,
@@ -914,9 +971,8 @@ export const supabaseRepository: FamilyRepository = {
         recurringExpenses: false,
       },
       created_by: input.userId,
-    });
-    if (familyError) throw familyError;
-    const { error: memberError } = await supabase.from("family_members").insert({
+    };
+    const memberRow = {
       id: memberId,
       family_id: familyId,
       user_id: input.userId,
@@ -925,10 +981,21 @@ export const supabaseRepository: FamilyRepository = {
       display_color: famliColor.parent1,
       invited_email: input.email,
       status: "active",
-    });
-    if (memberError) throw memberError;
+    };
+
+    const writer = bootstrapDb() ?? supabase;
+    const { error: familyError } = await writer.from("families").insert(familyRow);
+    if (familyError) throw new Error(toUserFacingDbError(familyError));
+
+    const { error: memberError } = await writer.from("family_members").insert(memberRow);
+    if (memberError) throw new Error(toUserFacingDbError(memberError));
+
     const snap = await this.getSnapshot(input.userId);
-    if (!snap) throw new Error("Gezin kon niet worden geladen.");
+    if (!snap) {
+      throw new Error(
+        "Gezin is aangemaakt maar kon niet worden geladen. Vernieuw de pagina en probeer opnieuw.",
+      );
+    }
     return snap;
   },
 

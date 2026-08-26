@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { FamliLogo } from "@/components/brand/logo";
 import { FamliWash } from "@/components/brand/wash";
 import {
@@ -68,7 +69,11 @@ export function OnboardingWizard(props: {
       {step === 1 && (
         <form
           action={async (formData) => {
-            await createFamilyAction(formData);
+            const result = await createFamilyAction(formData);
+            if (!result.ok) {
+              toast.error(result.error);
+              return;
+            }
             setStep(2);
           }}
           className="space-y-4"
@@ -86,7 +91,11 @@ export function OnboardingWizard(props: {
       {step === 2 && (
         <form
           action={async (formData) => {
-            await addChildAction(formData);
+            const result = await addChildAction(formData);
+            if (!result.ok) {
+              toast.error(result.error);
+              return;
+            }
             setStep(3);
           }}
           className="space-y-4"
@@ -103,7 +112,11 @@ export function OnboardingWizard(props: {
       {step === 3 && (
         <form
           action={async (formData) => {
-            await inviteParentAction(formData);
+            const result = await inviteParentAction(formData);
+            if (!result.ok) {
+              toast.error(result.error);
+              return;
+            }
             setStep(4);
           }}
           className="space-y-4"
@@ -118,7 +131,11 @@ export function OnboardingWizard(props: {
       {step === 4 && (
         <form
           action={async (formData) => {
-            await saveScheduleAction(formData);
+            const result = await saveScheduleAction(formData);
+            if (!result.ok) {
+              toast.error(result.error);
+              return;
+            }
             setStep(5);
           }}
           className="space-y-4"
