@@ -4,6 +4,7 @@ import {
   ShoppingNotActivatedError,
   SHOPPING_NOT_ACTIVATED_MESSAGE,
   isMissingShoppingTablesError,
+  isShoppingNotActivatedError,
   throwIfMissingShoppingTables,
 } from "@/lib/shopping/errors";
 
@@ -23,6 +24,15 @@ describe("shopping errors — missing tables", () => {
       isMissingShoppingTablesError({
         code: "42P01",
         message: 'relation "public.shopping_items" does not exist',
+      }),
+      true,
+    );
+  });
+
+  it("detects broader shopping table hints", () => {
+    assert.equal(
+      isMissingShoppingTablesError({
+        message: "shopping_lists: no such table",
       }),
       true,
     );
@@ -49,5 +59,10 @@ describe("shopping errors — missing tables", () => {
         error instanceof ShoppingNotActivatedError &&
         error.message === SHOPPING_NOT_ACTIVATED_MESSAGE,
     );
+  });
+
+  it("recognizes ShoppingNotActivatedError by name", () => {
+    const error = new ShoppingNotActivatedError();
+    assert.equal(isShoppingNotActivatedError(error), true);
   });
 });

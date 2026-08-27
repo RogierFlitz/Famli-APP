@@ -2,15 +2,37 @@ import { requireSnapshot } from "@/lib/auth/session";
 import { getRepository } from "@/lib/data";
 import { hasCapability } from "@/lib/security/capabilities";
 import { ShoppingListView } from "@/components/shopping/shopping-list-view";
+import { ShoppingLoadError } from "@/components/shopping/shopping-load-error";
 import { ShoppingNotActivated } from "@/components/shopping/shopping-not-activated";
-import { ShoppingNotActivatedError } from "@/lib/shopping/errors";
+import { isShoppingNotActivatedError } from "@/lib/shopping/errors";
+
+function isNextInternalNavigationError(error: unknown): boolean {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("digest" in error) ||
+    typeof (error as { digest?: unknown }).digest !== "string"
+  ) {
+    return false;
+  }
+  const digest = (error as { digest: string }).digest;
+  return digest.startsWith("NEXT_REDIRECT") || digest === "DYNAMIC_SERVER_USAGE";
+}
 
 export default async function BoodschappenPage({
   searchParams,
 }: {
   searchParams: Promise<{ list?: string }>;
 }) {
-  const snapshot = await requireSnapshot();
+  let snapshot;
+  try {
+    snapshot = await requireSnapshot();
+  } catch (error) {
+    if (isNextInternalNavigationError(error)) throw error;
+    console.error("[boodschappen] snapshot laden mislukt:", error);
+    return <ShoppingLoadError message="Kon je gezinsgegevens niet laden. Log opnieuw in of vernieuw de pagina." />;
+  }
+
   const params = await searchParams;
 
   let lists;
@@ -29,10 +51,12 @@ export default async function BoodschappenPage({
       : [];
     canEdit = hasCapability(snapshot, "edit_tasks");
   } catch (error) {
-    if (error instanceof ShoppingNotActivatedError) {
+    if (isNextInternalNavigationError(error)) throw error;
+    if (isShoppingNotActivatedError(error)) {
       return <ShoppingNotActivated familyName={snapshot.family.name} />;
     }
-    throw error;
+    console.error("[boodschappen] laden mislukt:", error);
+    return <ShoppingLoadError familyName={snapshot.family.name} />;
   }
 
   return (

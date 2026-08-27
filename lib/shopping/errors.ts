@@ -25,7 +25,19 @@ export function isMissingShoppingTablesError(error: unknown): boolean {
   if (/42P01/i.test(text)) return true;
   if (/Could not find the table .*(shopping_lists|shopping_items)/i.test(text)) return true;
   if (/relation .*(shopping_lists|shopping_items).* does not exist/i.test(text)) return true;
+  if (
+    /shopping_(lists|items)/i.test(text) &&
+    /(schema cache|does not exist|not find|niet gevonden|unknown table|no such table)/i.test(text)
+  ) {
+    return true;
+  }
   return false;
+}
+
+export function isShoppingNotActivatedError(error: unknown): boolean {
+  if (error instanceof ShoppingNotActivatedError) return true;
+  if (error instanceof Error && error.name === "ShoppingNotActivatedError") return true;
+  return isMissingShoppingTablesError(error);
 }
 
 export function throwIfMissingShoppingTables(error: unknown): never {
@@ -34,3 +46,6 @@ export function throwIfMissingShoppingTables(error: unknown): never {
   }
   throw error;
 }
+
+export const SHOPPING_LOAD_ERROR_MESSAGE =
+  "De boodschappenlijst kon niet worden geladen. Vernieuw de pagina of probeer het later opnieuw.";
