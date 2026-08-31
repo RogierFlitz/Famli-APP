@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getAccountFlag } from "@/lib/admin/memory";
 import { getRepository } from "@/lib/data";
 import { IDS } from "@/lib/data/ids";
 import { SESSION_COOKIE, type FamilySnapshot, type SessionPayload } from "@/lib/domain/types";
@@ -27,6 +28,9 @@ export async function getSession(): Promise<SessionPayload | null> {
 export async function requireSession(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session) redirect("/login");
+  if (!isSupabaseConfigured() && getAccountFlag(session.userId).status === "blocked") {
+    redirect("/login?error=Dit%20account%20is%20geblokkeerd.");
+  }
   return session;
 }
 

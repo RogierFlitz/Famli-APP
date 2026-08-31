@@ -136,6 +136,38 @@ function getStore(): Store {
   return globalForStore.famliMemoryV8;
 }
 
+/** Read-only family directory for the internal admin console (demo mode). */
+export function listMemoryAdminFamilies(): FamilySnapshot[] {
+  return [...getStore().families.values()].map(clone);
+}
+
+export function listMemoryAdminUsers(): Profile[] {
+  return [...getStore().users.values()].map((item) => clone(item.profile));
+}
+
+export function patchMemoryAdminProfile(userId: string, patch: Partial<Profile>): Profile {
+  const user = getStore().users.get(userId);
+  if (!user) throw new Error("Gebruiker niet gevonden.");
+  Object.assign(user.profile, patch, { updatedAt: nowIso() });
+  const familyId = getStore().userFamily.get(userId);
+  if (familyId) {
+    const snap = getStore().families.get(familyId);
+    if (snap?.profiles[userId]) Object.assign(snap.profiles[userId], patch, { updatedAt: user.profile.updatedAt });
+    if (snap?.currentProfile.id === userId) {
+      Object.assign(snap.currentProfile, patch, { updatedAt: user.profile.updatedAt });
+    }
+  }
+  return clone(user.profile);
+}
+
+export function extendMemoryAdminInvite(familyId: string, inviteId: string): void {
+  mutateFamily(familyId, (snap) => {
+    const invite = snap.invites.find((item) => item.id === inviteId);
+    if (!invite) throw new Error("Uitnodiging niet gevonden.");
+    invite.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  });
+}
+
 function attachViewer(family: FamilySnapshot, userId: string): FamilySnapshot {
   const snap = clone(family);
   const profile = getStore().users.get(userId)?.profile ?? family.profiles[userId];
