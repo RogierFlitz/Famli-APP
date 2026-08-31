@@ -18,7 +18,12 @@ export default async function SettingsPage({
     (item) => item.userId === snapshot.currentProfile.id,
   );
   const privacyConnection = ownConnections[0];
-  const feedStatus = await getRepository().getCalendarFeedStatus(snapshot.currentProfile.id);
+  let feedStatus = null;
+  try {
+    feedStatus = await getRepository().getCalendarFeedStatus(snapshot.currentProfile.id);
+  } catch {
+    feedStatus = null;
+  }
 
   return (
     <div className="space-y-8">

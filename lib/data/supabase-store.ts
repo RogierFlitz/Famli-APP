@@ -10,6 +10,10 @@ import {
   newCalendarFeedToken,
   type CalendarFeedStatus,
 } from "@/lib/calendar/ics-export";
+import {
+  CalendarFeedNotActivatedError,
+  isMissingCalendarFeedTableError,
+} from "@/lib/calendar/feed-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasServiceRoleKey } from "@/lib/supabase/env";
@@ -3140,18 +3144,19 @@ export const supabaseRepository: FamilyRepository = {
   },
 
   async getCalendarFeedStatus(userId): Promise<CalendarFeedStatus | null> {
-    const supabase = await db();
-    const { data, error } = await supabase
-      .from("calendar_feed_tokens")
-      .select("created_at")
-      .eq("user_id", userId)
-      .is("revoked_at", null)
-      .maybeSingle();
-    if (error) {
-      if (isMissingCalendarFeedTable(error)) return null;
-      throw error;
+    try {
+      const supabase = await db();
+      const { data, error } = await supabase
+        .from("calendar_feed_tokens")
+        .select("created_at")
+        .eq("user_id", userId)
+        .is("revoked_at", null)
+        .maybeSingle();
+      if (error) return null;
+      return data?.created_at ? { createdAt: data.created_at as string } : null;
+    } catch {
+      return null;
     }
-    return data?.created_at ? { createdAt: data.created_at as string } : null;
   },
 
   async issueCalendarFeedToken(userId, familyId) {
@@ -3164,17 +3169,22 @@ export const supabaseRepository: FamilyRepository = {
       .eq("user_id", userId)
       .is("revoked_at", null);
     if (revokeError) {
-      if (isMissingCalendarFeedTable(revokeError)) {
-        throw new Error("ICS-export is nog niet geactiveerd. Voer migratie 0011 uit in Supabase.");
+      if (isMissingCalendarFeedTableError(revokeError)) {
+        throw new CalendarFeedNotActivatedError();
       }
-      throw revokeError;
+      throw new Error(toUserFacingDbError(revokeError));
     }
     const { error } = await supabase.from("calendar_feed_tokens").insert({
       user_id: userId,
       family_id: familyId,
       token_hash: calendarFeedTokenHash(token),
     });
-    if (error) throw error;
+    if (error) {
+      if (isMissingCalendarFeedTableError(error)) {
+        throw new CalendarFeedNotActivatedError();
+      }
+      throw new Error(toUserFacingDbError(error));
+    }
     return { token };
   },
 
@@ -3185,7 +3195,9 @@ export const supabaseRepository: FamilyRepository = {
       .update({ revoked_at: new Date().toISOString() })
       .eq("user_id", userId)
       .is("revoked_at", null);
-    if (error && !isMissingCalendarFeedTable(error)) throw error;
+    if (error && !isMissingCalendarFeedTableError(error)) {
+      throw new Error(toUserFacingDbError(error));
+    }
   },
 
   async getCalendarFeedByToken(token) {
@@ -3212,9 +3224,3 @@ export const supabaseRepository: FamilyRepository = {
       .is("revoked_at", null);
   },
 };
-
-function isMissingCalendarFeedTable(error: { message?: string; code?: string }): boolean {
-  return /calendar_feed_tokens|42P01|PGRST205|schema cache|does not exist/i.test(
-    `${error.code ?? ""} ${error.message ?? ""}`,
-  );
-}
