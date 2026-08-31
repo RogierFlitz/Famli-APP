@@ -64,7 +64,7 @@ export function stayLabel(snapshot: FamilySnapshot, memberId: string | null | un
 }
 
 function stayLabelForEvent(snapshot: FamilySnapshot, event: CalendarEvent): string | null {
-  const activity = snapshot.childActivities.find(
+  const activity = (snapshot.childActivities ?? []).find(
     (item) =>
       item.active &&
       item.title === event.title &&

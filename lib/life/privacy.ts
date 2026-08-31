@@ -100,12 +100,12 @@ export function applyPrivacy(snapshot: FamilySnapshot): FamilySnapshot {
       if (routine?.kind === "care" && !canViewMedical(snapshot)) return false;
       return true;
     }),
-    neededItems: snapshot.neededItems.filter((item) => visibleChildIds.has(item.childId)),
-    sizes: snapshot.sizes.filter((item) => visibleChildIds.has(item.childId)),
-    schools: snapshot.schools.filter((item) => visibleChildIds.has(item.childId)),
-    clubs: snapshot.clubs.filter((item) => visibleChildIds.has(item.childId)),
-    childActivities: snapshot.childActivities.filter((item) => visibleChildIds.has(item.childId)),
-    childContacts: snapshot.childContacts.filter((item) => visibleChildIds.has(item.childId)),
+    neededItems: (snapshot.neededItems ?? []).filter((item) => visibleChildIds.has(item.childId)),
+    sizes: (snapshot.sizes ?? []).filter((item) => visibleChildIds.has(item.childId)),
+    schools: (snapshot.schools ?? []).filter((item) => visibleChildIds.has(item.childId)),
+    clubs: (snapshot.clubs ?? []).filter((item) => visibleChildIds.has(item.childId)),
+    childActivities: (snapshot.childActivities ?? []).filter((item) => visibleChildIds.has(item.childId)),
+    childContacts: (snapshot.childContacts ?? []).filter((item) => visibleChildIds.has(item.childId)),
     childUpdates: snapshot.childUpdates.filter((item) => visibleChildIds.has(item.childId)),
     vacations: perms.viewCustody ? snapshot.vacations : [],
   };
