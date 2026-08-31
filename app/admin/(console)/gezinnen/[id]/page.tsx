@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { addAdminSupportNote } from "@/lib/admin/actions";
-import { loadAdminDirectory } from "@/lib/admin/directory";
+import { loadAdminDirectory, loadPendingInvites } from "@/lib/admin/directory";
 import { loadSupportNotes } from "@/lib/admin/logs";
 import { adminHasCapability } from "@/lib/admin/roles";
 import { requireAdmin } from "@/lib/admin/session";
@@ -14,6 +14,7 @@ export default async function AdminFamilyDetailPage({ params }: { params: Promis
   if (!family) notFound();
   const members = users.filter((item) => item.familyId === id);
   const notes = await loadSupportNotes({ familyId: id });
+  const invites = (await loadPendingInvites()).filter((item) => item.familyId === id);
 
   return (
     <div className="space-y-6">
@@ -57,9 +58,20 @@ export default async function AdminFamilyDetailPage({ params }: { params: Promis
             ))}
           </ul>
         </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Uitnodigingen</h2>
+          <ul className="mt-3 space-y-1">
+            {invites.map((invite) => (
+              <li key={invite.id}>
+                {invite.email} · tot {new Date(invite.expiresAt).toLocaleDateString("nl-NL")}
+              </li>
+            ))}
+            {invites.length === 0 ? <li className="text-slate-500">Geen openstaande uitnodigingen.</li> : null}
+          </ul>
+        </div>
       </section>
       <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-        Geen agenda-inhoud, documenten, kostenregels of privénotities. Elevated inzage is niet ingeschakeld.
+        Geen agenda-inhoud, documenten, kostenregels of privénotities. Elevated inzage logt alleen de aanvraag en geeft geen privé-payload.
       </p>
       {adminHasCapability(actor.role, "add_support_note") ? (
         <form action={addAdminSupportNote} className="rounded-xl border border-slate-200 bg-white p-4">

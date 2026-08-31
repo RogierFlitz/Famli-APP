@@ -1,4 +1,4 @@
-import { getAdminActor } from "@/lib/admin/session";
+import { getAdminActor, familyUserBlockedFromAdmin } from "@/lib/admin/session";
 import { signInAdmin } from "@/lib/admin/actions";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { redirect } from "next/navigation";
@@ -10,6 +10,7 @@ export default async function AdminLoginPage({
 }) {
   const actor = await getAdminActor();
   if (actor) redirect("/admin/dashboard");
+  if (await familyUserBlockedFromAdmin()) redirect("/admin/geweigerd");
   const { error } = await searchParams;
   const supabase = isSupabaseConfigured();
 

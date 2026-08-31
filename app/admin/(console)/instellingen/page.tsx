@@ -1,8 +1,13 @@
+import { assignAdminRole } from "@/lib/admin/actions";
+import { listDemoStaff } from "@/lib/admin/memory";
+import { ADMIN_ROLE_LABEL, adminHasCapability, ADMIN_ROLES } from "@/lib/admin/roles";
 import { requireAdmin } from "@/lib/admin/session";
-import { ADMIN_ROLE_LABEL } from "@/lib/admin/roles";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { ConfirmActionForm } from "@/components/admin/confirm-action-form";
 
 export default async function AdminSettingsPage() {
   const actor = await requireAdmin();
+  const staff = isSupabaseConfigured() ? [] : listDemoStaff();
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Instellingen</h1>
@@ -23,6 +28,43 @@ values ('<auth-user-uuid>', 'super_admin');`}
           blijven server-only.
         </p>
       </div>
+
+      {adminHasCapability(actor.role, "manage_admin_roles") && staff.length > 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="text-sm font-semibold">Staffrollen (demo)</h2>
+          <ul className="mt-3 space-y-3">
+            {staff.map((member) => (
+              <li key={member.userId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>
+                  {member.name} · {ADMIN_ROLE_LABEL[member.role]}
+                </span>
+                {member.userId !== actor.userId ? (
+                  <ConfirmActionForm
+                    action={assignAdminRole}
+                    title="Rol wijzigen"
+                    confirmLabel="Opslaan"
+                    extraFields={
+                      <>
+                        <input type="hidden" name="userId" value={member.userId} />
+                        <label className="block text-xs">
+                          Nieuwe rol
+                          <select name="role" className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1">
+                            {ADMIN_ROLES.map((role) => (
+                              <option key={role} value={role}>
+                                {ADMIN_ROLE_LABEL[role]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </>
+                    }
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -293,4 +293,50 @@ export async function retryCalendarSync(formData: FormData) {
   revalidateAdmin();
 }
 
+export async function assignAdminRole(formData: FormData) {
+  const actor = await requireAdmin();
+  assertAdminCapability(actor.role, "manage_admin_roles");
+  assertRateLimit("sensitive", actor.userId);
+  const userId = String(formData.get("userId") ?? "");
+  const role = String(formData.get("role") ?? "") as "super_admin" | "support_admin" | "readonly_admin";
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) throw new Error("Reden is verplicht.");
+  if (!["super_admin", "support_admin", "readonly_admin"].includes(role)) {
+    throw new Error("Ongeldige rol.");
+  }
+  if (userId === actor.userId) throw new Error("Je kunt je eigen rol niet wijzigen.");
+  if (!isSupabaseConfigured()) {
+    const { setStaffRole } = await import("@/lib/admin/memory");
+    setStaffRole(userId, role);
+  } else {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.from("admin_staff").upsert({
+      user_id: userId,
+      role,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw new Error(error.message);
+  }
+  await writeAudit({ action: "admin.role_changed", targetUserId: userId, reason, metadata: { role } });
+  revalidateAdmin();
+}
+
+export async function requestElevatedInzage(formData: FormData) {
+  const actor = await requireAdmin();
+  assertAdminCapability(actor.role, "elevate_privacy");
+  assertRateLimit("sensitive", actor.userId);
+  const targetUserId = String(formData.get("userId") ?? "") || null;
+  const familyId = String(formData.get("familyId") ?? "") || null;
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) throw new Error("Reden is verplicht.");
+  await writeAudit({
+    action: "privacy.elevated_requested",
+    targetUserId,
+    familyId,
+    reason,
+    metadata: { granted: false, payload: "none" },
+  });
+  revalidateAdmin();
+}
+
 export { getAccountFlag };

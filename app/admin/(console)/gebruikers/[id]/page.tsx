@@ -2,12 +2,13 @@ import Link from "next/link";
 import {
   addAdminSupportNote,
   blockUserAccount,
+  requestElevatedInzage,
   resetOnboarding,
   retryCalendarSync,
   unblockUserAccount,
 } from "@/lib/admin/actions";
-import { loadAdminDirectory } from "@/lib/admin/directory";
-import { loadSupportNotes } from "@/lib/admin/logs";
+import { loadAdminDirectory, loadPendingInvites } from "@/lib/admin/directory";
+import { loadAuditLog, loadSupportNotes } from "@/lib/admin/logs";
 import { adminHasCapability } from "@/lib/admin/roles";
 import { requireAdmin } from "@/lib/admin/session";
 import { ConfirmActionForm } from "@/components/admin/confirm-action-form";
@@ -22,6 +23,10 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
   if (!user) notFound();
   const family = families.find((item) => item.id === user.familyId);
   const notes = await loadSupportNotes({ targetUserId: id });
+  const audit = (await loadAuditLog()).filter((item) => item.targetUserId === id);
+  const invites = (await loadPendingInvites()).filter(
+    (item) => item.familyId === user.familyId || item.email.toLowerCase() === user.email.toLowerCase(),
+  );
   const flag = getAccountFlag(id);
   const familyMembers = users.filter((item) => item.familyId === user.familyId);
 
@@ -43,7 +48,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
           <dl className="mt-3 space-y-1 text-sm">
             <div>User-id: <span className="font-mono text-xs">{user.id}</span></div>
             <div>Aangemaakt: {new Date(user.createdAt).toLocaleString("nl-NL")}</div>
-            <div>Laatste activiteit: {user.lastActivityAt ? new Date(user.lastActivityAt).toLocaleString("nl-NL") : "—"}</div>
+            <div>Laatste login/activiteit: {user.lastActivityAt ? new Date(user.lastActivityAt).toLocaleString("nl-NL") : "—"}</div>
             <div>Status: {user.accountStatus === "blocked" ? "Geblokkeerd" : "Actief"}</div>
             {flag.blockedReason ? <div>Blokkade: {flag.blockedReason}</div> : null}
           </dl>
@@ -62,6 +67,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
               <div>Leden: {familyMembers.map((item) => item.firstName).join(", ")}</div>
               <div>Kinderen: {family.childCount}</div>
               <div>Onboarding: {user.onboardingCompleted ? "Afgerond" : "Open"}</div>
+              <div>Open uitnodigingen: {invites.length}</div>
             </dl>
           ) : (
             <p className="mt-3 text-sm text-slate-500">Geen gezin gekoppeld.</p>
@@ -80,7 +86,13 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
           <ul className="mt-3 space-y-1 text-sm">
             <li>Laatste sync: {user.lastSyncedAt ? new Date(user.lastSyncedAt).toLocaleString("nl-NL") : "—"}</li>
             <li>Laatste fout: {user.lastSyncError ?? "geen"}</li>
-            <li>Notificaties: metadata alleen, geen berichtinhoud</li>
+            <li>
+              Notificaties:{" "}
+              {user.notificationChannels
+                ? `in-app ${user.notificationChannels.inApp ? "aan" : "uit"}, e-mail ${user.notificationChannels.email ? "aan" : "uit"}, push ${user.notificationChannels.push ? "aan" : "uit"}`
+                : "onbekend"}
+            </li>
+            <li>Feature-status: plan {family?.plan ?? "—"} / {family?.subscriptionStatus ?? "—"}</li>
           </ul>
         </div>
       </section>
@@ -127,6 +139,19 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
               }
             />
           ) : null}
+          {adminHasCapability(actor.role, "elevate_privacy") ? (
+            <ConfirmActionForm
+              action={requestElevatedInzage}
+              title="Elevated inzage aanvragen"
+              confirmLabel="Alleen loggen (geen privé-inhoud)"
+              extraFields={
+                <>
+                  <input type="hidden" name="userId" value={user.id} />
+                  <input type="hidden" name="familyId" value={user.familyId ?? ""} />
+                </>
+              }
+            />
+          ) : null}
         </div>
       </section>
 
@@ -150,6 +175,20 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             </li>
           ))}
           {notes.length === 0 ? <li className="text-sm text-slate-500">Nog geen notities.</li> : null}
+        </ul>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Supportacties</h2>
+        <ul className="mt-3 space-y-2 text-sm">
+          {audit.map((entry) => (
+            <li key={entry.id} className="rounded-lg bg-slate-50 px-3 py-2">
+              <span className="font-mono text-xs">{entry.action}</span>
+              {entry.reason ? <span className="text-slate-500"> — {entry.reason}</span> : null}
+              <p className="text-xs text-slate-500">{new Date(entry.createdAt).toLocaleString("nl-NL")}</p>
+            </li>
+          ))}
+          {audit.length === 0 ? <li className="text-slate-500">Nog geen acties op dit account.</li> : null}
         </ul>
       </section>
     </div>
