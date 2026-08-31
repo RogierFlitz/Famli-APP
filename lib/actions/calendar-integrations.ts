@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireAuthorizedMutation } from "@/lib/security/guard";
 import { getRepository } from "@/lib/data";
 import type { CalendarProvider } from "@/lib/domain/types";
-import { calendarFeedUrls } from "@/lib/calendar/ics-export";
+import { calendarFeedUrls, type IssuedCalendarFeed } from "@/lib/calendar/ics-export";
+import { calendarFeedActionError } from "@/lib/calendar/feed-errors";
 
 export async function syncCalendarAction(formData: FormData) {
   const { snapshot } = await requireAuthorizedMutation({
@@ -63,24 +64,33 @@ export async function syncStaleCalendarsAction() {
   revalidatePath("/agenda");
 }
 
-export async function issueCalendarFeedAction() {
-  const { snapshot } = await requireAuthorizedMutation({
-    capability: "view_calendar",
-    rateLimit: "mutation",
-  });
-  const { token } = await getRepository().issueCalendarFeedToken(
-    snapshot.currentProfile.id,
-    snapshot.family.id,
-  );
-  revalidatePath("/instellingen");
-  return calendarFeedUrls(token, snapshot.family.name);
+export async function issueCalendarFeedAction(): Promise<IssuedCalendarFeed | { error: string }> {
+  try {
+    const { snapshot } = await requireAuthorizedMutation({
+      capability: "view_calendar",
+      rateLimit: "mutation",
+    });
+    const { token } = await getRepository().issueCalendarFeedToken(
+      snapshot.currentProfile.id,
+      snapshot.family.id,
+    );
+    revalidatePath("/instellingen");
+    return calendarFeedUrls(token, snapshot.family.name);
+  } catch (error) {
+    return { error: calendarFeedActionError(error, "Link maken mislukt") };
+  }
 }
 
-export async function revokeCalendarFeedAction() {
-  const { snapshot } = await requireAuthorizedMutation({
-    capability: "view_calendar",
-    rateLimit: "mutation",
-  });
-  await getRepository().revokeCalendarFeedToken(snapshot.currentProfile.id);
-  revalidatePath("/instellingen");
+export async function revokeCalendarFeedAction(): Promise<{ error?: string }> {
+  try {
+    const { snapshot } = await requireAuthorizedMutation({
+      capability: "view_calendar",
+      rateLimit: "mutation",
+    });
+    await getRepository().revokeCalendarFeedToken(snapshot.currentProfile.id);
+    revalidatePath("/instellingen");
+    return {};
+  } catch (error) {
+    return { error: calendarFeedActionError(error, "Uitschakelen mislukt") };
+  }
 }

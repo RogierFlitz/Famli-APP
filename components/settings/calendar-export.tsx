@@ -8,6 +8,7 @@ import {
   revokeCalendarFeedAction,
 } from "@/lib/actions/calendar-integrations";
 import type { IssuedCalendarFeed } from "@/lib/calendar/ics-export";
+import { calendarFeedActionError } from "@/lib/calendar/feed-errors";
 
 export function CalendarExportPanel({ hasFeed }: { hasFeed: boolean }) {
   const [issued, setIssued] = useState<IssuedCalendarFeed | null>(null);
@@ -17,10 +18,14 @@ export function CalendarExportPanel({ hasFeed }: { hasFeed: boolean }) {
     setPending(true);
     try {
       const result = await issueCalendarFeedAction();
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
       setIssued(result);
       toast.success(rotate ? "Nieuwe abonnementslink gemaakt" : "Abonnementslink klaar");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Link maken mislukt");
+      toast.error(calendarFeedActionError(error, "Link maken mislukt"));
     } finally {
       setPending(false);
     }
@@ -29,11 +34,15 @@ export function CalendarExportPanel({ hasFeed }: { hasFeed: boolean }) {
   async function revoke() {
     setPending(true);
     try {
-      await revokeCalendarFeedAction();
+      const result = await revokeCalendarFeedAction();
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
       setIssued(null);
       toast.success("Abonnementslink uitgeschakeld");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Uitschakelen mislukt");
+      toast.error(calendarFeedActionError(error, "Uitschakelen mislukt"));
     } finally {
       setPending(false);
     }
