@@ -10,11 +10,11 @@ export function HeroSection() {
           Voor ieder gezin — ook als jullie over meerdere huishoudens verdeeld zijn.
         </p>
         <h1 className="max-w-xl text-4xl font-semibold leading-[1.08] tracking-tight text-[color:var(--famli-ink)] sm:text-5xl lg:text-6xl">
-          Alles wat je gezin moet onthouden. Op één plek.
+          Je hoeft thuis niet meer alles zelf te onthouden.
         </h1>
         <p className="mt-5 max-w-lg text-base leading-7 text-[color:var(--famli-muted)] sm:text-lg">
-          Agenda&apos;s, boodschappen, taken, school, sport en afspraken. Famli houdt het overzicht,
-          zodat jij niet alles hoeft te onthouden.
+          Famli weet wat er speelt, wie iets doet en wat je niet mag vergeten. Agenda, overdracht,
+          school, sport, boodschappen en kosten op één plek — niet verspreid over chats.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
           <Link href="/signup" className="famli-btn famli-btn-primary min-h-11 w-full sm:w-auto">
