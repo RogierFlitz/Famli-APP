@@ -66,6 +66,11 @@ import {
   sortShoppingLists,
 } from "@/lib/shopping/store-helpers";
 import { inferShoppingCategory } from "@/lib/shopping/categories";
+import {
+  calendarFeedTokenHash,
+  newCalendarFeedToken,
+  type CalendarFeedStatus,
+} from "@/lib/calendar/ics-export";
 
 type StoredGuestLink = GuestLinkToken & { tokenHash: string };
 
@@ -76,14 +81,23 @@ function findGuestLinkByToken(snap: { guestLinkTokens: GuestLinkToken[] }, token
   ) as StoredGuestLink | undefined;
 }
 
+type CalendarFeedRecord = {
+  userId: string;
+  familyId: string;
+  createdAt: string;
+  lastAccessedAt: string | null;
+  revokedAt: string | null;
+};
+
 type Store = {
   families: Map<string, FamilySnapshot>;
   userFamily: Map<string, string>;
   users: Map<string, { profile: Profile }>;
   invites: Map<string, { familyId: string; email: string; parentLabel: string; role: FamilyRole }>;
+  calendarFeeds: Map<string, CalendarFeedRecord>;
 };
 
-const globalForStore = globalThis as unknown as { famliMemoryV7?: Store };
+const globalForStore = globalThis as unknown as { famliMemoryV8?: Store };
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -108,14 +122,15 @@ function emptyStore(): Store {
       [IDS.sanneUser, { profile: demo.profiles[IDS.sanneUser] }],
     ]),
     invites: new Map(),
+    calendarFeeds: new Map(),
   };
 }
 
 function getStore(): Store {
-  if (!globalForStore.famliMemoryV7) {
-    globalForStore.famliMemoryV7 = emptyStore();
+  if (!globalForStore.famliMemoryV8) {
+    globalForStore.famliMemoryV8 = emptyStore();
   }
-  return globalForStore.famliMemoryV7;
+  return globalForStore.famliMemoryV8;
 }
 
 function attachViewer(family: FamilySnapshot, userId: string): FamilySnapshot {
@@ -1901,6 +1916,60 @@ export const memoryRepository: FamilyRepository = {
       return count;
     }
     return 0;
+  },
+
+  async getCalendarFeedStatus(userId): Promise<CalendarFeedStatus | null> {
+    for (const feed of getStore().calendarFeeds.values()) {
+      if (feed.userId === userId && !feed.revokedAt) {
+        return { createdAt: feed.createdAt };
+      }
+    }
+    return null;
+  },
+
+  async issueCalendarFeedToken(userId, familyId) {
+    const store = getStore();
+    const token = newCalendarFeedToken();
+    const now = nowIso();
+    for (const [hash, feed] of store.calendarFeeds.entries()) {
+      if (feed.userId === userId && !feed.revokedAt) {
+        store.calendarFeeds.set(hash, { ...feed, revokedAt: now });
+      }
+    }
+    store.calendarFeeds.set(calendarFeedTokenHash(token), {
+      userId,
+      familyId,
+      createdAt: now,
+      lastAccessedAt: null,
+      revokedAt: null,
+    });
+    return { token };
+  },
+
+  async revokeCalendarFeedToken(userId) {
+    const store = getStore();
+    const now = nowIso();
+    for (const [hash, feed] of store.calendarFeeds.entries()) {
+      if (feed.userId === userId && !feed.revokedAt) {
+        store.calendarFeeds.set(hash, { ...feed, revokedAt: now });
+      }
+    }
+  },
+
+  async getCalendarFeedByToken(token) {
+    const feed = getStore().calendarFeeds.get(calendarFeedTokenHash(token));
+    if (!feed || feed.revokedAt) return null;
+    const snapshot = await this.getSnapshot(feed.userId);
+    if (!snapshot || snapshot.family.id !== feed.familyId) return null;
+    return { snapshot };
+  },
+
+  async touchCalendarFeedAccess(token) {
+    const store = getStore();
+    const hash = calendarFeedTokenHash(token);
+    const feed = store.calendarFeeds.get(hash);
+    if (!feed || feed.revokedAt) return;
+    store.calendarFeeds.set(hash, { ...feed, lastAccessedAt: nowIso() });
   },
 };
 

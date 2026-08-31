@@ -35,6 +35,7 @@ import type {
   ShoppingList,
   TaskKind,
 } from "@/lib/domain/types";
+import type { CalendarFeedStatus } from "@/lib/calendar/ics-export";
 
 export interface CreateFamilyInput {
   userId: string;
@@ -411,4 +412,9 @@ export interface FamilyRepository {
   toggleShoppingItem(itemId: string, actorUserId: string, actorMemberId: string): Promise<ShoppingItem>;
   deleteShoppingItem(itemId: string, actorUserId: string): Promise<void>;
   clearCompletedShoppingItems(listId: string, actorUserId: string): Promise<number>;
+  getCalendarFeedStatus(userId: string): Promise<CalendarFeedStatus | null>;
+  issueCalendarFeedToken(userId: string, familyId: string): Promise<{ token: string }>;
+  revokeCalendarFeedToken(userId: string): Promise<void>;
+  getCalendarFeedByToken(token: string): Promise<{ snapshot: FamilySnapshot } | null>;
+  touchCalendarFeedAccess(token: string): Promise<void>;
 }
