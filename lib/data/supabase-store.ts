@@ -5,6 +5,11 @@ import {
   guestLinkExpiresAt,
   hashGuestToken,
 } from "@/lib/architecture/guest-links";
+import {
+  calendarFeedTokenHash,
+  newCalendarFeedToken,
+  type CalendarFeedStatus,
+} from "@/lib/calendar/ics-export";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasServiceRoleKey } from "@/lib/supabase/env";
@@ -500,6 +505,195 @@ async function applyGuestAcceptedChange(
     is_override: true,
     source: "change_request",
   });
+}
+
+async function buildCalendarExportSnapshot(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  userId: string,
+  familyId: string,
+): Promise<FamilySnapshot | null> {
+  const [
+    familyRes,
+    membersRes,
+    childrenRes,
+    eventsRes,
+    handoversRes,
+    vacationsRes,
+    childAccessRes,
+  ] = await Promise.all([
+    admin.from("families").select("*").eq("id", familyId).single(),
+    admin.from("family_members").select("*").eq("family_id", familyId),
+    admin.from("children").select("*").eq("family_id", familyId),
+    admin.from("events").select("*, event_participants(*)").eq("family_id", familyId),
+    admin.from("handovers").select("*, handover_children(child_id)").eq("family_id", familyId),
+    admin.from("vacations").select("*").eq("family_id", familyId),
+    admin.from("child_member_access").select("*").eq("family_id", familyId),
+  ]);
+  if (familyRes.error || !familyRes.data) return null;
+
+  const memberRows = membersRes.data ?? [];
+  const userIds = memberRows.map((row) => row.user_id).filter(Boolean) as string[];
+  const { data: profileRows } = userIds.length
+    ? await admin.from("profiles").select("*").in("id", userIds)
+    : { data: [] as Record<string, unknown>[] };
+
+  const profiles: Record<string, Profile> = {};
+  for (const row of profileRows ?? []) {
+    const profile = mapProfile(row);
+    profiles[profile.id] = profile;
+  }
+
+  const members: FamilyMember[] = memberRows.map((row) => ({
+    id: row.id,
+    familyId: row.family_id,
+    userId: row.user_id,
+    role: row.role,
+    relationType: row.relation_type ?? "ouder",
+    permissionPreset: row.permission_preset ?? "custom",
+    permissions: row.permissions ?? parentPermissions(),
+    parentLabel: row.parent_label,
+    displayColor: row.display_color,
+    invitedEmail: row.invited_email,
+    status: row.status,
+    householdId: row.household_id ?? null,
+    contactOnly: row.contact_only ?? false,
+    linkedParentMemberId: row.linked_parent_member_id ?? null,
+    phone: row.phone ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+
+  const currentMember = members.find((item) => item.userId === userId);
+  const currentProfile = profiles[userId];
+  if (!currentMember || !currentProfile) return null;
+
+  const familyRow = familyRes.data;
+  const children: Child[] = (childrenRes.data ?? []).map((row) => ({
+    id: row.id,
+    familyId: row.family_id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    dateOfBirth: row.date_of_birth,
+    photoUrl: row.photo_url,
+    school: row.school,
+    className: row.class_name,
+    doctor: row.doctor,
+    dentist: row.dentist,
+    daycare: row.daycare,
+    sports: row.sports ?? [],
+    clothingSize: row.clothing_size,
+    shoeSize: row.shoe_size,
+    passportExpiresOn: row.passport_expires_on ?? null,
+    passportNumber: row.passport_number ?? null,
+    emergencyContacts: row.emergency_contacts ?? [],
+    notes: row.notes,
+    color: row.color,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdBy: row.created_by,
+  }));
+
+  const snapshot: FamilySnapshot = {
+    family: {
+      id: familyRow.id,
+      name: familyRow.name,
+      ownerId: familyRow.owner_id,
+      plan: familyRow.plan,
+      subscriptionStatus: familyRow.subscription_status,
+      trialEnd: familyRow.trial_end,
+      featureFlags: familyRow.feature_flags,
+      createdAt: familyRow.created_at,
+      updatedAt: familyRow.updated_at,
+      createdBy: familyRow.created_by,
+    },
+    currentProfile,
+    currentMember,
+    profiles,
+    members,
+    children,
+    guardians: [],
+    schedule: null,
+    occurrences: [],
+    events: (eventsRes.data ?? []).map((row) => ({
+      id: row.id,
+      familyId: row.family_id,
+      title: row.title,
+      description: row.description,
+      category: row.category,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      allDay: row.all_day,
+      location: row.location,
+      notes: row.notes,
+      packingList: row.packing_list ?? [],
+      childIds: (row.event_participants ?? [])
+        .map((p: { child_id: string | null }) => p.child_id)
+        .filter(Boolean),
+      memberIds: (row.event_participants ?? [])
+        .map((p: { member_id: string | null }) => p.member_id)
+        .filter(Boolean),
+      handoverId: row.handover_id,
+      cancelledAt: row.cancelled_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      createdBy: row.created_by,
+    })),
+    handovers: (handoversRes.data ?? []).map((row) => ({
+      id: row.id,
+      familyId: row.family_id,
+      eventId: row.event_id,
+      date: row.date,
+      time: row.time,
+      fromMemberId: row.from_member_id,
+      toMemberId: row.to_member_id,
+      childIds: (row.handover_children ?? []).map((c: { child_id: string }) => c.child_id),
+      location: row.location,
+      pickupMemberId: row.pickup_member_id,
+      dropoffMemberId: row.dropoff_member_id,
+      notes: row.notes,
+      packingList: row.packing_list ?? [],
+      cancelledAt: row.cancelled_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      createdBy: row.created_by,
+    })),
+    changeRequests: [],
+    tasks: [],
+    expenses: [],
+    splits: [],
+    recurringExpenses: [],
+    documents: [],
+    notifications: [],
+    calendarConnections: [],
+    activityLog: [],
+    invites: [],
+    vacations: (vacationsRes.data ?? []).map((row) => ({
+      id: row.id,
+      familyId: row.family_id,
+      title: row.title,
+      kind: row.kind,
+      withMemberId: row.with_member_id,
+      startsOn: row.starts_on,
+      endsOn: row.ends_on,
+      status: row.status,
+      notes: row.notes,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      createdBy: row.created_by,
+    })),
+    ...emptyLifeFields(),
+    childMemberAccess: (childAccessRes.data ?? []).map(
+      (row): ChildMemberAccess => ({
+        id: row.id,
+        memberId: row.member_id,
+        childId: row.child_id,
+        canView: row.can_view,
+        canEdit: row.can_edit,
+      }),
+    ),
+  };
+
+  return applyPrivacy(snapshot);
 }
 
 export const supabaseRepository: FamilyRepository = {
@@ -2944,4 +3138,83 @@ export const supabaseRepository: FamilyRepository = {
     if (error) throwIfMissingShoppingTables(error);
     return data?.length ?? 0;
   },
+
+  async getCalendarFeedStatus(userId): Promise<CalendarFeedStatus | null> {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("calendar_feed_tokens")
+      .select("created_at")
+      .eq("user_id", userId)
+      .is("revoked_at", null)
+      .maybeSingle();
+    if (error) {
+      if (isMissingCalendarFeedTable(error)) return null;
+      throw error;
+    }
+    return data?.created_at ? { createdAt: data.created_at as string } : null;
+  },
+
+  async issueCalendarFeedToken(userId, familyId) {
+    const supabase = await db();
+    const token = newCalendarFeedToken();
+    const now = new Date().toISOString();
+    const { error: revokeError } = await supabase
+      .from("calendar_feed_tokens")
+      .update({ revoked_at: now })
+      .eq("user_id", userId)
+      .is("revoked_at", null);
+    if (revokeError) {
+      if (isMissingCalendarFeedTable(revokeError)) {
+        throw new Error("ICS-export is nog niet geactiveerd. Voer migratie 0011 uit in Supabase.");
+      }
+      throw revokeError;
+    }
+    const { error } = await supabase.from("calendar_feed_tokens").insert({
+      user_id: userId,
+      family_id: familyId,
+      token_hash: calendarFeedTokenHash(token),
+    });
+    if (error) throw error;
+    return { token };
+  },
+
+  async revokeCalendarFeedToken(userId) {
+    const supabase = await db();
+    const { error } = await supabase
+      .from("calendar_feed_tokens")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .is("revoked_at", null);
+    if (error && !isMissingCalendarFeedTable(error)) throw error;
+  },
+
+  async getCalendarFeedByToken(token) {
+    if (!hasServiceRoleKey()) return null;
+    const admin = createSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("calendar_feed_tokens")
+      .select("user_id, family_id, revoked_at")
+      .eq("token_hash", calendarFeedTokenHash(token))
+      .maybeSingle();
+    if (error || !data || data.revoked_at) return null;
+    const snapshot = await buildCalendarExportSnapshot(admin, data.user_id as string, data.family_id as string);
+    if (!snapshot) return null;
+    return { snapshot };
+  },
+
+  async touchCalendarFeedAccess(token) {
+    if (!hasServiceRoleKey()) return;
+    const admin = createSupabaseAdminClient();
+    await admin
+      .from("calendar_feed_tokens")
+      .update({ last_accessed_at: new Date().toISOString() })
+      .eq("token_hash", calendarFeedTokenHash(token))
+      .is("revoked_at", null);
+  },
 };
+
+function isMissingCalendarFeedTable(error: { message?: string; code?: string }): boolean {
+  return /calendar_feed_tokens|42P01|PGRST205|schema cache|does not exist/i.test(
+    `${error.code ?? ""} ${error.message ?? ""}`,
+  );
+}

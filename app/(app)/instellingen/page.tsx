@@ -2,8 +2,10 @@ import { requireSnapshot } from "@/lib/auth/session";
 import { planLabel, notificationPrefLabel } from "@/lib/domain/labels";
 import { googleOAuthConfigured, microsoftOAuthConfigured } from "@/lib/calendar/config";
 import { CalendarPrivacyPanel } from "@/components/settings/calendar-privacy";
+import { CalendarExportPanel } from "@/components/settings/calendar-export";
 import { FamilyMembersPanel } from "@/components/settings/family-members";
 import { signOut } from "@/lib/auth/actions";
+import { getRepository } from "@/lib/data";
 
 export default async function SettingsPage({
   searchParams,
@@ -16,6 +18,7 @@ export default async function SettingsPage({
     (item) => item.userId === snapshot.currentProfile.id,
   );
   const privacyConnection = ownConnections[0];
+  const feedStatus = await getRepository().getCalendarFeedStatus(snapshot.currentProfile.id);
 
   return (
     <div className="space-y-8">
@@ -45,6 +48,15 @@ export default async function SettingsPage({
           }}
           oauthReady={{ google: googleOAuthConfigured(), microsoft: microsoftOAuthConfigured() }}
         />
+      </section>
+
+      <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
+        <h2 className="font-[family-name:var(--font-display)] text-2xl">Famli in jouw agenda</h2>
+        <p className="mt-2 text-sm text-[color:var(--nest-muted)]">
+          Zet Famli in Google Calendar, Apple Agenda of Outlook via een ICS-abonnement. Wijzigingen in
+          Famli komen vanzelf in je eigen agenda.
+        </p>
+        <CalendarExportPanel hasFeed={Boolean(feedStatus)} />
       </section>
 
       <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">

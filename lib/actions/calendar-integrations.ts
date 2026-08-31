@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAuthorizedMutation } from "@/lib/security/guard";
 import { getRepository } from "@/lib/data";
 import type { CalendarProvider } from "@/lib/domain/types";
+import { calendarFeedUrls } from "@/lib/calendar/ics-export";
 
 export async function syncCalendarAction(formData: FormData) {
   const { snapshot } = await requireAuthorizedMutation({
@@ -60,4 +61,26 @@ export async function syncStaleCalendarsAction() {
   });
   await getRepository().syncStaleCalendars(snapshot.currentProfile.id);
   revalidatePath("/agenda");
+}
+
+export async function issueCalendarFeedAction() {
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "view_calendar",
+    rateLimit: "mutation",
+  });
+  const { token } = await getRepository().issueCalendarFeedToken(
+    snapshot.currentProfile.id,
+    snapshot.family.id,
+  );
+  revalidatePath("/instellingen");
+  return calendarFeedUrls(token, snapshot.family.name);
+}
+
+export async function revokeCalendarFeedAction() {
+  const { snapshot } = await requireAuthorizedMutation({
+    capability: "view_calendar",
+    rateLimit: "mutation",
+  });
+  await getRepository().revokeCalendarFeedToken(snapshot.currentProfile.id);
+  revalidatePath("/instellingen");
 }
