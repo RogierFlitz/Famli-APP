@@ -216,12 +216,21 @@ function ProviderCard({
       ) : meta.authKind === "oauth" ? (
         <div className="mt-4">
           {oauthReady ? (
-            <Link
-              href={`/api/calendar/${meta.id}/authorize`}
-              className="inline-flex h-10 items-center rounded-full bg-[color:var(--nest-brand)] px-4 text-sm text-white"
-            >
-              Koppel {meta.label}
-            </Link>
+            meta.id === "microsoft" ? (
+              <a
+                href="/api/calendar/microsoft/authorize"
+                className="famli-btn famli-btn-primary h-10 px-4 text-sm"
+              >
+                Koppel {meta.label}
+              </a>
+            ) : (
+              <Link
+                href={`/api/calendar/${meta.id}/authorize`}
+                className="inline-flex h-10 items-center rounded-full bg-[color:var(--nest-brand)] px-4 text-sm text-white"
+              >
+                Koppel {meta.label}
+              </Link>
+            )
           ) : (
             <p className="text-sm text-[color:var(--nest-muted)]">
               OAuth-credentials ontbreken op deze server. Voeg de env-vars toe en probeer opnieuw.
