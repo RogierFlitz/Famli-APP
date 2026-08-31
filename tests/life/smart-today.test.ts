@@ -47,6 +47,25 @@ describe("smart today composition", () => {
     assert.ok(Array.isArray(packingTomorrow));
   });
 
+  it("does not treat pickup lines or school times as packing", () => {
+    const monday = new Date("2026-04-13T10:00:00.000Z");
+    const snapshot = createDemoSnapshot(monday);
+    const tomorrow = tomorrowPreview(snapshot, monday);
+    const hockey = tomorrow.find((line) => /hockey/i.test(line.title));
+    assert.ok(hockey, "Tuesday hockey should appear in Monday tomorrow preview");
+    assert.ok(hockey.packing.some((item) => /stick/i.test(item)));
+    for (const line of tomorrow) {
+      for (const item of line.packing) {
+        assert.equal(/^\d{1,2}:\d{2}$/.test(item), false, `time leaked into packing: ${item}`);
+        assert.equal(/haalt/i.test(item), false, `pickup line leaked into packing: ${item}`);
+      }
+    }
+    const packing = packingForDate(snapshot, toISODate(monday));
+    const overdrachtDupes = packing.filter((item) => item.context === "Overdracht" && /schooltas/i.test(item.label));
+    const eventDupes = packing.filter((item) => item.context !== "Overdracht" && /schooltas/i.test(item.label));
+    assert.ok(overdrachtDupes.length + eventDupes.length <= 2);
+  });
+
   it("counts open shopping and week glance without cancelled events", () => {
     const now = new Date("2026-04-15T10:00:00.000Z");
     const snapshot = createDemoSnapshot(now);

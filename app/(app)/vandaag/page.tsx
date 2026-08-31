@@ -227,6 +227,9 @@ export default async function TodayPage() {
                     {item.time ? `${item.time} · ` : ""}
                     {item.title}
                   </p>
+                  {item.detail ? (
+                    <p className="text-sm text-[color:var(--famli-muted)]">{item.detail}</p>
+                  ) : null}
                   {item.packing.length ? (
                     <p className="text-sm text-[color:var(--famli-muted)]">Mee: {item.packing.join(", ")}</p>
                   ) : null}

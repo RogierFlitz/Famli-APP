@@ -28,6 +28,7 @@ export type TomorrowLine = {
   time: string | null;
   title: string;
   packing: string[];
+  detail: string | null;
   href: string;
 };
 
@@ -54,6 +55,7 @@ export function packingForDate(snapshot: FamilySnapshot, date: string): PackingL
   }
 
   for (const event of eventsOnDate(snapshot, date)) {
+    if (event.category === "overdracht") continue;
     const names = snapshot.children
       .filter((child) => event.childIds.includes(child.id))
       .map((child) => child.firstName)
@@ -120,16 +122,17 @@ export function tomorrowPreview(snapshot: FamilySnapshot, now = new Date()): Tom
   const lines: TomorrowLine[] = [];
   for (const child of snapshot.children) {
     for (const entry of childTimelineForDate(snapshot, child.id, tomorrow)) {
-      const packing = entry.event?.packingList?.length
-        ? entry.event.packingList
-        : entry.subtitle
-          ? entry.subtitle.split(", ").filter(Boolean)
-          : [];
+      const occurrence = snapshot.routineOccurrences.find((item) => item.id === entry.id);
+      const routine = occurrence
+        ? snapshot.tasks.find((task) => task.id === occurrence.routineId && task.active !== false)
+        : undefined;
+      const packing = (entry.event?.packingList ?? routine?.packingItems ?? []).filter(Boolean);
       lines.push({
         id: `${child.id}-${entry.id}`,
         time: entry.time,
         title: `${child.firstName}: ${entry.title}`,
         packing,
+        detail: packing.length ? null : entry.subtitle || null,
         href: entry.href,
       });
     }
