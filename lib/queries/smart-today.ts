@@ -127,12 +127,14 @@ export function tomorrowPreview(snapshot: FamilySnapshot, now = new Date()): Tom
         ? snapshot.tasks.find((task) => task.id === occurrence.routineId && task.active !== false)
         : undefined;
       const packing = (entry.event?.packingList ?? routine?.packingItems ?? []).filter(Boolean);
+      const subtitle = entry.subtitle || null;
+      const detail = packing.length || !subtitle || subtitle === entry.time ? null : subtitle;
       lines.push({
         id: `${child.id}-${entry.id}`,
         time: entry.time,
         title: `${child.firstName}: ${entry.title}`,
         packing,
-        detail: packing.length ? null : entry.subtitle || null,
+        detail,
         href: entry.href,
       });
     }
