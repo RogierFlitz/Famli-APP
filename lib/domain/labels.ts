@@ -1,4 +1,5 @@
 import type {
+  ChangeRequestStatus,
   ChangeRequestType,
   DocumentCategory,
   EventCategory,
@@ -46,12 +47,24 @@ export const expenseCategoryLabel: Record<ExpenseCategory, string> = {
   school: "School",
   kleding: "Kleding",
   sport: "Sport",
-  medisch: "Medisch",
+  medisch: "Zorg",
   opvang: "Opvang",
-  activiteit: "Activiteit",
+  activiteit: "Activiteiten",
   zakgeld: "Zakgeld",
+  vakantie: "Vakantie",
   overig: "Overig",
 };
+
+export const EXPENSE_FORM_CATEGORIES: ExpenseCategory[] = [
+  "school",
+  "sport",
+  "kleding",
+  "medisch",
+  "opvang",
+  "activiteit",
+  "vakantie",
+  "overig",
+];
 
 export const documentCategoryLabel: Record<DocumentCategory, string> = {
   identiteit: "Identiteit",
@@ -64,13 +77,24 @@ export const documentCategoryLabel: Record<DocumentCategory, string> = {
 };
 
 export const changeRequestLabel: Record<ChangeRequestType, string> = {
-  swap_day: "Dag ruilen",
-  extra_day: "Extra dag",
-  pickup: "Ophalen/brengen",
-  pickup_time: "Tijd wijzigen",
-  location: "Locatie wijzigen",
-  vacation: "Vakantie aanpassen",
+  swap_day: "Wisselverzoek",
+  extra_day: "Kun jij de kinderen hebben?",
+  pickup: "Ophaalverzoek",
+  pickup_time: "Andere haaltijd",
+  location: "Andere locatie",
+  vacation: "Vakantie",
+  dropoff: "Brengverzoek",
+  babysit: "Oppasverzoek",
+  task_takeover: "Taak overnemen",
   other: "Anders",
+};
+
+export const changeRequestStatusLabel: Record<ChangeRequestStatus, string> = {
+  pending: "In afwachting",
+  accepted: "Geaccepteerd",
+  declined: "Geweigerd",
+  alternative_proposed: "Alternatief voorgesteld",
+  cancelled: "Afgerond",
 };
 
 export const taskStatusLabel: Record<TaskStatus, string> = {
@@ -180,12 +204,44 @@ export const sizeFieldLabel: Record<string, string> = {
 
 export function notificationPrefLabel(key: string): string {
   const labels: Record<string, string> = {
-    handoverReminder: "Overdracht morgen",
-    changeRequest: "Wijzigingen",
+    handoverReminder: "Brengen en halen",
+    changeRequest: "Wisselverzoeken",
     sport: "Sport en activiteiten",
-    taskDue: "Taken die verlopen",
-    expense: "Nieuwe gedeelde kosten",
-    payment: "Betalingen",
+    taskDue: "Taken",
+    expense: "Nieuwe kosten",
+    payment: "Betalingen en verrekenen",
+    event: "Afspraken",
+    activity: "Kindactiviteiten",
   };
   return labels[key] ?? key;
 }
+
+export const childActivityKindLabel: Record<string, string> = {
+  voetbal: "Voetbal",
+  zwemles: "Zwemles",
+  hockey: "Hockey",
+  muziekles: "Muziekles",
+  school: "School",
+  opvang: "Opvang",
+  overig: "Overig",
+};
+
+export const childContactCategoryLabel: Record<string, string> = {
+  school: "School",
+  huisarts: "Huisarts",
+  tandarts: "Tandarts",
+  sportclub: "Sportclub",
+  kinderopvang: "Kinderopvang",
+  oppas: "Oppas",
+  familie: "Familie",
+  overig: "Overig",
+};
+
+export const schoolMomentLabel: Record<string, string> = {
+  les: "Les",
+  studiedag: "Studiedag",
+  schoolreis: "Schoolreis",
+  ouderavond: "Ouderavond",
+  rapport: "Rapportgesprek",
+  schoolactiviteit: "Schoolactiviteit",
+};

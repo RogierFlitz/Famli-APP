@@ -140,6 +140,23 @@ describe("notifications — navigation", () => {
       }),
       `/kinderen/${IDS.roxy}`,
     );
+    assert.equal(
+      notificationHref({
+        id: "4",
+        familyId: IDS.family,
+        userId: IDS.rogierUser,
+        type: "change_request",
+        title: "V",
+        body: "",
+        entityType: "change_request",
+        entityId: "cr-1",
+        payload: {},
+        readAt: null,
+        channel: "in_app",
+        createdAt: new Date().toISOString(),
+      }),
+      "/regelen?tab=verzoeken&id=cr-1",
+    );
   });
 });
 

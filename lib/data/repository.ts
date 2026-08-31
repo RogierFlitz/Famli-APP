@@ -197,6 +197,24 @@ export interface FamilyRepository {
     alternativePayload?: Record<string, unknown>;
   }): Promise<ChangeRequest>;
   createExpense(input: CreateExpenseInput): Promise<Expense>;
+  updateExpense(input: {
+    id: string;
+    actorUserId: string;
+    description?: string;
+    amountCents?: number;
+    date?: string;
+    childId?: string | null;
+    category?: ExpenseCategory;
+    notes?: string | null;
+    splitPercents?: Record<string, number>;
+  }): Promise<Expense>;
+  voidExpense(id: string, actorUserId: string): Promise<void>;
+  settleOpenExpenses(input: {
+    familyId: string;
+    actorUserId: string;
+    actorMemberId: string;
+    note?: string | null;
+  }): Promise<void>;
   markSplitPaid(splitId: string, actorUserId: string): Promise<void>;
   createTask(input: CreateTaskInput): Promise<TaskItem>;
   createRoutine(input: CreateRoutineInput): Promise<TaskItem>;
@@ -417,4 +435,57 @@ export interface FamilyRepository {
   revokeCalendarFeedToken(userId: string): Promise<void>;
   getCalendarFeedByToken(token: string): Promise<{ snapshot: FamilySnapshot } | null>;
   touchCalendarFeedAccess(token: string): Promise<void>;
+  addChildActivity(input: {
+    familyId: string;
+    createdBy: string;
+    childId: string;
+    title: string;
+    kind: import("@/lib/domain/types").ChildActivityKind;
+    location: string | null;
+    weekday: number;
+    startTime: string;
+    endTime: string | null;
+    bringMemberId: string | null;
+    pickupMemberId: string | null;
+    stayMemberId: string | null;
+    contactName: string | null;
+    notes: string | null;
+  }): Promise<import("@/lib/domain/types").ChildActivity>;
+  addChildContact(input: {
+    familyId: string;
+    createdBy: string;
+    childId: string;
+    category: import("@/lib/domain/types").ChildContactCategory;
+    name: string;
+    organization: string | null;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    notes: string | null;
+  }): Promise<import("@/lib/domain/types").ChildContact>;
+  saveChildSchool(input: {
+    familyId: string;
+    childId: string;
+    name: string;
+    className: string;
+    teacher: string | null;
+    contact: string | null;
+    hours: string | null;
+    gymDays: string | null;
+  }): Promise<void>;
+  addFamilyDocument(input: {
+    familyId: string;
+    createdBy: string;
+    childId: string | null;
+    title: string;
+    category: import("@/lib/domain/types").DocumentCategory;
+    data: Buffer;
+    mimeType: string;
+    originalFilename: string;
+  }): Promise<import("@/lib/domain/types").FamilyDocument>;
+  familyDocumentViewUrl(documentId: string, actorUserId: string): Promise<string | null>;
+  updateNotificationPrefs(
+    userId: string,
+    prefs: import("@/lib/domain/types").NotificationPrefs,
+  ): Promise<void>;
 }

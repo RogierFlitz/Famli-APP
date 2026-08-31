@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { respondToChangeRequestAction } from "@/lib/actions/calendar";
 import { createGuestLinkAction } from "@/lib/actions/messages";
 import { formatDayLong } from "@/lib/dates";
-import { changeRequestLabel } from "@/lib/domain/labels";
+import { changeRequestLabel, changeRequestStatusLabel } from "@/lib/domain/labels";
 import { canAcceptChangeRequests } from "@/lib/members/permissions";
 import { parentName, occurrenceOn } from "@/lib/queries/family-view";
 import type { ChangeRequest, FamilySnapshot } from "@/lib/domain/types";
@@ -29,14 +29,20 @@ export function ChangeReviewCard({
       : request.requestedByMemberId;
   const mine = request.requestedByMemberId === snapshot.currentMember.id;
   const canRespond = canAcceptChangeRequests(snapshot);
+  const waitingOnMe =
+    canRespond &&
+    ((request.status === "pending" && !mine) || (request.status === "alternative_proposed" && mine));
+  const resolved = request.status === "accepted" || request.status === "declined" || request.status === "cancelled";
+  const alternativeDate =
+    typeof request.alternativePayload?.targetDate === "string" ? request.alternativePayload.targetDate : null;
   const [guestUrl, setGuestUrl] = useState<string | null>(null);
   const [linkPending, startLinkTransition] = useTransition();
 
   async function action(formData: FormData) {
     const decision = String(formData.get("decision"));
     await respondToChangeRequestAction(formData);
-    if (decision === "accepted") toast.success("Wijziging geaccepteerd");
-    if (decision === "declined") toast.message("Voorstel afgewezen");
+    if (decision === "accepted") toast.success("Verzoek geaccepteerd");
+    if (decision === "declined") toast.message("Kan niet — de andere ouder is op de hoogte");
     if (decision === "alternative_proposed") toast.message("Alternatief verstuurd");
   }
 
@@ -60,9 +66,11 @@ export function ChangeReviewCard({
   return (
     <article className="famli-card space-y-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">Wijzigingsvoorstel</p>
+        <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">
+          {changeRequestStatusLabel[request.status]}
+        </p>
         <h3 className="mt-1 text-lg font-semibold">
-          {from} {request.type === "swap_day" ? "wil ruilen" : changeRequestLabel[request.type].toLowerCase()}
+          {from} · {changeRequestLabel[request.type]}
         </h3>
         <p className="mt-1 text-sm text-[color:var(--famli-muted)]">{formatDayLong(request.targetDate)}</p>
         <dl className="mt-4 grid gap-2 text-sm">
@@ -74,14 +82,52 @@ export function ChangeReviewCard({
             <dt className="text-[color:var(--famli-muted)]">Voorstel</dt>
             <dd>Bij {parentName(snapshot, proposedId).toLowerCase()}</dd>
           </div>
+          {alternativeDate ? (
+            <div>
+              <dt className="text-[color:var(--famli-muted)]">Alternatieve datum</dt>
+              <dd>{formatDayLong(alternativeDate)}</dd>
+            </div>
+          ) : null}
           {request.message ? <p className="text-[color:var(--famli-muted)]">{request.message}</p> : null}
+          {request.responseMessage ? (
+            <p className="text-[color:var(--famli-muted)]">Reactie: {request.responseMessage}</p>
+          ) : null}
         </dl>
       </div>
 
-      {mine ? (
+      {waitingOnMe ? (
+        <form action={action} className="space-y-3">
+          <input type="hidden" name="id" value={request.id} />
+          {request.status === "pending" ? (
+            <label className="block text-sm">
+              Andere datum voorstellen (optioneel)
+              <input name="alternativeDate" type="date" className="famli-input mt-1" />
+            </label>
+          ) : null}
+          <label className="block text-sm">
+            Bericht (optioneel)
+            <input name="message" className="famli-input mt-1" />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button name="decision" value="accepted" className="famli-btn famli-btn-primary h-11 px-4">
+              Accepteren
+            </button>
+            {request.status === "pending" ? (
+              <button name="decision" value="alternative_proposed" className="famli-btn famli-btn-secondary h-11 px-4">
+                Alternatief voorstellen
+              </button>
+            ) : null}
+            <button name="decision" value="declined" className="famli-btn famli-btn-secondary h-11 px-4">
+              Kan niet
+            </button>
+          </div>
+        </form>
+      ) : resolved ? null : (
         <div className="space-y-2">
-          <p className="text-sm text-[color:var(--famli-muted)]">Wachten op de andere ouder.</p>
-          {(request.type === "pickup" || request.type === "pickup_time") ? (
+          <p className="text-sm text-[color:var(--famli-muted)]">
+            {mine ? "Wachten op de andere ouder." : "Wachten op een reactie."}
+          </p>
+          {mine && (request.type === "pickup" || request.type === "pickup_time" || request.type === "dropoff") ? (
             <button
               type="button"
               disabled={linkPending}
@@ -95,23 +141,6 @@ export function ChangeReviewCard({
             <p className="break-all text-xs text-[color:var(--famli-muted)]">{guestUrl}</p>
           ) : null}
         </div>
-      ) : canRespond ? (
-        <form action={action} className="flex flex-wrap gap-2">
-          <input type="hidden" name="id" value={request.id} />
-          <button name="decision" value="accepted" className="famli-btn famli-btn-primary h-11 px-4">
-            Accepteren
-          </button>
-          <button name="decision" value="alternative_proposed" className="famli-btn famli-btn-secondary h-11 px-4">
-            Alternatief voorstellen
-          </button>
-          <button name="decision" value="declined" className="famli-btn famli-btn-secondary h-11 px-4">
-            Weigeren
-          </button>
-        </form>
-      ) : (
-        <p className="text-sm text-[color:var(--famli-muted)]">
-          Alleen ouders kunnen wijzigingsverzoeken behandelen.
-        </p>
       )}
 
       <ContextMessages snapshot={snapshot} resourceType="change_request" resourceId={request.id} />

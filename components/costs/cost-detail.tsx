@@ -12,6 +12,7 @@ import {
   uploadExpenseReceiptAction,
 } from "@/lib/actions/expenses";
 import { markSplitPaidAction } from "@/lib/actions/family";
+import { updateExpenseAction, voidExpenseAction } from "@/lib/actions/family-hub";
 import { memberPermissions } from "@/lib/members/permissions";
 import type { Expense, ExpenseSplit, FamilySnapshot } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
@@ -174,15 +175,73 @@ export function CostDetail({
   );
   const openSplits = related.some((split) => split.status === "pending");
   const canEdit = memberPermissions(snapshot.currentMember).editExpenses;
+  const [editing, setEditing] = useState(false);
 
   return (
     <div className="space-y-5 text-sm">
+      {editing && canEdit ? (
+        <form
+          className="space-y-3"
+          action={async (formData) => {
+            try {
+              await updateExpenseAction(formData);
+              toast.success("Kostenpost bijgewerkt");
+              setEditing(false);
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Opslaan mislukt");
+            }
+          }}
+        >
+          <input type="hidden" name="id" value={expense.id} />
+          <label className="block">
+            Omschrijving
+            <input name="description" defaultValue={expense.description} required className="famli-input mt-1" />
+          </label>
+          <label className="block">
+            Datum
+            <input name="date" type="date" defaultValue={expense.date} required className="famli-input mt-1" />
+          </label>
+          <label className="block">
+            Kind
+            <select name="childId" defaultValue={expense.childId ?? ""} className="famli-input mt-1">
+              <option value="">Alle kinderen</option>
+              {snapshot.children.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.firstName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            Categorie
+            <select name="category" defaultValue={expense.category} className="famli-input mt-1">
+              {Object.entries(expenseCategoryLabel).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            Opmerking
+            <textarea name="notes" defaultValue={expense.notes ?? ""} className="famli-input mt-1" />
+          </label>
+          <div className="flex gap-2">
+            <button className="famli-btn famli-btn-primary h-11 flex-1">Opslaan</button>
+            <button type="button" className="famli-btn famli-btn-secondary h-11" onClick={() => setEditing(false)}>
+              Annuleren
+            </button>
+          </div>
+        </form>
+      ) : null}
       <div>
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">
           {expenseCategoryLabel[expense.category]}
         </p>
         <p className="mt-1 text-2xl font-semibold">{expense.description}</p>
-        {child ? <p className="mt-1 text-[color:var(--famli-muted)]">Voor {child.firstName}</p> : null}
+        {child ? <p className="mt-1 text-[color:var(--famli-muted)]">Voor {child.firstName}</p> : (
+          <p className="mt-1 text-[color:var(--famli-muted)]">Voor alle kinderen</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -222,10 +281,31 @@ export function CostDetail({
 
       <ReceiptSection expense={expense} canEdit={canEdit} />
 
+      {canEdit && !editing ? (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="famli-btn famli-btn-secondary h-11 px-4" onClick={() => setEditing(true)}>
+            Bewerken
+          </button>
+          <form
+            action={async (formData) => {
+              try {
+                await voidExpenseAction(formData);
+                toast.success("Kostenpost verwijderd");
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Verwijderen mislukt");
+              }
+            }}
+          >
+            <input type="hidden" name="id" value={expense.id} />
+            <button className="famli-btn h-11 px-4 text-red-600">Verwijderen</button>
+          </form>
+        </div>
+      ) : null}
+
       {mine ? (
         <form action={markSplitPaidAction}>
           <input type="hidden" name="splitId" value={mine.id} />
-          <button className="famli-btn famli-btn-primary h-11 w-full px-4">Beoordelen</button>
+          <button className="famli-btn famli-btn-primary h-11 w-full px-4">Markeren als verrekend</button>
         </form>
       ) : null}
     </div>

@@ -41,6 +41,26 @@ export type ExpenseCategory =
   | "opvang"
   | "activiteit"
   | "zakgeld"
+  | "vakantie"
+  | "overig";
+
+export type ChildActivityKind =
+  | "voetbal"
+  | "zwemles"
+  | "hockey"
+  | "muziekles"
+  | "school"
+  | "opvang"
+  | "overig";
+
+export type ChildContactCategory =
+  | "school"
+  | "huisarts"
+  | "tandarts"
+  | "sportclub"
+  | "kinderopvang"
+  | "oppas"
+  | "familie"
   | "overig";
 
 export type TaskStatus = "open" | "in_progress" | "done";
@@ -52,6 +72,9 @@ export type ChangeRequestType =
   | "pickup_time"
   | "location"
   | "vacation"
+  | "dropoff"
+  | "babysit"
+  | "task_takeover"
   | "other";
 
 export type ChangeRequestStatus =
@@ -111,6 +134,8 @@ export interface NotificationPrefs {
   taskDue: ChannelPrefs;
   expense: ChannelPrefs;
   payment: ChannelPrefs;
+  event: ChannelPrefs;
+  activity: ChannelPrefs;
 }
 
 export interface ChannelPrefs {
@@ -267,7 +292,13 @@ export interface CustodyOccurrence {
   updatedAt: string;
 }
 
-export type SchoolEventKind = "les" | "studiedag" | "schoolreis" | "ouderavond" | "rapport";
+export type SchoolEventKind =
+  | "les"
+  | "studiedag"
+  | "schoolreis"
+  | "ouderavond"
+  | "rapport"
+  | "schoolactiviteit";
 
 export interface CalendarEvent {
   id: string;
@@ -714,6 +745,43 @@ export interface ChildClub {
   gear: string[];
 }
 
+export interface ChildActivity {
+  id: string;
+  familyId: string;
+  childId: string;
+  title: string;
+  kind: ChildActivityKind;
+  location: string | null;
+  weekday: number;
+  startTime: string;
+  endTime: string | null;
+  bringMemberId: string | null;
+  pickupMemberId: string | null;
+  stayMemberId: string | null;
+  contactName: string | null;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+}
+
+export interface ChildContact {
+  id: string;
+  familyId: string;
+  childId: string;
+  category: ChildContactCategory;
+  name: string;
+  organization: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+}
+
 export interface TravelPlan {
   id: string;
   familyId: string;
@@ -838,6 +906,8 @@ export interface FamilySnapshot {
   routineOccurrences: RoutineOccurrence[];
   shoppingLists: ShoppingList[];
   shoppingItems: ShoppingItem[];
+  childActivities: ChildActivity[];
+  childContacts: ChildContact[];
 }
 
 export const SESSION_COOKIE = "nestly_session";

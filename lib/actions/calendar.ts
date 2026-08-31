@@ -24,6 +24,10 @@ export async function createChangeRequestAction(formData: FormData) {
       time: String(formData.get("time") ?? ""),
       location: String(formData.get("location") ?? ""),
       pickupMemberId: String(formData.get("pickupMemberId") ?? ""),
+      dropoffMemberId: String(formData.get("dropoffMemberId") ?? ""),
+      stayMemberId: String(formData.get("stayMemberId") ?? ""),
+      taskId: String(formData.get("taskId") ?? ""),
+      childId: String(formData.get("childId") ?? ""),
     },
   });
   await writeAuditLog(snapshot, {
@@ -52,6 +56,9 @@ export async function respondToChangeRequestAction(formData: FormData) {
       | "declined"
       | "alternative_proposed",
     message: String(formData.get("message") ?? ""),
+    alternativePayload: formData.get("alternativeDate")
+      ? { targetDate: String(formData.get("alternativeDate")) }
+      : undefined,
   });
   await writeAuditLog(snapshot, {
     action: "update",

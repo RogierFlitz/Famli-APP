@@ -19,6 +19,7 @@ export function ScheduleStep(props: {
   parents: ParentOption[];
   onBack: () => void;
   onSaved: () => void;
+  onSkip?: () => void;
 }) {
   const [patternType, setPatternType] = useState<CustodyPattern>("two_two_three");
   const parentAId = props.parents[0]?.memberId ?? "";
@@ -126,6 +127,11 @@ export function ScheduleStep(props: {
         >
           Terug
         </button>
+        {props.onSkip ? (
+          <button type="button" onClick={props.onSkip} className="famli-btn famli-btn-secondary">
+            Later instellen
+          </button>
+        ) : null}
       </div>
     </form>
   );

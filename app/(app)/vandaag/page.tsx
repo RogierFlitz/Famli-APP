@@ -8,7 +8,7 @@ import { formatDayLong, toISODate } from "@/lib/dates";
 
 import { nextHandover, parentName, urgentActions } from "@/lib/queries/family-view";
 
-import { childPlace, forgetNot, neededHeadline } from "@/lib/queries/child-life";
+import { compactStayLine, forgetNot, neededHeadline } from "@/lib/queries/child-life";
 
 import { myOpenDutiesToday, myCompletedDutiesToday } from "@/lib/queries/routines";
 
@@ -29,6 +29,7 @@ import { EmptyState } from "@/components/empty-state";
 import { SmartHandover } from "@/components/handover/smart-handover";
 
 import { OpenDutyCard, CompletedDutyCard } from "@/components/completion/duty-cards";
+import { VandaagHubCards } from "@/components/vandaag/hub-cards";
 
 
 
@@ -78,18 +79,14 @@ export default async function TodayPage() {
 
         <div>
 
-          <p className="text-sm text-[color:var(--famli-muted)]">{formatDayLong(now)}</p>
+          <p className="text-sm text-[color:var(--famli-muted)]">{greetingForHour(now.getHours())}, {snapshot.currentProfile.firstName}</p>
 
           <h1 className="mt-1 text-4xl font-semibold tracking-tight">
-
-            {greetingForHour(now.getHours())}, {snapshot.currentProfile.firstName}
-
+            Vandaag · {formatDayLong(now)}
           </h1>
 
           <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
-
-            Famli onthoudt het, zodat jij het niet hoeft te onthouden.
-
+            Waar zijn de kinderen, wat moet er vandaag, en wat staat nog open.
           </p>
 
         </div>
@@ -111,62 +108,24 @@ export default async function TodayPage() {
         <div className="grid gap-2">
 
           {snapshot.children.map((child) => {
-
-            const place = childPlace(snapshot, child, now);
-
-            const travel = snapshot.travelPlans.find(
-
-              (plan) => plan.childIds.includes(child.id) && plan.startsOn <= today && plan.endsOn >= today,
-
-            );
-
+            const stay = compactStayLine(snapshot, child, now);
             return (
-
               <Link
-
                 key={child.id}
-
-                href={place.href}
-
+                href={`/kinderen/${child.id}`}
                 className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-4"
-
               >
-
                 <p className="text-sm text-[color:var(--famli-muted)]">{child.firstName}</p>
-
-                <p className="text-lg font-semibold">Nu: {place.label}</p>
-
-                {place.nextLabel && place.nextTime ? (
-
-                  <p className="text-sm text-[color:var(--famli-muted)]">
-
-                    Vanaf {place.nextTime}: {place.nextLabel}
-
-                  </p>
-
-                ) : place.detail ? (
-
-                  <p className="text-sm text-[color:var(--famli-muted)]">{place.detail}</p>
-
-                ) : null}
-
-                {travel ? (
-
-                  <p className="mt-2 text-sm font-medium text-[color:var(--famli-brand)]">Bekijk reisgegevens</p>
-
-                ) : null}
-
+                <p className="text-lg font-semibold">{stay}</p>
               </Link>
-
             );
-
           })}
 
         </div>
 
       </section>
 
-
+      <VandaagHubCards snapshot={snapshot} />
 
       {showHandover && next ? <SmartHandover snapshot={snapshot} handover={next} /> : null}
 

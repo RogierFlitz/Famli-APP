@@ -29,6 +29,8 @@ export function emptyLifeFields(): Pick<
   | "routineOccurrences"
   | "shoppingLists"
   | "shoppingItems"
+  | "childActivities"
+  | "childContacts"
 > {
   return {
     sizes: [],
@@ -51,6 +53,8 @@ export function emptyLifeFields(): Pick<
     routineOccurrences: [],
     shoppingLists: [],
     shoppingItems: [],
+    childActivities: [],
+    childContacts: [],
   };
 }
 
@@ -100,6 +104,8 @@ export function applyPrivacy(snapshot: FamilySnapshot): FamilySnapshot {
     sizes: snapshot.sizes.filter((item) => visibleChildIds.has(item.childId)),
     schools: snapshot.schools.filter((item) => visibleChildIds.has(item.childId)),
     clubs: snapshot.clubs.filter((item) => visibleChildIds.has(item.childId)),
+    childActivities: snapshot.childActivities.filter((item) => visibleChildIds.has(item.childId)),
+    childContacts: snapshot.childContacts.filter((item) => visibleChildIds.has(item.childId)),
     childUpdates: snapshot.childUpdates.filter((item) => visibleChildIds.has(item.childId)),
     vacations: perms.viewCustody ? snapshot.vacations : [],
   };

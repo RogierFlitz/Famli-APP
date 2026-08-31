@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireSnapshot } from "@/lib/auth/session";
 import { ChangeReviewCard } from "@/components/requests/change-review";
+import { ProposeChangeForm } from "@/components/requests/propose-form";
 import { EmptyState } from "@/components/empty-state";
 import { NeededList } from "@/components/children/needed-list";
 import { RoutineOccurrenceCard } from "@/components/routines/routine-list";
@@ -25,6 +26,7 @@ import {
 import { wieRegelt } from "@/lib/queries/responsibility";
 import { neededHeadline } from "@/lib/queries/child-life";
 import { CompletedDutyCard } from "@/components/completion/duty-cards";
+import { bringHaalToday } from "@/lib/queries/bring-haal";
 
 export default async function ArrangePage({
   searchParams,
@@ -33,6 +35,7 @@ export default async function ArrangePage({
 }) {
   const snapshot = await requireSnapshot();
   const { tab = "voor-jou", id } = await searchParams;
+  const bringHaal = bringHaalToday(snapshot);
   const todayDuties = myOpenDutiesToday(snapshot);
   const todayCompleted = myCompletedDutiesToday(snapshot);
   const voorJouTasks = tasksForBucket(snapshot, "voor_jou");
@@ -91,6 +94,26 @@ export default async function ArrangePage({
 
       {tab === "voor-jou" ? (
         <div className="space-y-4">
+          {bringHaal.length ? (
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold">Brengen & halen</h2>
+              {bringHaal.map((item) => (
+                <article key={item.id} className="famli-card space-y-2">
+                  <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">
+                    {item.time} · {item.childNames}
+                  </p>
+                  <p className="text-lg font-medium">{item.title}</p>
+                  {item.location ? <p className="text-sm text-[color:var(--famli-muted)]">{item.location}</p> : null}
+                  <p className="text-sm">Brengen: {item.bringLabel}</p>
+                  <p className="text-sm">Halen: {item.haulLabel}</p>
+                  {item.stayLabel ? <p className="text-sm">Blijft erbij: {item.stayLabel}</p> : null}
+                  <Link href={item.href} className="inline-flex text-sm font-medium text-[color:var(--famli-brand)]">
+                    Wijzigen
+                  </Link>
+                </article>
+              ))}
+            </section>
+          ) : null}
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">Vandaag</h2>
             {todayDuties.map((item) => (
@@ -148,14 +171,21 @@ export default async function ArrangePage({
       ) : null}
 
       {tab === "verzoeken" ? (
-        <div className="space-y-3">
+        <div className="space-y-6">
+          <section className="famli-card">
+            <h2 className="mb-3 text-lg font-semibold">Nieuw verzoek</h2>
+            <p className="mb-4 text-sm text-[color:var(--famli-muted)]">
+              Vraag of de andere ouder de kinderen heeft, haalt of brengt — zonder heen-en-weer te appen.
+            </p>
+            <ProposeChangeForm snapshot={snapshot} />
+          </section>
           {verzoeken.map((request) => (
             <div key={request.id} id={request.id} className={id === request.id ? "rounded-3xl ring-2 ring-[color:var(--famli-brand)]" : ""}>
               <ChangeReviewCard snapshot={snapshot} request={request} />
             </div>
           ))}
           {!verzoeken.length ? (
-            <EmptyState title="Geen openstaande verzoeken" body="Wijzigingsvoorstellen verschijnen hier." />
+            <EmptyState title="Nog geen verzoeken" body="Stuur hier een wissel-, ophaal- of oppasverzoek." />
           ) : null}
         </div>
       ) : null}

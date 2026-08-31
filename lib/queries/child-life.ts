@@ -86,6 +86,18 @@ export function childPlace(snapshot: FamilySnapshot, child: Child, now = new Dat
   return { label: "Nog niet ingepland", detail: null, ...emptyNext, href: `/kinderen/${child.id}`, kind: "overig" };
 }
 
+export function compactStayLine(snapshot: FamilySnapshot, child: Child, now = new Date()): string {
+  const place = childPlace(snapshot, child, now);
+  if (place.nextTime) return `${place.label} tot ${place.nextTime}`;
+  const today = toISODate(now);
+  const tomorrow = toISODate(addDays(now, 1));
+  const todayMember = overnightMemberId(snapshot, today);
+  const tomorrowMember = overnightMemberId(snapshot, tomorrow);
+  if (todayMember && tomorrowMember === todayMember) return `${place.label} tot morgen`;
+  if (place.detail) return `${place.label} · ${place.detail}`;
+  return place.label;
+}
+
 function nextPlaceTransition(snapshot: FamilySnapshot, child: Child, now: Date) {
   const today = toISODate(now);
   const stamp = now.toISOString().slice(0, 16);
