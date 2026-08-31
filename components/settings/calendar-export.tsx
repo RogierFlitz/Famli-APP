@@ -91,7 +91,7 @@ export function CalendarExportPanel({ hasFeed }: { hasFeed: boolean }) {
               href={issued.googleUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-10 items-center rounded-full bg-[color:var(--nest-brand)] px-4 text-sm text-white"
+              className="famli-btn famli-btn-primary h-10 px-4 text-sm"
             >
               Google Calendar
             </a>
