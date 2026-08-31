@@ -60,10 +60,11 @@ export function CalendarExportPanel({ hasFeed }: { hasFeed: boolean }) {
         <div className="space-y-3 rounded-2xl border border-[color:var(--nest-border)] bg-[color:var(--nest-bg)] p-4">
           <label className="block text-sm">
             <span className="mb-1 block text-[color:var(--nest-muted)]">Abonnementslink</span>
-            <input
+            <textarea
               readOnly
+              rows={3}
               value={issued.httpsUrl}
-              className="h-11 w-full rounded-xl border border-[color:var(--nest-border)] px-3 text-sm"
+              className="w-full resize-none break-all rounded-xl border border-[color:var(--nest-border)] px-3 py-2 font-mono text-xs leading-5"
             />
           </label>
           <div className="flex flex-wrap gap-2">
@@ -75,6 +76,17 @@ export function CalendarExportPanel({ hasFeed }: { hasFeed: boolean }) {
               <Copy className="size-4" />
               Kopieer link
             </button>
+            <a
+              href={issued.httpsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center rounded-full border border-[color:var(--nest-border)] px-4 text-sm"
+            >
+              Open ICS
+            </a>
+          </div>
+          <p className="text-xs font-medium text-[color:var(--nest-muted)]">Toevoegen in</p>
+          <div className="flex flex-wrap gap-2">
             <a
               href={issued.googleUrl}
               target="_blank"
