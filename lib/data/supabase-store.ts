@@ -1,3 +1,4 @@
+import { mergeNotificationPrefs } from "@/lib/notifications/prefs";
 import { randomUUID } from "crypto";
 import {
   assertGuestCanRespondToChangeRequest,
@@ -65,6 +66,8 @@ import type {
   CalendarEvent,
   ChangeRequest,
   Child,
+  ChildActivity,
+  ChildContact,
   ChildMemberAccess,
   ChildSizes,
   ChildUpdate,
@@ -163,14 +166,7 @@ function mapProfile(row: Record<string, unknown>): Profile {
     phone: (row.phone as string) ?? null,
     locale: (row.locale as string) ?? "nl-NL",
     timezone: (row.timezone as string) ?? "Europe/Amsterdam",
-    notificationPrefs: (row.notification_prefs as Profile["notificationPrefs"]) ?? {
-      handoverReminder: { inApp: true, email: true, push: false },
-      changeRequest: { inApp: true, email: true, push: false },
-      sport: { inApp: true, email: false, push: false },
-      taskDue: { inApp: true, email: true, push: false },
-      expense: { inApp: true, email: true, push: false },
-      payment: { inApp: true, email: true, push: false },
-    },
+    notificationPrefs: mergeNotificationPrefs(row.notification_prefs),
     onboardingCompletedAt: (row.onboarding_completed_at as string) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -217,6 +213,18 @@ function mapImportJobRow(row: Record<string, unknown>): ImportJob {
 
 const GUEST_LINK_COLUMNS =
   "id, family_id, label, expires_at, scopes, change_request_id, created_by_member_id, created_at, response, responded_at, responded_by_name";
+
+async function optionalRows<T extends Record<string, unknown>>(
+  query: PromiseLike<{ data: T[] | null; error: { message?: string; code?: string } | null }>,
+): Promise<T[]> {
+  const { data, error } = await query;
+  if (error) {
+    const text = `${error.message ?? ""} ${error.code ?? ""}`;
+    if (/PGRST205|42P01|does not exist|schema cache/i.test(text)) return [];
+    throw error;
+  }
+  return data ?? [];
+}
 
 function mapGuestLinkRow(row: Record<string, unknown>, token = ""): GuestLinkToken {
   return {
@@ -995,6 +1003,12 @@ export const supabaseRepository: FamilyRepository = {
       createdBy: row.created_by,
     }));
 
+    const [activityRows, contactRows, schoolRows] = await Promise.all([
+      optionalRows(supabase.from("child_activities").select("*").eq("family_id", familyId)),
+      optionalRows(supabase.from("child_contacts").select("*").eq("family_id", familyId)),
+      optionalRows(supabase.from("child_schools").select("*").eq("family_id", familyId)),
+    ]);
+
     const snapshot: FamilySnapshot = {
       family,
       currentProfile,
@@ -1176,7 +1190,50 @@ export const supabaseRepository: FamilyRepository = {
       routineOccurrences: (routineOccurrencesRes.data ?? []).map(mapRoutineOccurrenceRow),
       shoppingLists: (shoppingListsRes.data ?? []).map(mapShoppingListRow),
       shoppingItems: (shoppingItemsRes.data ?? []).map(mapShoppingItemRow),
-      schools: [],
+      childActivities: activityRows.map((row) => ({
+        id: row.id as string,
+        familyId: row.family_id as string,
+        childId: row.child_id as string,
+        title: row.title as string,
+        kind: row.kind as ChildActivity["kind"],
+        location: (row.location as string) ?? null,
+        weekday: Number(row.weekday),
+        startTime: row.start_time as string,
+        endTime: (row.end_time as string) ?? null,
+        bringMemberId: (row.bring_member_id as string) ?? null,
+        pickupMemberId: (row.pickup_member_id as string) ?? null,
+        stayMemberId: (row.stay_member_id as string) ?? null,
+        contactName: (row.contact_name as string) ?? null,
+        notes: (row.notes as string) ?? null,
+        active: Boolean(row.active),
+        createdAt: row.created_at as string,
+        updatedAt: row.updated_at as string,
+        createdBy: row.created_by as string,
+      })),
+      childContacts: contactRows.map((row) => ({
+        id: row.id as string,
+        familyId: row.family_id as string,
+        childId: row.child_id as string,
+        category: row.category as ChildContact["category"],
+        name: row.name as string,
+        organization: (row.organization as string) ?? null,
+        phone: (row.phone as string) ?? null,
+        email: (row.email as string) ?? null,
+        address: (row.address as string) ?? null,
+        notes: (row.notes as string) ?? null,
+        createdAt: row.created_at as string,
+        updatedAt: row.updated_at as string,
+        createdBy: row.created_by as string,
+      })),
+      schools: schoolRows.map((row) => ({
+        childId: row.child_id as string,
+        name: (row.name as string) ?? "",
+        className: (row.class_name as string) ?? "",
+        teacher: (row.teacher as string) ?? null,
+        contact: (row.contact as string) ?? null,
+        hours: (row.hours as string) ?? null,
+        gymDays: (row.gym_days as string) ?? null,
+      })),
       clubs: [],
       households: [],
       externalBusyBlocks: [],
@@ -1415,8 +1472,8 @@ export const supabaseRepository: FamilyRepository = {
       actorId,
       recipientUserIds: recipients,
       type: "change_request",
-      title: "Nieuw wijzigingsverzoek",
-      body: input.message,
+      title: "Nieuw verzoek",
+      body: input.message || "Er staat een verzoek voor je klaar.",
       entityType: "change_request",
       entityId: id,
       payload: { changeRequestId: id },
@@ -1440,14 +1497,15 @@ export const supabaseRepository: FamilyRepository = {
 
   async respondToChangeRequest(input) {
     const supabase = await db();
+    const patch: Record<string, unknown> = {
+      status: input.decision,
+      response_message: input.message ?? null,
+      resolved_at: input.decision === "alternative_proposed" ? null : new Date().toISOString(),
+    };
+    if (input.alternativePayload) patch.alternative_payload = input.alternativePayload;
     const { data, error } = await supabase
       .from("change_requests")
-      .update({
-        status: input.decision,
-        response_message: input.message ?? null,
-        alternative_payload: input.alternativePayload ?? null,
-        resolved_at: input.decision === "alternative_proposed" ? null : new Date().toISOString(),
-      })
+      .update(patch)
       .eq("id", input.id)
       .select("*")
       .single();
@@ -1457,10 +1515,14 @@ export const supabaseRepository: FamilyRepository = {
         typeof data.payload?.requestedCustodianMemberId === "string"
           ? data.payload.requestedCustodianMemberId
           : data.requested_by_member_id;
+      const acceptedDate =
+        (typeof input.alternativePayload?.targetDate === "string" && input.alternativePayload.targetDate) ||
+        (typeof data.alternative_payload?.targetDate === "string" && data.alternative_payload.targetDate) ||
+        data.target_date;
       await supabase.from("custody_occurrences").upsert({
         family_id: data.family_id,
         schedule_id: null,
-        date: data.target_date,
+        date: acceptedDate,
         custodian_member_id: requestedCustodian,
         is_override: true,
         source: "change_request",
@@ -1475,26 +1537,24 @@ export const supabaseRepository: FamilyRepository = {
       before: null,
       after: { status: data.status },
     });
-    const requesterUserId = await fetchMemberUserId(supabase, data.requested_by_member_id);
     const responseTitle =
       input.decision === "accepted"
         ? "Verzoek geaccepteerd"
         : input.decision === "declined"
-          ? "Verzoek afgewezen"
+          ? "Kan niet"
           : "Alternatief voorgesteld";
-    if (requesterUserId) {
-      await notifyFamilyMembers(supabase, {
-        familyId: data.family_id,
-        actorId: input.actorUserId,
-        recipientUserIds: [requesterUserId],
-        type: "change_request_response",
-        title: responseTitle,
-        body: input.message || data.message,
-        entityType: "change_request",
-        entityId: data.id,
-        payload: { changeRequestId: data.id, decision: input.decision },
-      });
-    }
+    const recipients = await fetchActiveMemberUserIds(supabase, data.family_id, input.actorUserId);
+    await notifyFamilyMembers(supabase, {
+      familyId: data.family_id,
+      actorId: input.actorUserId,
+      recipientUserIds: recipients,
+      type: "change_request_response",
+      title: responseTitle,
+      body: input.message || data.message,
+      entityType: "change_request",
+      entityId: data.id,
+      payload: { changeRequestId: data.id, decision: input.decision },
+    });
     return {
       id: data.id,
       familyId: data.family_id,
@@ -1587,6 +1647,99 @@ export const supabaseRepository: FamilyRepository = {
       .from("expense_splits")
       .update({ status: "paid", paid_at: new Date().toISOString() })
       .eq("id", splitId);
+  },
+
+  async updateExpense(input) {
+    const supabase = await db();
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (input.description !== undefined) patch.description = input.description;
+    if (input.date !== undefined) patch.date = input.date;
+    if (input.childId !== undefined) patch.child_id = input.childId;
+    if (input.category !== undefined) patch.category = input.category;
+    if (input.notes !== undefined) patch.notes = input.notes;
+    if (input.amountCents !== undefined) patch.amount_cents = input.amountCents;
+    const { data, error } = await supabase.from("expenses").update(patch).eq("id", input.id).select("*").single();
+    if (error) throw error;
+    if (input.amountCents !== undefined && input.splitPercents) {
+      await supabase.from("expense_splits").delete().eq("expense_id", input.id);
+      const shares = splitAmounts(input.amountCents, input.splitPercents);
+      await supabase.from("expense_splits").insert(
+        Object.entries(shares).map(([memberId, shareCents]) => ({
+          expense_id: input.id,
+          member_id: memberId,
+          share_cents: shareCents,
+          share_percent: input.splitPercents![memberId],
+          paid_at: memberId === data.paid_by_member_id ? new Date().toISOString() : null,
+          status: memberId === data.paid_by_member_id ? "paid" : "pending",
+        })),
+      );
+    }
+    return {
+      id: data.id,
+      familyId: data.family_id,
+      description: data.description,
+      amountCents: data.amount_cents,
+      currency: data.currency,
+      date: data.date,
+      childId: data.child_id,
+      category: data.category,
+      paidByMemberId: data.paid_by_member_id,
+      receiptStoragePath: data.receipt_url,
+      receiptFilename: data.receipt_filename,
+      receiptUploadedAt: data.receipt_uploaded_at,
+      receiptMimeType: data.receipt_mime_type,
+      notes: data.notes,
+      recurringExpenseId: data.recurring_expense_id,
+      voidedAt: data.voided_at,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+      createdBy: data.created_by,
+    };
+  },
+
+  async voidExpense(id) {
+    const supabase = await db();
+    const { error } = await supabase
+      .from("expenses")
+      .update({ voided_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  async settleOpenExpenses(input) {
+    const supabase = await db();
+    const { data: expenses } = await supabase
+      .from("expenses")
+      .select("id")
+      .eq("family_id", input.familyId)
+      .is("voided_at", null);
+    const ids = (expenses ?? []).map((row) => row.id as string);
+    if (ids.length) {
+      await supabase
+        .from("expense_splits")
+        .update({ status: "paid", paid_at: new Date().toISOString() })
+        .in("expense_id", ids)
+        .eq("status", "pending");
+    }
+    await supabase.from("expense_settlements").insert({
+      family_id: input.familyId,
+      from_member_id: input.actorMemberId,
+      to_member_id: input.actorMemberId,
+      amount_cents: 0,
+      note: input.note,
+      created_by: input.actorUserId,
+    });
+    const recipientUserIds = await fetchActiveMemberUserIds(supabase, input.familyId);
+    await notifyFamilyMembers(supabase, {
+      familyId: input.familyId,
+      actorId: input.actorUserId,
+      recipientUserIds: recipientUserIds.filter((id) => id !== input.actorUserId),
+      type: "payment",
+      title: "Kosten verrekend",
+      body: input.note || "Openstaande kosten zijn afgesloten.",
+      entityType: "expense",
+      entityId: input.familyId,
+    });
   },
 
   async createTask(input) {
@@ -3222,5 +3375,171 @@ export const supabaseRepository: FamilyRepository = {
       .update({ last_accessed_at: new Date().toISOString() })
       .eq("token_hash", calendarFeedTokenHash(token))
       .is("revoked_at", null);
+  },
+
+  async addChildActivity(input) {
+    const supabase = await db();
+    const id = randomUUID();
+    const { error } = await supabase.from("child_activities").insert({
+      id,
+      family_id: input.familyId,
+      child_id: input.childId,
+      title: input.title,
+      kind: input.kind,
+      location: input.location,
+      weekday: input.weekday,
+      start_time: input.startTime,
+      end_time: input.endTime,
+      bring_member_id: input.bringMemberId,
+      pickup_member_id: input.pickupMemberId,
+      stay_member_id: input.stayMemberId,
+      contact_name: input.contactName,
+      notes: input.notes,
+      created_by: input.createdBy,
+    });
+    if (error) throw error;
+    const { upcomingWeekdays, activityEventCategory } = await import("@/lib/child-life/activity-dates");
+    for (const date of upcomingWeekdays(input.weekday, 12)) {
+      await this.createEvent({
+        familyId: input.familyId,
+        createdBy: input.createdBy,
+        title: input.title,
+        category: activityEventCategory(input.kind),
+        startsAt: `${date}T${input.startTime}:00`,
+        endsAt: `${date}T${input.endTime ?? input.startTime}:00`,
+        location: input.location,
+        notes: input.notes,
+        packingList: [],
+        childIds: [input.childId],
+        memberIds: [input.bringMemberId, input.pickupMemberId].filter(Boolean) as string[],
+        dropoffMemberId: input.bringMemberId,
+        pickupMemberId: input.pickupMemberId,
+      });
+    }
+    return {
+      id,
+      familyId: input.familyId,
+      childId: input.childId,
+      title: input.title,
+      kind: input.kind,
+      location: input.location,
+      weekday: input.weekday,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      bringMemberId: input.bringMemberId,
+      pickupMemberId: input.pickupMemberId,
+      stayMemberId: input.stayMemberId,
+      contactName: input.contactName,
+      notes: input.notes,
+      active: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: input.createdBy,
+    };
+  },
+
+  async addChildContact(input) {
+    const supabase = await db();
+    const id = randomUUID();
+    const { error } = await supabase.from("child_contacts").insert({
+      id,
+      family_id: input.familyId,
+      child_id: input.childId,
+      category: input.category,
+      name: input.name,
+      organization: input.organization,
+      phone: input.phone,
+      email: input.email,
+      address: input.address,
+      notes: input.notes,
+      created_by: input.createdBy,
+    });
+    if (error) throw error;
+    return {
+      id,
+      familyId: input.familyId,
+      childId: input.childId,
+      category: input.category,
+      name: input.name,
+      organization: input.organization,
+      phone: input.phone,
+      email: input.email,
+      address: input.address,
+      notes: input.notes,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: input.createdBy,
+    };
+  },
+
+  async saveChildSchool(input) {
+    const supabase = await db();
+    const { error } = await supabase.from("child_schools").upsert({
+      child_id: input.childId,
+      family_id: input.familyId,
+      name: input.name,
+      class_name: input.className,
+      teacher: input.teacher,
+      contact: input.contact,
+      hours: input.hours,
+      gym_days: input.gymDays,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+    await supabase
+      .from("children")
+      .update({ school: input.name, class_name: input.className })
+      .eq("id", input.childId);
+  },
+
+  async addFamilyDocument(input) {
+    const { familyFileStoragePath, newFamilyFilename, storeFamilyFile } = await import("@/lib/storage/family-files");
+    const filename = newFamilyFilename(input.originalFilename);
+    const storagePath = familyFileStoragePath(input.familyId, filename);
+    await storeFamilyFile({
+      familyId: input.familyId,
+      storagePath,
+      data: input.data,
+      mimeType: input.mimeType,
+    });
+    const supabase = await db();
+    const id = randomUUID();
+    const { error } = await supabase.from("documents").insert({
+      id,
+      family_id: input.familyId,
+      child_id: input.childId,
+      title: input.title,
+      category: input.category,
+      storage_path: storagePath,
+      mime_type: input.mimeType,
+      created_by: input.createdBy,
+    });
+    if (error) throw error;
+    return {
+      id,
+      familyId: input.familyId,
+      childId: input.childId,
+      title: input.title,
+      category: input.category,
+      storagePath,
+      mimeType: input.mimeType,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: input.createdBy,
+    };
+  },
+
+  async familyDocumentViewUrl(documentId, actorUserId) {
+    const snap = await this.getSnapshot(actorUserId);
+    const doc = snap?.documents.find((item) => item.id === documentId);
+    if (!doc?.storagePath) return null;
+    const { familyFileViewUrl } = await import("@/lib/storage/family-files");
+    return familyFileViewUrl(doc.storagePath, doc.id);
+  },
+
+  async updateNotificationPrefs(userId, prefs) {
+    const supabase = await db();
+    const { error } = await supabase.from("profiles").update({ notification_prefs: prefs }).eq("id", userId);
+    if (error) throw error;
   },
 };

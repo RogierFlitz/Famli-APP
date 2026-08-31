@@ -134,14 +134,15 @@ export function OnboardingWizard(props: {
           parents={props.parents}
           onBack={() => setStep(3)}
           onSaved={() => setStep(5)}
+          onSkip={() => setStep(5)}
         />
       )}
 
       {step === 5 && (
         <Screen
-          title="Koppel eventueel je agenda"
-          text="Google, Outlook en Apple komen later. Persoonlijke afspraken blijven privé totdat jij kiest om ‘Bezet’ of de volledige titel te delen."
-          action="Doorgaan"
+          title="Agenda koppelen"
+          text="Dat kan later in Instellingen. Google, Outlook of Apple blijven privé totdat jij kiest wat andere gezinsleden mogen zien."
+          action="Overslaan en afronden"
           onNext={() => setStep(6)}
           back={() => setStep(4)}
         />

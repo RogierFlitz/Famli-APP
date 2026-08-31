@@ -34,10 +34,13 @@ import type {
   CalendarEvent,
   ChangeRequest,
   Child,
+  ChildActivity,
+  ChildContact,
   ChildSizes,
   ChildUpdate,
   ContextMessage,
   Expense,
+  FamilyDocument,
   FamilyRole,
   FamilySnapshot,
   GuestLinkToken,
@@ -267,6 +270,8 @@ export const memoryRepository: FamilyRepository = {
         taskDue: { inApp: true, email: true, push: false },
         expense: { inApp: true, email: true, push: false },
         payment: { inApp: true, email: true, push: false },
+        event: { inApp: true, email: false, push: false },
+        activity: { inApp: true, email: false, push: false },
       },
       onboardingCompletedAt: null,
       createdAt: nowIso(),
@@ -298,6 +303,8 @@ export const memoryRepository: FamilyRepository = {
           taskDue: { inApp: true, email: true, push: false },
           expense: { inApp: true, email: true, push: false },
           payment: { inApp: true, email: true, push: false },
+          event: { inApp: true, email: false, push: false },
+          activity: { inApp: true, email: false, push: false },
         },
         onboardingCompletedAt: null,
         createdAt,
@@ -573,8 +580,8 @@ export const memoryRepository: FamilyRepository = {
         actorId,
         recipientUserIds: activeMemberUserIds(snap, actorId),
         type: "change_request",
-        title: "Nieuw wijzigingsverzoek",
-        body: input.message,
+        title: "Nieuw verzoek",
+        body: input.message || "Er staat een verzoek voor je klaar.",
         entityType: "change_request",
         entityId: request.id,
         payload: { changeRequestId: request.id },
@@ -599,7 +606,7 @@ export const memoryRepository: FamilyRepository = {
       const before = { status: request.status };
       request.status = input.decision;
       request.responseMessage = input.message ?? null;
-      request.alternativePayload = input.alternativePayload ?? null;
+      if (input.alternativePayload) request.alternativePayload = input.alternativePayload;
       request.updatedAt = nowIso();
       if (input.decision !== "alternative_proposed") {
         request.resolvedAt = nowIso();
@@ -615,21 +622,19 @@ export const memoryRepository: FamilyRepository = {
         input.decision === "accepted"
           ? "Verzoek geaccepteerd"
           : input.decision === "declined"
-            ? "Verzoek afgewezen"
+            ? "Kan niet"
             : "Alternatief voorgesteld";
-      if (requesterUserId) {
-        notifyFamilyMembers(snap, {
-          familyId: snap.family.id,
-          actorId: input.actorUserId,
-          recipientUserIds: [requesterUserId],
-          type: "change_request_response",
-          title: responseTitle,
-          body: input.message || request.message,
-          entityType: "change_request",
-          entityId: request.id,
-          payload: { changeRequestId: request.id, decision: input.decision },
-        });
-      }
+      notifyFamilyMembers(snap, {
+        familyId: snap.family.id,
+        actorId: input.actorUserId,
+        recipientUserIds: activeMemberUserIds(snap, input.actorUserId),
+        type: "change_request_response",
+        title: responseTitle,
+        body: input.message || request.message,
+        entityType: "change_request",
+        entityId: request.id,
+        payload: { changeRequestId: request.id, decision: input.decision },
+      });
       updated = clone(request);
     });
     if (!updated) throw new Error("Verzoek niet gevonden.");
@@ -702,6 +707,74 @@ export const memoryRepository: FamilyRepository = {
       split.paidAt = nowIso();
       log(snap, actorUserId, "expense.split_paid", "expense_split", splitId, { status: "pending" }, {
         status: "paid",
+      });
+    });
+  },
+
+  async updateExpense(input) {
+    let updated: Expense | undefined;
+    mutateFamilyFromUser(input.actorUserId, (snap) => {
+      const expense = snap.expenses.find((item) => item.id === input.id);
+      if (!expense) throw new Error("Kostenpost niet gevonden.");
+      if (input.description !== undefined) expense.description = input.description;
+      if (input.date !== undefined) expense.date = input.date;
+      if (input.childId !== undefined) expense.childId = input.childId;
+      if (input.category !== undefined) expense.category = input.category;
+      if (input.notes !== undefined) expense.notes = input.notes;
+      if (input.amountCents !== undefined && input.splitPercents) {
+        expense.amountCents = input.amountCents;
+        const shares = splitAmounts(input.amountCents, input.splitPercents);
+        snap.splits = snap.splits.filter((split) => split.expenseId !== expense.id);
+        for (const [memberId, shareCents] of Object.entries(shares)) {
+          snap.splits.push({
+            id: randomUUID(),
+            expenseId: expense.id,
+            memberId,
+            shareCents,
+            sharePercent: input.splitPercents[memberId] ?? 0,
+            paidAt: memberId === expense.paidByMemberId ? nowIso() : null,
+            status: memberId === expense.paidByMemberId ? "paid" : "pending",
+          });
+        }
+      }
+      expense.updatedAt = nowIso();
+      updated = expense;
+    });
+    if (!updated) throw new Error("Kostenpost niet gevonden.");
+    return updated;
+  },
+
+  async voidExpense(id, actorUserId) {
+    mutateFamilyFromUser(actorUserId, (snap) => {
+      const expense = snap.expenses.find((item) => item.id === id);
+      if (!expense) return;
+      expense.voidedAt = nowIso();
+      expense.updatedAt = nowIso();
+    });
+  },
+
+  async settleOpenExpenses(input) {
+    mutateFamily(input.familyId, (snap) => {
+      for (const split of snap.splits) {
+        const expense = snap.expenses.find((item) => item.id === split.expenseId);
+        if (!expense || expense.voidedAt) continue;
+        if (split.status !== "pending") continue;
+        split.status = "paid";
+        split.paidAt = nowIso();
+      }
+      log(snap, input.actorUserId, "expense.settled", "expense", input.familyId, null, {
+        note: input.note,
+      });
+      const others = snap.members.filter((member) => member.id !== input.actorMemberId);
+      notifyFamilyMembers(snap, {
+        familyId: input.familyId,
+        actorId: input.actorUserId,
+        recipientUserIds: others.map((member) => member.userId).filter(Boolean) as string[],
+        type: "payment",
+        title: "Kosten verrekend",
+        body: input.note || "Openstaande kosten zijn afgesloten.",
+        entityType: "expense",
+        entityId: input.familyId,
       });
     });
   },
@@ -1971,6 +2044,142 @@ export const memoryRepository: FamilyRepository = {
     if (!feed || feed.revokedAt) return;
     store.calendarFeeds.set(hash, { ...feed, lastAccessedAt: nowIso() });
   },
+
+  async addChildActivity(input) {
+    const activity: ChildActivity = {
+      id: randomUUID(),
+      familyId: input.familyId,
+      childId: input.childId,
+      title: input.title,
+      kind: input.kind,
+      location: input.location,
+      weekday: input.weekday,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      bringMemberId: input.bringMemberId,
+      pickupMemberId: input.pickupMemberId,
+      stayMemberId: input.stayMemberId,
+      contactName: input.contactName,
+      notes: input.notes,
+      active: true,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      createdBy: input.createdBy,
+    };
+    mutateFamily(input.familyId, (snap) => {
+      snap.childActivities.push(activity);
+    });
+    const { upcomingWeekdays, activityEventCategory } = await import("@/lib/child-life/activity-dates");
+    for (const date of upcomingWeekdays(input.weekday, 12)) {
+      await this.createEvent({
+        familyId: input.familyId,
+        createdBy: input.createdBy,
+        title: input.title,
+        category: activityEventCategory(input.kind),
+        startsAt: `${date}T${input.startTime}:00`,
+        endsAt: `${date}T${input.endTime ?? input.startTime}:00`,
+        location: input.location,
+        notes: input.notes,
+        packingList: [],
+        childIds: [input.childId],
+        memberIds: [input.bringMemberId, input.pickupMemberId].filter(Boolean) as string[],
+        dropoffMemberId: input.bringMemberId,
+        pickupMemberId: input.pickupMemberId,
+      });
+    }
+    return activity;
+  },
+
+  async addChildContact(input) {
+    const contact: ChildContact = {
+      id: randomUUID(),
+      familyId: input.familyId,
+      childId: input.childId,
+      category: input.category,
+      name: input.name,
+      organization: input.organization,
+      phone: input.phone,
+      email: input.email,
+      address: input.address,
+      notes: input.notes,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      createdBy: input.createdBy,
+    };
+    mutateFamily(input.familyId, (snap) => {
+      snap.childContacts.push(contact);
+    });
+    return contact;
+  },
+
+  async saveChildSchool(input) {
+    mutateFamily(input.familyId, (snap) => {
+      const existing = snap.schools.find((item) => item.childId === input.childId);
+      const next = {
+        childId: input.childId,
+        name: input.name,
+        className: input.className,
+        teacher: input.teacher,
+        contact: input.contact,
+        hours: input.hours,
+        gymDays: input.gymDays,
+      };
+      if (existing) Object.assign(existing, next);
+      else snap.schools.push(next);
+      const child = snap.children.find((item) => item.id === input.childId);
+      if (child) {
+        child.school = input.name || child.school;
+        child.className = input.className || child.className;
+      }
+    });
+  },
+
+  async addFamilyDocument(input) {
+    const { familyFileStoragePath, newFamilyFilename, storeFamilyFile } = await import("@/lib/storage/family-files");
+    const filename = newFamilyFilename(input.originalFilename);
+    const storagePath = familyFileStoragePath(input.familyId, filename);
+    await storeFamilyFile({
+      familyId: input.familyId,
+      storagePath,
+      data: input.data,
+      mimeType: input.mimeType,
+    });
+    const doc: FamilyDocument = {
+      id: randomUUID(),
+      familyId: input.familyId,
+      childId: input.childId,
+      title: input.title,
+      category: input.category,
+      storagePath,
+      mimeType: input.mimeType,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      createdBy: input.createdBy,
+    };
+    mutateFamily(input.familyId, (snap) => {
+      snap.documents.unshift(doc);
+    });
+    return doc;
+  },
+
+  async familyDocumentViewUrl(documentId, actorUserId) {
+    const snap = await this.getSnapshot(actorUserId);
+    const doc = snap?.documents.find((item) => item.id === documentId);
+    if (!doc?.storagePath) return null;
+    const { familyFileViewUrl } = await import("@/lib/storage/family-files");
+    return familyFileViewUrl(doc.storagePath, doc.id);
+  },
+
+  async updateNotificationPrefs(userId, prefs) {
+    const user = getStore().users.get(userId);
+    if (user) user.profile.notificationPrefs = prefs;
+    const familyId = getStore().userFamily.get(userId);
+    if (!familyId) return;
+    mutateFamily(familyId, (snap) => {
+      if (snap.profiles[userId]) snap.profiles[userId].notificationPrefs = prefs;
+      if (snap.currentProfile.id === userId) snap.currentProfile.notificationPrefs = prefs;
+    });
+  },
 };
 
 function mutateFamilyFromUser(userId: string, mutate: (snap: FamilySnapshot) => void) {
@@ -1984,9 +2193,13 @@ function applyAcceptedChange(snap: FamilySnapshot, request: ChangeRequest) {
     typeof request.payload.requestedCustodianMemberId === "string"
       ? request.payload.requestedCustodianMemberId
       : request.requestedByMemberId;
+  const targetDate =
+    typeof request.alternativePayload?.targetDate === "string" && request.alternativePayload.targetDate
+      ? request.alternativePayload.targetDate
+      : request.targetDate;
 
-  if (request.type === "swap_day" || request.type === "extra_day") {
-    const existing = snap.occurrences.find((item) => item.date === request.targetDate);
+  if (request.type === "swap_day" || request.type === "extra_day" || request.type === "babysit") {
+    const existing = snap.occurrences.find((item) => item.date === targetDate);
     if (existing) {
       existing.originalCustodianMemberId = existing.originalCustodianMemberId ?? existing.custodianMemberId;
       existing.custodianMemberId = requestedCustodian;
@@ -1999,7 +2212,7 @@ function applyAcceptedChange(snap: FamilySnapshot, request: ChangeRequest) {
         familyId: snap.family.id,
         scheduleId: snap.schedule?.id ?? "manual",
         childId: null,
-        date: request.targetDate,
+        date: targetDate,
         custodianMemberId: requestedCustodian,
         isOverride: true,
         source: "change_request",
@@ -2011,8 +2224,15 @@ function applyAcceptedChange(snap: FamilySnapshot, request: ChangeRequest) {
     refreshGenerated(snap);
   }
 
-  if (request.type === "pickup_time" || request.type === "location" || request.type === "pickup") {
-    const handover = snap.handovers.find((item) => item.date === request.targetDate);
+  if (
+    request.type === "pickup_time" ||
+    request.type === "location" ||
+    request.type === "pickup" ||
+    request.type === "dropoff"
+  ) {
+    const handover =
+      snap.handovers.find((item) => item.date === targetDate) ??
+      snap.handovers.find((item) => item.date === request.targetDate);
     if (handover) {
       if (typeof request.payload.time === "string" && request.payload.time) handover.time = request.payload.time;
       if (typeof request.payload.location === "string" && request.payload.location) {
@@ -2020,6 +2240,9 @@ function applyAcceptedChange(snap: FamilySnapshot, request: ChangeRequest) {
       }
       if (typeof request.payload.pickupMemberId === "string" && request.payload.pickupMemberId) {
         handover.pickupMemberId = request.payload.pickupMemberId;
+      }
+      if (typeof request.payload.dropoffMemberId === "string" && request.payload.dropoffMemberId) {
+        handover.dropoffMemberId = request.payload.dropoffMemberId;
       }
       handover.updatedAt = nowIso();
       const event = snap.events.find((item) => item.id === handover.eventId);
@@ -2029,6 +2252,15 @@ function applyAcceptedChange(snap: FamilySnapshot, request: ChangeRequest) {
         event.location = handover.location;
         event.updatedAt = nowIso();
       }
+    }
+  }
+
+  if (request.type === "task_takeover") {
+    const taskId = typeof request.payload.taskId === "string" ? request.payload.taskId : "";
+    const task = snap.tasks.find((item) => item.id === taskId);
+    if (task) {
+      task.assigneeMemberId = request.requestedByMemberId;
+      task.updatedAt = nowIso();
     }
   }
 }

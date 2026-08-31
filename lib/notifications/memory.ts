@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type { AppNotification, FamilySnapshot } from "@/lib/domain/types";
 import type { CreateNotificationInput, NotifyFamilyInput } from "@/lib/notifications/types";
+import { allowsInAppNotification } from "@/lib/notifications/prefs";
 
 const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -28,6 +29,8 @@ export function pushNotification(
   input: CreateNotificationInput,
 ): AppNotification | null {
   if (input.userId === input.actorId) return null;
+  const recipientPrefs = snap.profiles[input.userId]?.notificationPrefs;
+  if (!allowsInAppNotification(recipientPrefs, input.type)) return null;
   if (isDuplicate(snap.notifications, input)) return null;
 
   const notification: AppNotification = {

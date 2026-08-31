@@ -52,10 +52,12 @@ export function notificationHref(notification: AppNotification): string {
     case "needed_item":
       return childId ? `/kinderen/${childId}?tab=nodig` : "/kinderen";
     case "expense":
-      return entityId ? `/kosten?expense=${entityId}` : "/kosten";
+    case "payment":
+      return entityId ? `/kosten?id=${entityId}` : "/kosten";
     case "document":
       return "/documenten";
     case "change_request":
+      return entityId ? `/regelen?tab=verzoeken&id=${entityId}` : "/regelen?tab=verzoeken";
     case "event":
     case "vacation":
     case "travel_plan":
@@ -67,7 +69,8 @@ export function notificationHref(notification: AppNotification): string {
       if (notification.type.includes("task") || notification.type.includes("routine")) return "/regelen";
       if (notification.type.includes("expense")) return "/kosten";
       if (notification.type.includes("child")) return childId ? `/kinderen/${childId}` : "/kinderen";
-      if (notification.type.includes("handover") || notification.type.includes("change")) return "/agenda";
+      if (notification.type.includes("change")) return "/regelen?tab=verzoeken";
+      if (notification.type.includes("handover")) return "/agenda";
       if (notification.type.includes("invite")) return "/instellingen";
       return "/vandaag";
   }

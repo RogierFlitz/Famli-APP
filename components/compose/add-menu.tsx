@@ -14,11 +14,12 @@ import {
   createTravelAction,
 } from "@/lib/actions/life";
 import { toISODate } from "@/lib/dates";
-import { eventCategoryLabel, neededCategoryLabel, weekdayLabel } from "@/lib/domain/labels";
+import { eventCategoryLabel, expenseCategoryLabel, EXPENSE_FORM_CATEGORIES, neededCategoryLabel, weekdayLabel } from "@/lib/domain/labels";
 import { parentName } from "@/lib/queries/family-view";
 import type { FamilySnapshot } from "@/lib/domain/types";
 import { createRoutineAction } from "@/lib/actions/routines";
 import { cn } from "@/lib/utils";
+import { ProposeChangeForm } from "@/components/requests/propose-form";
 import { ImportShell } from "@/components/import/import-shell";
 
 type Kind =
@@ -31,6 +32,7 @@ type Kind =
   | "routine"
   | "needed"
   | "expense"
+  | "request"
   | "school"
   | "update"
   | "import";
@@ -54,6 +56,7 @@ const GROUPS: { title: string; items: { id: Exclude<Kind, "menu">; label: string
       { id: "routine", label: "Routine of zorg" },
       { id: "needed", label: "Iets nodig" },
       { id: "expense", label: "Kosten" },
+      { id: "request", label: "Verzoek" },
     ],
   },
   {
@@ -83,6 +86,7 @@ export function AddMenu({ snapshot, compact = false }: { snapshot: FamilySnapsho
     routine: "Routine of zorg",
     needed: "Iets nodig",
     expense: "Kosten toevoegen",
+    request: "Verzoek sturen",
     school: "Schoolmoment",
     update: "Update delen",
     import: "Slim importeren",
@@ -259,7 +263,8 @@ export function AddMenu({ snapshot, compact = false }: { snapshot: FamilySnapsho
               <option value="studiedag">Studiedag</option>
               <option value="schoolreis">Schoolreisje</option>
               <option value="ouderavond">Ouderavond</option>
-              <option value="rapport">Rapport</option>
+              <option value="rapport">Rapportgesprek</option>
+              <option value="schoolactiviteit">Schoolactiviteit</option>
             </select>
             <input name="date" type="date" required defaultValue={today} className="famli-input" />
             {snapshot.children.map((child) => (
@@ -423,6 +428,8 @@ export function AddMenu({ snapshot, compact = false }: { snapshot: FamilySnapsho
 
         {kind === "expense" ? <ExpenseForm snapshot={snapshot} onDone={close} /> : null}
 
+        {kind === "request" ? <ProposeChangeForm snapshot={snapshot} onDone={close} /> : null}
+
         {kind === "import" ? <ImportShell compact /> : null}
 
         {kind === "update" ? (
@@ -468,42 +475,72 @@ export function ExpenseForm({ snapshot, onDone }: { snapshot: FamilySnapshot; on
         onDone?.();
       }}
     >
-      <input name="description" required placeholder="Omschrijving" className="famli-input" />
-      <input name="amount" required placeholder="Bedrag" inputMode="decimal" className="famli-input" />
-      <input name="date" type="date" required defaultValue={today} className="famli-input" />
-      <select name="childId" className="famli-input">
-        <option value="">Voor welk kind?</option>
-        {snapshot.children.map((child) => (
-          <option key={child.id} value={child.id}>
-            {child.firstName}
-          </option>
-        ))}
-      </select>
-      <select name="category" className="famli-input">
-        <option value="sport">Sport</option>
-        <option value="school">School</option>
-        <option value="kleding">Kleding</option>
-        <option value="medisch">Medisch</option>
-        <option value="overig">Overig</option>
-      </select>
-      <select name="paidByMemberId" defaultValue={snapshot.currentMember.id} className="famli-input">
-        {snapshot.members.map((member) => (
-          <option key={member.id} value={member.id}>
-            Betaald door {parentName(snapshot, member.id)}
-          </option>
-        ))}
-      </select>
-      <select name="split" value={split} onChange={(event) => setSplit(event.target.value)} className="famli-input">
-        <option value="50">50 / 50</option>
-        <option value="60">60 / 40</option>
-        <option value="70">70 / 30</option>
-        <option value="custom">Zelf instellen</option>
-      </select>
+      <label className="block text-sm">
+        Omschrijving
+        <input name="description" required className="famli-input mt-1" />
+      </label>
+      <label className="block text-sm">
+        Bedrag
+        <input name="amount" required inputMode="decimal" className="famli-input mt-1" />
+      </label>
+      <label className="block text-sm">
+        Datum
+        <input name="date" type="date" required defaultValue={today} className="famli-input mt-1" />
+      </label>
+      <label className="block text-sm">
+        Voor welk kind?
+        <select name="childId" className="famli-input mt-1" defaultValue="">
+          <option value="">Alle kinderen</option>
+          {snapshot.children.map((child) => (
+            <option key={child.id} value={child.id}>
+              {child.firstName}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm">
+        Categorie
+        <select name="category" className="famli-input mt-1" defaultValue="overig">
+          {EXPENSE_FORM_CATEGORIES.map((value) => (
+            <option key={value} value={value}>
+              {expenseCategoryLabel[value]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm">
+        Betaald door
+        <select name="paidByMemberId" defaultValue={snapshot.currentMember.id} className="famli-input mt-1">
+          {snapshot.members.map((member) => (
+            <option key={member.id} value={member.id}>
+              {parentName(snapshot, member.id)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm">
+        Verdeling
+        <select name="split" value={split} onChange={(event) => setSplit(event.target.value)} className="famli-input mt-1">
+          <option value="50">50 / 50</option>
+          <option value="70">70 / 30</option>
+          <option value="60">60 / 40</option>
+          <option value="custom">Zelf instellen</option>
+        </select>
+      </label>
       {split === "custom" ? (
-        <input name="customPercent" type="number" min={0} max={100} defaultValue={50} className="famli-input" />
+        <label className="block text-sm">
+          Jouw aandeel (%)
+          <input name="customPercent" type="number" min={0} max={100} defaultValue={50} className="famli-input mt-1" />
+        </label>
       ) : null}
-      <input name="receipt" type="file" accept="image/*,.pdf" className="famli-input pt-3 text-sm" />
-      <textarea name="notes" placeholder="Notitie" className="famli-input" />
+      <label className="block text-sm">
+        Bon of foto
+        <input name="receipt" type="file" accept="image/*,.pdf" className="famli-input mt-1 pt-3 text-sm" />
+      </label>
+      <label className="block text-sm">
+        Opmerking (optioneel)
+        <textarea name="notes" className="famli-input mt-1" />
+      </label>
       <button className="famli-btn famli-btn-primary w-full">Kosten delen</button>
     </form>
   );

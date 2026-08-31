@@ -12,6 +12,7 @@ export const NOTIFICATION_TYPES = [
   "needed_item",
   "child_update",
   "expense",
+  "payment",
   "document",
   "event_created",
   "vacation",

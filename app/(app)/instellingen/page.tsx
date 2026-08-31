@@ -1,9 +1,10 @@
 import { requireSnapshot } from "@/lib/auth/session";
-import { planLabel, notificationPrefLabel } from "@/lib/domain/labels";
+import { planLabel } from "@/lib/domain/labels";
 import { googleOAuthConfigured, microsoftOAuthConfigured } from "@/lib/calendar/config";
 import { CalendarPrivacyPanel } from "@/components/settings/calendar-privacy";
 import { CalendarExportPanel } from "@/components/settings/calendar-export";
 import { FamilyMembersPanel } from "@/components/settings/family-members";
+import { NotificationPrefsForm } from "@/components/settings/notification-prefs";
 import { signOut } from "@/lib/auth/actions";
 import { getRepository } from "@/lib/data";
 
@@ -67,18 +68,9 @@ export default async function SettingsPage({
       <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
         <h2 className="font-[family-name:var(--font-display)] text-2xl">Notificaties</h2>
         <p className="mt-2 text-sm text-[color:var(--nest-muted)]">
-          Architectuur is klaar voor in-app, e-mail en push. Jij bepaalt per categorie wat je krijgt.
+          Jij bepaalt wat je ziet. E-mail sturen we later; de keuze staat al klaar.
         </p>
-        <ul className="mt-4 space-y-2 text-sm">
-          {Object.entries(snapshot.currentProfile.notificationPrefs).map(([key, value]) => (
-            <li key={key} className="flex justify-between">
-              <span>{notificationPrefLabel(key)}</span>
-              <span className="text-[color:var(--nest-muted)]">
-                {value.inApp ? "in-app" : ""} {value.email ? "e-mail" : ""} {value.push ? "push" : ""}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <NotificationPrefsForm snapshot={snapshot} />
       </section>
 
       <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">

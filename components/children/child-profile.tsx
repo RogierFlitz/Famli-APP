@@ -5,14 +5,18 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
 import { toast } from "sonner";
-import { documentCategoryLabel, sizeFieldLabel } from "@/lib/domain/labels";
+import { sizeFieldLabel } from "@/lib/domain/labels";
 import { formatEuro } from "@/lib/money";
 import { formatDayLong, formatTime, toISODate } from "@/lib/dates";
 import { childAge, nextEventForChild, nextHandoverForChild, parentName } from "@/lib/queries/family-view";
 import { childPlace, nowImportant } from "@/lib/queries/child-life";
 import { EmptyState } from "@/components/empty-state";
 import { NeededList } from "@/components/children/needed-list";
+import { ChildActivitiesPanel } from "@/components/children/child-activities";
+import { ChildContactsPanel } from "@/components/children/child-contacts";
+import { DocumentUploadPanel } from "@/components/documents/document-upload";
 import { createChildUpdateAction, updateChildSizesAction } from "@/lib/actions/life";
+import { saveChildSchoolAction } from "@/lib/actions/family-hub";
 import type { Child, FamilySnapshot } from "@/lib/domain/types";
 import { childRoutineOccurrences, childCompletedTasks, childCompletedRoutineOccurrences, occurrenceStatusLabel, routinesOnly } from "@/lib/queries/routines";
 import { CompletedTasksSection } from "@/components/tasks/completed-tasks-section";
@@ -27,6 +31,7 @@ const TABS = [
   { id: "nodig", label: "Nodig" },
   { id: "taken", label: "Taken & routines" },
   { id: "school", label: "School" },
+  { id: "activiteiten", label: "Activiteiten" },
   { id: "reizen", label: "Reizen" },
   { id: "informatie", label: "Informatie" },
   { id: "kosten", label: "Kosten" },
@@ -133,6 +138,7 @@ export function ChildProfile({
       {tab === "nodig" ? <NeededTab snapshot={snapshot} childId={child.id} /> : null}
       {tab === "taken" ? <TasksRoutinesTab snapshot={snapshot} childId={child.id} today={today} /> : null}
       {tab === "school" ? <SchoolTab snapshot={snapshot} child={child} today={today} /> : null}
+      {tab === "activiteiten" ? <ChildActivitiesPanel snapshot={snapshot} childId={child.id} /> : null}
       {tab === "reizen" ? <TravelTab snapshot={snapshot} childId={child.id} today={today} /> : null}
       {tab === "informatie" ? <InfoTab snapshot={snapshot} child={child} /> : null}
       {tab === "kosten" && !viewer ? <CostsTab snapshot={snapshot} childId={child.id} /> : null}
@@ -267,6 +273,45 @@ function SchoolTab({ snapshot, child, today }: { snapshot: FamilySnapshot; child
         {school?.hours ? <p className="text-sm text-[color:var(--famli-muted)]">Tijden: {school.hours}</p> : null}
         {school?.gymDays ? <p className="text-sm text-[color:var(--famli-muted)]">Gym: {school.gymDays}</p> : null}
       </section>
+      <form
+        className="famli-card space-y-3"
+        action={async (formData) => {
+          try {
+            await saveChildSchoolAction(formData);
+            toast.success("Schoolgegevens opgeslagen");
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Opslaan mislukt");
+          }
+        }}
+      >
+        <h3 className="font-semibold">Schoolgegevens</h3>
+        <input type="hidden" name="childId" value={child.id} />
+        <label className="block text-sm">
+          Schoolnaam
+          <input name="name" defaultValue={school?.name ?? child.school ?? ""} className="famli-input mt-1" />
+        </label>
+        <label className="block text-sm">
+          Klas
+          <input name="className" defaultValue={school?.className ?? child.className ?? ""} className="famli-input mt-1" />
+        </label>
+        <label className="block text-sm">
+          Schooltijden
+          <input name="hours" defaultValue={school?.hours ?? ""} className="famli-input mt-1" />
+        </label>
+        <label className="block text-sm">
+          Leerkracht
+          <input name="teacher" defaultValue={school?.teacher ?? ""} className="famli-input mt-1" />
+        </label>
+        <label className="block text-sm">
+          Contact
+          <input name="contact" defaultValue={school?.contact ?? ""} className="famli-input mt-1" />
+        </label>
+        <label className="block text-sm">
+          Gymdagen
+          <input name="gymDays" defaultValue={school?.gymDays ?? ""} className="famli-input mt-1" />
+        </label>
+        <button className="famli-btn famli-btn-primary">Opslaan</button>
+      </form>
       {club ? (
         <section className="famli-card space-y-1">
           <p className="text-sm text-[color:var(--famli-muted)]">Sport / club</p>
@@ -456,6 +501,7 @@ function InfoTab({ snapshot, child }: { snapshot: FamilySnapshot; child: Child }
           <p className="text-sm">{contact.phone}</p>
         </div>
       ))}
+      <ChildContactsPanel snapshot={snapshot} childId={child.id} />
     </div>
   );
 }
@@ -494,18 +540,7 @@ function CostsTab({ snapshot, childId }: { snapshot: FamilySnapshot; childId: st
 }
 
 function DocsTab({ snapshot, childId }: { snapshot: FamilySnapshot; childId: string }) {
-  const docs = snapshot.documents.filter((item) => item.childId === childId);
-  if (!docs.length) return <EmptyState title="Nog geen documenten" body="Belangrijke papieren komen hier te staan." />;
-  return (
-    <div className="space-y-2">
-      {docs.map((doc) => (
-        <p key={doc.id} className="rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-3">
-          {doc.title} · {documentCategoryLabel[doc.category]}
-          {doc.expiresOn ? ` · tot ${formatDayLong(doc.expiresOn)}` : ""}
-        </p>
-      ))}
-    </div>
-  );
+  return <DocumentUploadPanel snapshot={snapshot} childId={childId} />;
 }
 
 function ShareUpdate({ snapshot, childId }: { snapshot: FamilySnapshot; childId: string }) {

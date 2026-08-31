@@ -37,6 +37,8 @@ function defaultPrefs() {
     taskDue: all,
     expense: all,
     payment: all,
+    event: { inApp: true, email: false, push: false },
+    activity: { inApp: true, email: false, push: false },
   };
 }
 
@@ -809,6 +811,8 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     routineOccurrences,
     shoppingLists: buildDemoShoppingLists(todayIso, createdAt),
     shoppingItems: buildDemoShoppingItems(todayIso, createdAt),
+    childActivities: [],
+    childContacts: [],
   };
 }
 

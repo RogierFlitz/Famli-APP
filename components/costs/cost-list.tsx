@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Receipt } from "lucide-react";
+import { expenseCategoryLabel } from "@/lib/domain/labels";
 import { formatEuro } from "@/lib/money";
 import { parentName } from "@/lib/queries/family-view";
 import { markSplitPaidAction } from "@/lib/actions/family";
@@ -61,14 +62,18 @@ function ExpenseCard({
               <Receipt className="size-4 shrink-0 text-[color:var(--famli-brand)]" aria-label="Bon toegevoegd" />
             ) : null}
           </div>
-          {child ? <p className="text-sm text-[color:var(--famli-muted)]">{child.firstName}</p> : null}
+          {child ? <p className="text-sm text-[color:var(--famli-muted)]">{child.firstName}</p> : (
+            <p className="text-sm text-[color:var(--famli-muted)]">Alle kinderen</p>
+          )}
+          <p className="text-xs text-[color:var(--famli-muted)]">{expense.date} · {expenseCategoryLabel[expense.category]}</p>
           <p className="mt-2 text-2xl font-semibold">{formatEuro(expense.amountCents)}</p>
           <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
             Betaald door: {parentName(snapshot, expense.paidByMemberId)}
           </p>
           <p className="text-sm text-[color:var(--famli-muted)]">
-            Verdeling: {related.map((split) => `${Math.round(split.sharePercent)}`).join(" / ")}
+            Verdeling: {related.map((split) => `${Math.round(split.sharePercent)}%`).join(" / ")}
           </p>
+          <p className="mt-1 text-sm font-medium">{open ? "Openstaand" : "Verrekend"}</p>
           {otherSplit ? (
             <p className="mt-2 font-medium">
               {parentName(snapshot, otherSplit.memberId)}: {formatEuro(otherSplit.shareCents)}{" "}
@@ -87,7 +92,7 @@ function ExpenseCard({
       {mine ? (
         <form action={markSplitPaidAction} className="mt-4">
           <input type="hidden" name="splitId" value={mine.id} />
-          <button className="famli-btn famli-btn-secondary h-11 px-4">Beoordelen</button>
+          <button className="famli-btn famli-btn-secondary h-11 px-4">Markeren als verrekend</button>
         </form>
       ) : null}
       {!open ? (
@@ -108,6 +113,9 @@ export function CostList({
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "open" | "done">("open");
+  const [childFilter, setChildFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [periodFilter, setPeriodFilter] = useState<"all" | "month" | "last30">("all");
   const [userSelectedId, setUserSelectedId] = useState<string | null>(null);
   const selectedId = focusId ?? userSelectedId;
   const me = snapshot.currentMember.id;
@@ -129,10 +137,24 @@ export function CostList({
   );
 
   const filteredItems = useMemo(() => {
-    if (filter === "open") return openItems;
-    if (filter === "done") return doneItems;
-    return allItems;
-  }, [filter, allItems, openItems, doneItems]);
+    const monthStart = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
+    const last30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    let items = filter === "open" ? openItems : filter === "done" ? doneItems : allItems;
+    if (childFilter === "all-children") {
+      items = items.filter((item) => !item.expense.childId);
+    } else if (childFilter !== "all") {
+      items = items.filter((item) => item.expense.childId === childFilter);
+    }
+    if (categoryFilter !== "all") {
+      items = items.filter((item) => item.expense.category === categoryFilter);
+    }
+    if (periodFilter === "month") {
+      items = items.filter((item) => item.expense.date >= monthStart);
+    } else if (periodFilter === "last30") {
+      items = items.filter((item) => item.expense.date >= last30);
+    }
+    return items;
+  }, [filter, allItems, openItems, doneItems, childFilter, categoryFilter, periodFilter]);
 
   const showSplitSections = filter === "all";
   const selectedItem = allItems.find((item) => item.expense.id === selectedId) ?? null;
@@ -175,11 +197,47 @@ export function CostList({
           </button>
         ))}
       </div>
+      <div className="flex flex-wrap gap-2">
+        <select
+          value={childFilter}
+          onChange={(event) => setChildFilter(event.target.value)}
+          className="h-10 rounded-full border border-[color:var(--famli-border)] bg-transparent px-3 text-sm"
+        >
+          <option value="all">Alle kinderen</option>
+          <option value="all-children">Gedeeld voor alle kinderen</option>
+          {snapshot.children.map((child) => (
+            <option key={child.id} value={child.id}>
+              {child.firstName}
+            </option>
+          ))}
+        </select>
+        <select
+          value={categoryFilter}
+          onChange={(event) => setCategoryFilter(event.target.value)}
+          className="h-10 rounded-full border border-[color:var(--famli-border)] bg-transparent px-3 text-sm"
+        >
+          <option value="all">Alle categorieën</option>
+          {Object.entries(expenseCategoryLabel).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={periodFilter}
+          onChange={(event) => setPeriodFilter(event.target.value as "all" | "month" | "last30")}
+          className="h-10 rounded-full border border-[color:var(--famli-border)] bg-transparent px-3 text-sm"
+        >
+          <option value="all">Alle periodes</option>
+          <option value="month">Deze maand</option>
+          <option value="last30">Laatste 30 dagen</option>
+        </select>
+      </div>
 
       {!allItems.length ? (
         <EmptyState
           title="Nog geen kosten toegevoegd"
-          body={`Gedeelde kosten verschijnen hier zodra jij of ${parentName(snapshot, snapshot.members.find((member) => member.id !== me)?.id ?? me)} iets toevoegt.`}
+          body="Voeg jullie eerste gedeelde kostenpost toe."
           actionHref="/kosten#toevoegen"
           actionLabel="Kosten toevoegen"
         />

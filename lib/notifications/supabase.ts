@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppNotification } from "@/lib/domain/types";
 import type { CreateNotificationInput, NotifyFamilyInput } from "@/lib/notifications/types";
+import { allowsInAppNotification } from "@/lib/notifications/prefs";
 
 const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -44,6 +45,12 @@ export async function createNotification(
   input: CreateNotificationInput,
 ): Promise<AppNotification | null> {
   if (input.userId === input.actorId) return null;
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("notification_prefs")
+    .eq("id", input.userId)
+    .maybeSingle();
+  if (!allowsInAppNotification(profile?.notification_prefs, input.type)) return null;
   if (await isDuplicate(supabase, input)) return null;
 
   const payload = {
