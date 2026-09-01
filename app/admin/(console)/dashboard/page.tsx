@@ -12,7 +12,26 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 
 export default async function AdminDashboardPage() {
   await requireAdmin();
-  const { stats } = await loadAdminDirectory();
+  let stats;
+  try {
+    ({ stats } = await loadAdminDirectory());
+  } catch {
+    stats = {
+      userCount: 0,
+      familyCount: 0,
+      childCount: 0,
+      active7d: 0,
+      active30d: 0,
+      registrationsToday: 0,
+      registrationsWeek: 0,
+      pendingInvites: 0,
+      connectedCalendars: 0,
+      onboardingCompletedPct: 0,
+      payingCount: 0,
+      freeCount: 0,
+      registrationsLast7Days: [0, 0, 0, 0, 0, 0, 0],
+    };
+  }
   return (
     <div className="space-y-6">
       <div>

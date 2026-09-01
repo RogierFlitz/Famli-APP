@@ -4,6 +4,7 @@ import { DEMO_ADMINS, ADMIN_SESSION_COOKIE, type AdminActor } from "@/lib/admin/
 import { demoAdminById } from "@/lib/admin/memory";
 import type { AdminRole } from "@/lib/admin/roles";
 import { isAdminBootstrapEnabled, parseAdminSessionCookie, readBootstrapSession } from "@/lib/admin/bootstrap";
+import { lookupStaffRole } from "@/lib/admin/first-staff";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -27,13 +28,9 @@ export async function getAdminActor(): Promise<AdminActor | null> {
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getUser();
     if (!data.user) return bootstrapped;
-    const viaRpc = await supabase.rpc("staff_admin_role");
-    const roleFromRpc = typeof viaRpc.data === "string" ? viaRpc.data : null;
-    const staffResult = roleFromRpc
-      ? { data: { role: roleFromRpc } }
-      : await supabase.from("admin_staff").select("role").eq("user_id", data.user.id).maybeSingle();
-    const staff = staffResult.data;
-    if (!staff?.role) return bootstrapped;
+    const role = await lookupStaffRole(supabase, data.user.id);
+    if (!role) return bootstrapped;
+    const staff = { role };
     const meta = data.user.user_metadata as { first_name?: string; last_name?: string } | undefined;
     const name =
       [meta?.first_name, meta?.last_name].filter(Boolean).join(" ") || data.user.email || "Admin";
