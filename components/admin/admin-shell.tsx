@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOutAdmin } from "@/lib/admin/actions";
 import { ADMIN_ROLE_LABEL } from "@/lib/admin/roles";
 import type { AdminActor } from "@/lib/admin/types";
 import { cn } from "@/lib/utils";
@@ -42,7 +41,7 @@ export function AdminShell({ actor, children }: { actor: AdminActor; children: R
         <div className="border-t border-slate-800 px-4 py-4 text-sm">
           <p className="font-medium">{actor.name}</p>
           <p className="text-xs text-slate-400">{ADMIN_ROLE_LABEL[actor.role]}</p>
-          <form action={signOutAdmin}>
+          <form action="/admin/logout" method="post">
             <button className="mt-2 text-xs text-slate-400 underline-offset-2 hover:underline">Uitloggen</button>
           </form>
         </div>
@@ -50,7 +49,7 @@ export function AdminShell({ actor, children }: { actor: AdminActor; children: R
       <div>
         <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
           <p className="font-semibold">Famli beheer</p>
-          <form action={signOutAdmin}>
+          <form action="/admin/logout" method="post">
             <button className="text-xs text-slate-500">Uitloggen</button>
           </form>
         </header>

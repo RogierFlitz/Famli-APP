@@ -17,7 +17,6 @@ import {
 } from "@/lib/admin/memory";
 import { extendMemoryAdminInvite, patchMemoryAdminProfile } from "@/lib/data/memory-store";
 import { assertRateLimit } from "@/lib/security/rate-limit";
-import { claimFirstSuperAdmin, lookupStaffRole } from "@/lib/admin/first-staff";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -101,49 +100,13 @@ export async function startDemoReadonlyAdmin() {
 export async function signInAdmin(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  assertRateLimit("login", `admin:${email}`);
-
-  if (!isSupabaseConfigured()) {
-    const demo = demoAdminByEmail(email);
-    if (!demo) redirect("/admin?error=Geen%20adminaccount%20voor%20dit%20e-mailadres.");
+  const { adminPasswordLoginDestination } = await import("@/lib/admin/password-login");
+  const result = await adminPasswordLoginDestination(email, password);
+  if (result.demoUserId) {
     await startDemoAdmin(email);
     return;
   }
-
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) redirect(`/admin?error=${encodeURIComponent(error.message)}`);
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/admin?error=Inloggen%20mislukt.");
-  try {
-    const role = await lookupStaffRole(supabase, data.user.id);
-    if (!role) {
-      const claimed = await claimFirstSuperAdmin(supabase, data.user.id);
-      if (!claimed) {
-        await supabase.auth.signOut();
-        redirect(
-          "/admin?error=Dit%20account%20heeft%20geen%20adminrechten.%20De%20SQL-rij%20is%20er%2C%20maar%20de%20app%20kan%20die%20niet%20lezen%20zonder%20RLS-policy%20of%20SERVICE_ROLE_KEY.",
-        );
-      }
-    }
-    await supabase.from("admin_audit_log").insert({
-      admin_user_id: data.user.id,
-      action: "admin.login",
-      metadata: { source: "supabase" },
-    });
-  } catch (caught) {
-    if (
-      caught &&
-      typeof caught === "object" &&
-      "digest" in caught &&
-      String((caught as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT")
-    ) {
-      throw caught;
-    }
-    await supabase.auth.signOut();
-    redirect("/admin?error=Inloggen%20in%20beheer%20mislukt.%20Voer%20migratie%200013_admin_portal.sql%20uit%20in%20Supabase.");
-  }
-  redirect("/admin/dashboard");
+  redirect(result.path);
 }
 
 export async function signOutAdmin() {
