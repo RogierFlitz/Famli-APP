@@ -12,6 +12,7 @@ const FILTERS: { id: UserFilter; label: string }[] = [
   { id: "microsoft", label: "Microsoft" },
   { id: "google", label: "Google" },
   { id: "no_family", label: "Geen gezin" },
+  { id: "pending_invite", label: "Open uitnodiging" },
 ];
 
 export default async function AdminUsersPage({
@@ -56,6 +57,8 @@ export default async function AdminUsersPage({
             <tr>
               <th className="px-3 py-2">Naam</th>
               <th className="px-3 py-2">E-mail</th>
+              <th className="px-3 py-2">Geregistreerd</th>
+              <th className="px-3 py-2">Laatste activiteit</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Gezin</th>
               <th className="px-3 py-2">Rol</th>
@@ -72,6 +75,10 @@ export default async function AdminUsersPage({
                   </Link>
                 </td>
                 <td className="px-3 py-2">{row.email}</td>
+                <td className="px-3 py-2">{new Date(row.createdAt).toLocaleDateString("nl-NL")}</td>
+                <td className="px-3 py-2">
+                  {row.lastActivityAt ? new Date(row.lastActivityAt).toLocaleDateString("nl-NL") : "—"}
+                </td>
                 <td className="px-3 py-2">{row.accountStatus === "blocked" ? "Geblokkeerd" : "Actief"}</td>
                 <td className="px-3 py-2">{row.familyName ?? "—"}</td>
                 <td className="px-3 py-2">{row.familyRole ?? "—"}</td>

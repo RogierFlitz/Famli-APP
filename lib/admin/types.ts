@@ -47,6 +47,8 @@ export interface AdminUserRow {
   appleIcs: boolean;
   lastSyncError: string | null;
   lastSyncedAt: string | null;
+  hasPendingInvite: boolean;
+  notificationChannels: { inApp: boolean; email: boolean; push: boolean } | null;
 }
 
 export interface AdminFamilyRow {
@@ -100,6 +102,7 @@ export interface AdminDashboardStats {
   onboardingCompletedPct: number;
   payingCount: number;
   freeCount: number;
+  registrationsLast7Days: number[];
 }
 
 export type UserFilter =

@@ -33,6 +33,21 @@ export default async function AdminDashboardPage() {
         <Stat label="Betaalde gezinnen" value={stats.payingCount} />
         <Stat label="Gratis gezinnen" value={stats.freeCount} />
       </div>
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-700">Registraties laatste 7 dagen</h2>
+        <div className="mt-4 flex h-24 items-end gap-2">
+          {stats.registrationsLast7Days.map((count, index) => (
+            <div key={index} className="flex flex-1 flex-col items-center gap-1">
+              <div
+                className="w-full rounded-t bg-slate-800"
+                style={{ height: `${Math.max(4, count * 16)}px` }}
+                title={`${count}`}
+              />
+              <span className="text-[10px] text-slate-500">{count}</span>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

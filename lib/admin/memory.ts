@@ -107,6 +107,16 @@ export function actorName(actor: AdminActor | undefined, userId: string): string
   return demoAdminById(userId)?.name ?? "Admin";
 }
 
+export function setStaffRole(userId: string, role: AdminRole): void {
+  const next = store().staff.filter((item) => item.userId !== userId);
+  next.push({ userId, role });
+  store().staff = next;
+}
+
+export function listDemoStaff(): AdminActor[] {
+  return DEMO_ADMINS.map((item) => demoAdminById(item.userId)).filter((item): item is AdminActor => Boolean(item));
+}
+
 export function resetAdminMemoryForTests(): void {
   globalForAdmin.famliAdminMemoryV1 = {
     flags: new Map(),

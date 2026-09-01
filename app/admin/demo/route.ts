@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { demoAdminByEmail, addAudit } from "@/lib/admin/memory";
 import { ADMIN_SESSION_COOKIE } from "@/lib/admin/types";
+import { SESSION_COOKIE } from "@/lib/domain/types";
 import { assertRateLimit } from "@/lib/security/rate-limit";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { randomUUID } from "crypto";
 
 export async function POST(request: Request) {
+  if (isSupabaseConfigured()) {
+    return NextResponse.redirect(new URL("/admin?error=Demo-admin%20is%20uitgeschakeld%20met%20Supabase.", request.url));
+  }
+  const familySession = request.headers.get("cookie")?.includes(`${SESSION_COOKIE}=`);
+  if (familySession) {
+    return NextResponse.redirect(new URL("/admin/geweigerd", request.url));
+  }
   if (isSupabaseConfigured()) {
     return NextResponse.redirect(new URL("/admin?error=Demo-admin%20is%20uitgeschakeld%20met%20Supabase.", request.url));
   }

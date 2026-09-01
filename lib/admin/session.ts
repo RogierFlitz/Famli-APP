@@ -47,6 +47,18 @@ export async function requireAdmin(): Promise<AdminActor> {
   return actor;
 }
 
+export async function familyUserBlockedFromAdmin(): Promise<boolean> {
+  if (await getAdminActor()) return false;
+  const { getSession } = await import("@/lib/auth/session");
+  const session = await getSession();
+  if (!session) return false;
+  if (isSupabaseConfigured()) {
+    return true;
+  }
+  const { DEMO_ADMINS } = await import("@/lib/admin/types");
+  return !DEMO_ADMINS.some((item) => item.userId === session.userId);
+}
+
 export function isDemoAdminEmail(email: string): boolean {
   return DEMO_ADMINS.some((item) => item.email === email.trim().toLowerCase());
 }

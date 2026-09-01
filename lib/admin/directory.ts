@@ -56,6 +56,10 @@ function toUserRow(profile: Profile, families: FamilySnapshot[]): AdminUserRow {
       .map((item) => item.createdAt)
       .sort()
       .at(-1) ?? profile.updatedAt;
+  const pendingInvite = snap?.invites.some(
+    (invite) => !invite.acceptedAt && invite.email.toLowerCase() === profile.email.toLowerCase(),
+  );
+  const prefs = profile.notificationPrefs;
   return {
     id: profile.id,
     email: profile.email,
@@ -69,6 +73,14 @@ function toUserRow(profile: Profile, families: FamilySnapshot[]): AdminUserRow {
     familyName: snap?.family.name ?? null,
     familyRole: member?.role ?? null,
     ...providers,
+    hasPendingInvite: Boolean(pendingInvite),
+    notificationChannels: prefs
+      ? {
+          inApp: Object.values(prefs).some((item) => item.inApp),
+          email: Object.values(prefs).some((item) => item.email),
+          push: Object.values(prefs).some((item) => item.push),
+        }
+      : null,
   };
 }
 
@@ -125,6 +137,7 @@ export function filterUsers(rows: AdminUserRow[], filter: UserFilter, query: str
       next = next.filter((item) => !item.familyId);
       break;
     case "pending_invite":
+      next = next.filter((item) => item.hasPendingInvite);
       break;
     default:
       break;
@@ -146,6 +159,14 @@ function statsFrom(users: AdminUserRow[], families: AdminFamilyRow[], pendingInv
   const d30 = daysAgo(30).toISOString();
   const onboarded = users.filter((item) => item.onboardingCompleted).length;
   const paying = families.filter((item) => item.plan !== "free" && item.subscriptionStatus === "active").length;
+  const registrationsLast7Days = Array.from({ length: 7 }, (_, index) => {
+    const day = startOfDay(new Date(Date.now() - (6 - index) * 24 * 60 * 60 * 1000));
+    const nextDay = new Date(day.getTime() + 24 * 60 * 60 * 1000);
+    return users.filter((item) => {
+      const created = new Date(item.createdAt).getTime();
+      return created >= day.getTime() && created < nextDay.getTime();
+    }).length;
+  });
   return {
     userCount: users.length,
     familyCount: families.length,
@@ -159,6 +180,7 @@ function statsFrom(users: AdminUserRow[], families: AdminFamilyRow[], pendingInv
     onboardingCompletedPct: users.length ? Math.round((onboarded / users.length) * 100) : 0,
     payingCount: paying,
     freeCount: families.filter((item) => item.plan === "free").length,
+    registrationsLast7Days,
   };
 }
 
@@ -234,6 +256,8 @@ export async function loadAdminDirectory(): Promise<{
       appleIcs: userConnections.some((item) => item.provider === "apple_ics" || item.provider === "apple"),
       lastSyncError: (error?.sync_error as string | undefined) ?? null,
       lastSyncedAt: (userConnections.map((item) => item.last_synced_at).filter(Boolean).sort().at(-1) as string | undefined) ?? null,
+      hasPendingInvite: invites.some((invite) => (invite.email as string)?.toLowerCase() === (row.email as string).toLowerCase()),
+      notificationChannels: null,
     };
   });
 

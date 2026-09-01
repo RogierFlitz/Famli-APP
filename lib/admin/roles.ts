@@ -12,7 +12,8 @@ export type AdminCapability =
   | "resend_invite"
   | "reset_onboarding"
   | "retry_sync"
-  | "manage_admin_roles";
+  | "manage_admin_roles"
+  | "elevate_privacy";
 
 const ROLE_CAPS: Record<AdminRole, AdminCapability[]> = {
   readonly_admin: ["view_dashboard", "view_users", "view_families", "view_audit"],
@@ -37,6 +38,7 @@ const ROLE_CAPS: Record<AdminRole, AdminCapability[]> = {
     "reset_onboarding",
     "retry_sync",
     "manage_admin_roles",
+    "elevate_privacy",
   ],
 };
 
