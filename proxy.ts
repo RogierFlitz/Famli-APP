@@ -4,11 +4,12 @@ import { applySecurityHeaders } from "@/lib/security/headers";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseProxyClient } from "@/lib/supabase/proxy";
 
-const publicPaths = ["/", "/login", "/signup", "/invite", "/admin", "/manifest.webmanifest"];
+const publicPaths = ["/", "/login", "/signup", "/invite", "/admin", "/auth/callback", "/manifest.webmanifest"];
 
 function isPublicPath(pathname: string) {
   return (
     publicPaths.includes(pathname) ||
+    pathname.startsWith("/login") ||
     pathname.startsWith("/invite/") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/_next") ||

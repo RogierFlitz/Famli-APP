@@ -1,6 +1,8 @@
 const ALLOWED_REDIRECT_PATHS = new Set([
   "/",
   "/login",
+  "/login/wachtwoord-vergeten",
+  "/login/nieuw-wachtwoord",
   "/signup",
   "/onboarding",
   "/vandaag",

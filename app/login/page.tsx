@@ -8,9 +8,9 @@ import { famliBrand } from "@/lib/brand/tokens";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, reset } = await searchParams;
   const supabase = isSupabaseConfigured();
 
   return (
@@ -20,6 +20,11 @@ export default async function LoginPage({
         <h1 className="mt-8 text-4xl font-semibold tracking-tight">Welkom bij Famli</h1>
         <p className="mt-2 text-lg text-[color:var(--famli-ink)]">{famliBrand.sloganNl}</p>
         {error ? <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p> : null}
+        {reset ? (
+          <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            Je wachtwoord is gewijzigd. Je kunt nu inloggen.
+          </p>
+        ) : null}
 
         <form action={signInLocal} className="mt-8 space-y-3">
           <label className="block text-sm">
@@ -38,6 +43,11 @@ export default async function LoginPage({
           </label>
           <button className="famli-btn famli-btn-primary w-full">Inloggen</button>
         </form>
+        <p className="mt-4 text-sm">
+          <Link href="/login/wachtwoord-vergeten" className="font-medium underline underline-offset-2">
+            Wachtwoord vergeten?
+          </Link>
+        </p>
 
         <p className="mt-8 text-center text-sm text-[color:var(--famli-muted)]">Nog geen account?</p>
         <Link href="/signup" className="famli-btn famli-btn-secondary mt-2 w-full">
