@@ -13,6 +13,7 @@ import { createDemoSnapshot } from "@/lib/data/seed";
 import { IDS } from "@/lib/data/ids";
 import { famliColor } from "@/lib/brand/tokens";
 import { emptyLifeFields, applyPrivacy } from "@/lib/life/privacy";
+import { uniqueById, existingChildRecord } from "@/lib/family/unique";
 import {
   memberPermissions,
   parentPermissions,
@@ -177,6 +178,7 @@ function attachViewer(family: FamilySnapshot, userId: string): FamilySnapshot {
     snap.profiles[userId] = profile;
   }
   if (member) snap.currentMember = member;
+  snap.children = uniqueById(snap.children);
   refreshRoutineOccurrences(snap);
   markPastOccurrencesUnregistered(snap);
   return applyPrivacy(snap);
@@ -417,6 +419,9 @@ export const memoryRepository: FamilyRepository = {
   },
 
   async addChild(input) {
+    const family = getStore().families.get(input.familyId);
+    const already = family ? existingChildRecord(family.children, input.firstName, input.dateOfBirth) : undefined;
+    if (already) return already;
     const child: Child = {
       id: randomUUID(),
       familyId: input.familyId,

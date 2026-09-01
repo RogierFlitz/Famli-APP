@@ -1,3 +1,4 @@
+import { uniqueById } from "@/lib/family/unique";
 import type { FamilySnapshot } from "@/lib/domain/types";
 import {
   canViewExpenses,
@@ -64,7 +65,7 @@ export function applyPrivacy(snapshot: FamilySnapshot): FamilySnapshot {
 
   const filtered = {
     ...snapshot,
-    children: snapshot.children.filter((child) => visibleChildIds.has(child.id)),
+    children: uniqueById(snapshot.children.filter((child) => visibleChildIds.has(child.id))),
     events: perms.viewCalendar
       ? snapshot.events.filter(
           (event) =>
