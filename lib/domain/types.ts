@@ -324,6 +324,33 @@ export interface CalendarEvent {
   createdBy: string;
 }
 
+export type HandoverReadyStatus = "open" | "in_progress" | "ready" | "completed";
+
+export type PackingContext =
+  | "hockey"
+  | "gym"
+  | "zwemles"
+  | "school"
+  | "handover"
+  | "event"
+  | "other";
+
+export interface PackingItem {
+  id: string;
+  familyId: string;
+  childId: string;
+  label: string;
+  context: PackingContext;
+  eventId: string | null;
+  handoverId: string | null;
+  dueOn: string | null;
+  checked: boolean;
+  checkedAt: string | null;
+  checkedBy: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface Handover {
   id: string;
   familyId: string;
@@ -338,6 +365,9 @@ export interface Handover {
   dropoffMemberId: string | null;
   notes: string | null;
   packingList: string[];
+  readyStatus: HandoverReadyStatus;
+  readyAt: string | null;
+  readyBy: string | null;
   cancelledAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -908,6 +938,7 @@ export interface FamilySnapshot {
   shoppingItems: ShoppingItem[];
   childActivities: ChildActivity[];
   childContacts: ChildContact[];
+  packingItems: PackingItem[];
 }
 
 export const SESSION_COOKIE = "nestly_session";

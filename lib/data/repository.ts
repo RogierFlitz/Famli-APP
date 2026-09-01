@@ -2,6 +2,9 @@ import type {
   AppNotification,
   CalendarEvent,
   CalendarPrivacyMode,
+  HandoverReadyStatus,
+  PackingContext,
+  PackingItem,
   ChangeRequest,
   ChangeRequestType,
   Child,
@@ -488,4 +491,21 @@ export interface FamilyRepository {
     userId: string,
     prefs: import("@/lib/domain/types").NotificationPrefs,
   ): Promise<void>;
+  createPackingItem(input: {
+    familyId: string;
+    createdBy: string;
+    childId: string;
+    label: string;
+    context?: PackingContext;
+    eventId?: string | null;
+    handoverId?: string | null;
+    dueOn?: string | null;
+    checked?: boolean;
+  }): Promise<PackingItem>;
+  togglePackingItem(itemId: string, actorUserId: string): Promise<PackingItem>;
+  markHandoverReady(input: {
+    handoverId: string;
+    actorUserId: string;
+    status?: HandoverReadyStatus;
+  }): Promise<void>;
 }

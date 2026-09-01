@@ -10,6 +10,7 @@ import { formatEuro } from "@/lib/money";
 import { formatDayLong, formatTime, toISODate } from "@/lib/dates";
 import { childAge, nextEventForChild, nextHandoverForChild, parentName } from "@/lib/queries/family-view";
 import { childPlace, nowImportant, neededHeadline } from "@/lib/queries/child-life";
+import { upcomingPackingForChild } from "@/lib/queries/packing";
 import { EmptyState } from "@/components/empty-state";
 import { PageSection } from "@/components/ui/page-header";
 import { TimelineItem } from "@/components/ui/list-row";
@@ -213,6 +214,7 @@ function Overview({
   const needed = snapshot.neededItems.filter(
     (item) => item.childId === child.id && item.status !== "niet_meer_nodig" && item.status !== "gekocht",
   );
+  const packingSoon = upcomingPackingForChild(snapshot, child.id);
 
   return (
     <div className="space-y-6">
@@ -246,6 +248,14 @@ function Overview({
               time={formatDayLong(event.startsAt)}
               title={event.title}
             />
+          ))}
+        </PageSection>
+      ) : null}
+
+      {packingSoon.length ? (
+        <PageSection title="Binnenkort">
+          {packingSoon.map((item) => (
+            <TimelineItem key={item.id} href={item.href} title={`${item.when} · ${item.title}`} meta={item.progressLabel} />
           ))}
         </PageSection>
       ) : null}
