@@ -1,10 +1,5 @@
 import { getAdminActor } from "@/lib/admin/session";
-import {
-  signInAdmin,
-  startDemoReadonlyAdmin,
-  startDemoSuperAdmin,
-  startDemoSupportAdmin,
-} from "@/lib/admin/actions";
+import { signInAdmin } from "@/lib/admin/actions";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { redirect } from "next/navigation";
 
@@ -48,17 +43,20 @@ export default async function AdminLoginPage({
         {!supabase ? (
           <div className="mt-8 space-y-2">
             <p className="text-xs text-slate-500">Demo-beheerders (alleen lokaal):</p>
-            <form action={startDemoSuperAdmin}>
+            <form action="/admin/demo" method="post">
+              <input type="hidden" name="email" value="super@famli.internal" />
               <button className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm">
                 Isa Super <span className="float-right text-xs text-slate-400">super_admin</span>
               </button>
             </form>
-            <form action={startDemoSupportAdmin}>
+            <form action="/admin/demo" method="post">
+              <input type="hidden" name="email" value="support@famli.internal" />
               <button className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm">
                 Lars Support <span className="float-right text-xs text-slate-400">support_admin</span>
               </button>
             </form>
-            <form action={startDemoReadonlyAdmin}>
+            <form action="/admin/demo" method="post">
+              <input type="hidden" name="email" value="readonly@famli.internal" />
               <button className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm">
                 Noor Inzicht <span className="float-right text-xs text-slate-400">readonly_admin</span>
               </button>
