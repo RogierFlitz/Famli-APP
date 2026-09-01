@@ -9,10 +9,14 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function getSession(): Promise<SessionPayload | null> {
   if (isSupabaseConfigured()) {
-    const supabase = await createSupabaseServerClient();
-    const { data } = await supabase.auth.getUser();
-    if (data.user) return { userId: data.user.id, source: "supabase" };
-    return null;
+    try {
+      const supabase = await createSupabaseServerClient();
+      const { data } = await supabase.auth.getUser();
+      if (data.user) return { userId: data.user.id, source: "supabase" };
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   const store = await cookies();
