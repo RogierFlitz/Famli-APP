@@ -78,7 +78,8 @@ All public tables should have `rowsecurity = true`.
 2. **Confirm email**: enable for production (recommended)
 3. **Site URL**: Authentication → URL Configuration
    - Site URL: `https://your-domain.vercel.app`
-   - Redirect URLs: add `https://your-domain.vercel.app/**` and `http://localhost:3000/**`
+   - Redirect URLs: add `https://your-domain.vercel.app/**`, `https://your-domain.vercel.app/auth/callback`, and `http://localhost:3000/**`
+   - Password reset uses `/auth/callback?next=/login/nieuw-wachtwoord` — Site URL must match `NEXT_PUBLIC_SITE_URL`
 4. **Password policy**: Authentication → Policies
 5. **MFA (recommended)**: Authentication → MFA → Enable TOTP
 

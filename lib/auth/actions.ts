@@ -8,6 +8,7 @@ import { assertRateLimit } from "@/lib/security/rate-limit";
 import { safeRedirectPath } from "@/lib/security/redirect";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { passwordResetRedirectTo } from "@/lib/auth/password-reset";
 
 async function setSessionCookie(payload: SessionPayload) {
   const store = await cookies();
@@ -86,18 +87,53 @@ export async function signInLocal(formData: FormData) {
 
 export async function requestPasswordReset(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  assertRateLimit("password_reset", email);
+  if (!email) redirect("/login/wachtwoord-vergeten?error=Vul%20je%20e-mailadres%20in.");
+  try {
+    assertRateLimit("password_reset", email);
+  } catch {
+    redirect("/login/wachtwoord-vergeten?error=Te%20veel%20pogingen.%20Probeer%20het%20later.");
+  }
 
   if (!isSupabaseConfigured()) {
-    redirect("/login?error=Wachtwoord%20reset%20vereist%20Supabase%20Auth.");
+    redirect("/login/wachtwoord-vergeten?error=Wachtwoord%20resetten%20kan%20alleen%20op%20de%20live%20site.");
   }
 
   const supabase = await createSupabaseServerClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${siteUrl}/login`,
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: passwordResetRedirectTo(siteUrl),
   });
-  redirect("/login?error=Controleer%20je%20e-mail%20voor%20reset-instructies.");
+  if (error) {
+    redirect("/login/wachtwoord-vergeten?error=Versturen%20lukt%20nu%20niet.%20Probeer%20het%20later.");
+  }
+  redirect("/login/wachtwoord-vergeten?sent=1");
+}
+
+export async function updatePasswordFromReset(formData: FormData) {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+  if (password.length < 8) {
+    redirect("/login/nieuw-wachtwoord?error=Gebruik%20minstens%208%20tekens.");
+  }
+  if (password !== confirm) {
+    redirect("/login/nieuw-wachtwoord?error=De%20wachtwoorden%20komen%20niet%20overeen.");
+  }
+  if (!isSupabaseConfigured()) {
+    redirect("/login?error=Wachtwoord%20reset%20vereist%20Supabase%20Auth.");
+  }
+  try {
+    assertRateLimit("password_reset", "update");
+  } catch {
+    redirect("/login/nieuw-wachtwoord?error=Te%20veel%20pogingen.%20Probeer%20het%20later.");
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) {
+    redirect("/login/wachtwoord-vergeten?error=De%20resetlink%20is%20ongeldig%20of%20verlopen.");
+  }
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) redirect(`/login/nieuw-wachtwoord?error=${encodeURIComponent(error.message)}`);
+  redirect("/login?reset=1");
 }
 
 export async function signOut() {

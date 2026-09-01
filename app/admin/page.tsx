@@ -1,8 +1,9 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getAdminActor, familyUserBlockedFromAdmin } from "@/lib/admin/session";
 import { signInAdmin } from "@/lib/admin/actions";
 import { isAdminBootstrapEnabled } from "@/lib/admin/bootstrap";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { redirect } from "next/navigation";
 
 export default async function AdminLoginPage({
   searchParams,
@@ -41,6 +42,11 @@ export default async function AdminLoginPage({
           </label>
           <button className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">Inloggen</button>
         </form>
+        <p className="mt-4 text-sm">
+          <Link href="/login/wachtwoord-vergeten" className="text-slate-600 underline">
+            Wachtwoord vergeten?
+          </Link>
+        </p>
 
         {isAdminBootstrapEnabled() ? (
           <form action="/admin/bootstrap" method="post" className="mt-8 space-y-3 border-t border-slate-200 pt-6">
