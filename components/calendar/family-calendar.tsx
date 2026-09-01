@@ -168,7 +168,7 @@ export function FamilyCalendar({
 
         {view === "day" && !mobile ? (
           <div className="max-w-2xl">
-            <div className="mb-4 rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] p-4">
+            <div className="mb-4 famli-summary-card">
               <CustodyHeadline snapshot={snapshot} date={toISODate(anchor)} />
             </div>
             <CalendarDayTimeline

@@ -9,8 +9,10 @@ import { sizeFieldLabel } from "@/lib/domain/labels";
 import { formatEuro } from "@/lib/money";
 import { formatDayLong, formatTime, toISODate } from "@/lib/dates";
 import { childAge, nextEventForChild, nextHandoverForChild, parentName } from "@/lib/queries/family-view";
-import { childPlace, nowImportant } from "@/lib/queries/child-life";
+import { childPlace, nowImportant, neededHeadline } from "@/lib/queries/child-life";
 import { EmptyState } from "@/components/empty-state";
+import { PageSection } from "@/components/ui/page-header";
+import { TimelineItem } from "@/components/ui/list-row";
 import { NeededList } from "@/components/children/needed-list";
 import { ChildActivitiesPanel } from "@/components/children/child-activities";
 import { ChildContactsPanel } from "@/components/children/child-contacts";
@@ -37,6 +39,14 @@ const TABS = [
   { id: "kosten", label: "Kosten" },
   { id: "documenten", label: "Documenten" },
 ] as const;
+
+const PRIMARY_TABS = [
+  { id: "overzicht", label: "Overzicht" },
+  { id: "agenda", label: "Agenda" },
+  { id: "nodig", label: "Regelen" },
+] as const;
+
+const MORE_TAB_IDS = ["taken", "school", "activiteiten", "reizen", "informatie", "kosten", "documenten"] as const;
 
 type Tab = (typeof TABS)[number]["id"];
 
@@ -68,18 +78,16 @@ export function ChildProfile({
       <Link href="/kinderen" className="text-sm text-[color:var(--famli-muted)]">
         ← Kinderen
       </Link>
-      <header>
-        <div className="flex items-center gap-4">
-          <div className="grid size-16 place-items-center rounded-full text-xl font-semibold text-white" style={{ background: child.color }}>
-            {child.firstName.slice(0, 1)}
-          </div>
-          <div>
-            <h1 className="text-4xl font-semibold tracking-tight">{child.firstName}</h1>
-            <p className="text-[color:var(--famli-muted)]">
-              {age} jaar · {place.label}
-            </p>
-          </div>
+      <header className="flex items-start gap-4">
+        <div className="grid size-16 place-items-center rounded-full text-xl font-semibold text-white" style={{ background: child.color }}>
+          {child.firstName.slice(0, 1)}
         </div>
+        <div className="min-w-0">
+          <p className="text-sm text-[color:var(--famli-muted)]">{age} jaar</p>
+          <h1 className="text-3xl font-semibold tracking-tight">{child.firstName}</h1>
+          <p className="mt-1 text-[color:var(--famli-muted)]">{place.label}</p>
+        </div>
+      </header>
         {important.length ? (
           <section className="mt-4">
             <h2 className="mb-3 text-2xl font-semibold">Nu belangrijk</h2>
@@ -115,22 +123,54 @@ export function ChildProfile({
             </p>
           ) : null}
         </div>
-      </header>
 
-      <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {tabs.map((item) => (
+      <nav className="space-y-2">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {PRIMARY_TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTab(item.id)}
+              className={cn(
+                "min-h-11 shrink-0 rounded-full px-4 text-sm",
+                tab === item.id ? "bg-[color:var(--famli-ink)] font-medium text-white" : "border border-[color:var(--famli-border)]",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
           <button
-            key={item.id}
             type="button"
-            onClick={() => setTab(item.id)}
+            onClick={() => setTab(MORE_TAB_IDS.includes(tab as (typeof MORE_TAB_IDS)[number]) ? tab : "taken")}
             className={cn(
-              "h-10 shrink-0 rounded-full px-4 text-sm",
-              tab === item.id ? "bg-[color:var(--famli-ink)] text-white" : "border border-[color:var(--famli-border)]",
+              "min-h-11 shrink-0 rounded-full px-4 text-sm",
+              MORE_TAB_IDS.includes(tab as (typeof MORE_TAB_IDS)[number])
+                ? "bg-[color:var(--famli-ink)] font-medium text-white"
+                : "border border-[color:var(--famli-border)]",
             )}
           >
-            {item.label}
+            Meer
           </button>
-        ))}
+        </div>
+        {MORE_TAB_IDS.includes(tab as (typeof MORE_TAB_IDS)[number]) ? (
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {tabs
+              .filter((item) => MORE_TAB_IDS.includes(item.id as (typeof MORE_TAB_IDS)[number]))
+              .map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setTab(item.id)}
+                  className={cn(
+                    "min-h-11 shrink-0 rounded-full px-3 text-xs",
+                    tab === item.id ? "bg-[color:var(--famli-brand-soft)] font-medium" : "text-[color:var(--famli-muted)]",
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+          </div>
+        ) : null}
       </nav>
 
       {tab === "overzicht" ? <Overview snapshot={snapshot} child={child} onOpenInfo={() => setTab("informatie")} /> : null}
@@ -156,14 +196,83 @@ function Overview({
   child: Child;
   onOpenInfo: () => void;
 }) {
+  const today = toISODate(new Date());
   const sizes = snapshot.sizes.find((item) => item.childId === child.id);
   const club = snapshot.clubs.find((item) => item.childId === child.id);
   const updates = snapshot.childUpdates.filter((item) => item.childId === child.id).slice(0, 3);
+  const todayEvents = snapshot.events
+    .filter((event) => !event.cancelledAt && event.childIds.includes(child.id) && event.startsAt.slice(0, 10) === today)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const upcoming = snapshot.events
+    .filter((event) => !event.cancelledAt && event.childIds.includes(child.id) && event.startsAt.slice(0, 10) > today)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+    .slice(0, 4);
+  const toArrange = snapshot.tasks.filter(
+    (task) => task.childId === child.id && task.status !== "done",
+  );
+  const needed = snapshot.neededItems.filter(
+    (item) => item.childId === child.id && item.status !== "niet_meer_nodig" && item.status !== "gekocht",
+  );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {todayEvents.length ? (
+        <PageSection title="Vandaag">
+          {todayEvents.map((event) => (
+            <TimelineItem
+              key={event.id}
+              href={`/agenda?date=${event.startsAt.slice(0, 10)}&focus=${event.id}`}
+              time={event.allDay ? "Dag" : formatTime(event.startsAt)}
+              title={event.title}
+              meta={[
+                event.dropoffMemberId ? `Brengen: ${parentName(snapshot, event.dropoffMemberId)}` : null,
+                event.pickupMemberId ? `Halen: ${parentName(snapshot, event.pickupMemberId)}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            />
+          ))}
+        </PageSection>
+      ) : (
+        <EmptyState tone="success" title="Niets gepland vandaag" body="Komende afspraken staan hieronder." />
+      )}
+
+      {upcoming.length ? (
+        <PageSection title="Komende dagen">
+          {upcoming.map((event) => (
+            <TimelineItem
+              key={event.id}
+              href={`/agenda?date=${event.startsAt.slice(0, 10)}&focus=${event.id}`}
+              time={formatDayLong(event.startsAt)}
+              title={event.title}
+            />
+          ))}
+        </PageSection>
+      ) : null}
+
+      {toArrange.length ? (
+        <PageSection title="Te regelen">
+          {toArrange.map((task) => (
+            <TimelineItem key={task.id} href={`/regelen?tab=voor-jou&id=${task.id}`} title={task.title} meta={task.dueAt ? `Voor ${formatDayLong(task.dueAt)}` : null} />
+          ))}
+        </PageSection>
+      ) : null}
+
+      {needed.length ? (
+        <PageSection title="Niet vergeten">
+          {needed.map((item) => (
+            <TimelineItem
+              key={item.id}
+              href={`/kinderen/${child.id}?tab=nodig`}
+              title={item.title}
+              meta={neededHeadline(item, snapshot)}
+            />
+          ))}
+        </PageSection>
+      ) : null}
+
       {sizes ? (
-        <button type="button" onClick={onOpenInfo} className="famli-card block w-full text-left">
+        <button type="button" onClick={onOpenInfo} className="famli-summary-card block w-full text-left">
           <p className="text-sm text-[color:var(--famli-muted)]">Maten</p>
           <p className="mt-1 font-medium">
             Kleding {sizes.clothing ?? "—"} · Schoenen {sizes.shoes ?? "—"}
@@ -171,7 +280,7 @@ function Overview({
         </button>
       ) : null}
       {club ? (
-        <div className="famli-card">
+        <div className="famli-summary-card">
           <p className="text-sm text-[color:var(--famli-muted)]">{club.sport}</p>
           <p className="mt-1 font-medium">{club.training}</p>
           {club.gear.length ? <p className="mt-2 text-sm text-[color:var(--famli-muted)]">Benodigd: {club.gear.join(", ")}</p> : null}
@@ -179,10 +288,10 @@ function Overview({
       ) : null}
       {updates.length ? (
         <section>
-          <h2 className="mb-3 text-xl font-semibold">Gedeeld</h2>
-          <div className="space-y-2">
+          <h2 className="famli-section-title mb-3">Gedeeld</h2>
+          <div>
             {updates.map((item) => (
-              <article key={item.id} className="rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-3">
+              <article key={item.id} className="famli-row">
                 <p>{item.body}</p>
                 <p className="mt-1 text-xs text-[color:var(--famli-muted)]">
                   {parentName(snapshot, item.authorMemberId)} · {formatDayLong(item.createdAt)}
@@ -203,25 +312,21 @@ function AgendaTab({ snapshot, childId, today }: { snapshot: FamilySnapshot; chi
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
     .slice(0, 16);
   return (
-    <div className="space-y-2">
+    <div>
       {events.map((event) => (
-        <Link
+        <TimelineItem
           key={event.id}
           href={`/agenda?date=${event.startsAt.slice(0, 10)}&focus=${event.id}`}
-          className="block rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-3"
-        >
-          <p className="text-sm text-[color:var(--famli-muted)]">
-            {formatDayLong(event.startsAt)} · {event.allDay ? "Hele dag" : formatTime(event.startsAt)}
-          </p>
-          <p className="font-medium">{event.title}</p>
-          {event.dropoffMemberId || event.pickupMemberId ? (
-            <p className="text-sm text-[color:var(--famli-muted)]">
-              {event.dropoffMemberId ? `Brengen: ${parentName(snapshot, event.dropoffMemberId)}` : ""}
-              {event.dropoffMemberId && event.pickupMemberId ? " · " : ""}
-              {event.pickupMemberId ? `Halen: ${parentName(snapshot, event.pickupMemberId)}` : ""}
-            </p>
-          ) : null}
-        </Link>
+          time={event.allDay ? "Dag" : formatTime(event.startsAt)}
+          title={event.title}
+          meta={[
+            formatDayLong(event.startsAt),
+            event.dropoffMemberId ? `Brengen: ${parentName(snapshot, event.dropoffMemberId)}` : null,
+            event.pickupMemberId ? `Halen: ${parentName(snapshot, event.pickupMemberId)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        />
       ))}
       {!events.length ? <EmptyState title="Geen komende afspraken" /> : null}
     </div>

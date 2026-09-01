@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { requireSnapshot } from "@/lib/auth/session";
 import { childrenOverview } from "@/lib/queries/children-overview";
-import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { ChildOverviewCardView } from "@/components/children/child-overview-card";
 import { AddChildForm } from "@/components/children/add-child-form";
+import { EmptyState } from "@/components/empty-state";
 
 export default async function ChildrenPage({
   searchParams,
@@ -16,18 +17,18 @@ export default async function ChildrenPage({
   const showForm = overview.canAddChild && (nieuw === "1" || overview.cards.length === 0);
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-4xl font-semibold tracking-tight">Kinderen</h1>
-          <p className="mt-2 text-sm text-[color:var(--famli-muted)]">Alles rondom jullie kinderen op één plek.</p>
-        </div>
-        {overview.canAddChild && overview.cards.length > 0 ? (
-          <Link href="/kinderen?nieuw=1" className="famli-btn famli-btn-secondary min-h-11 shrink-0 px-4 text-sm">
-            + Kind toevoegen
-          </Link>
-        ) : null}
-      </header>
+    <div className="famli-page">
+      <PageHeader
+        title="Kinderen"
+        subtitle="Alles rondom jullie kinderen op één plek."
+        action={
+          overview.canAddChild && overview.cards.length > 0 ? (
+            <Link href="/kinderen?nieuw=1" className="famli-btn famli-btn-secondary min-h-11 shrink-0 px-4 text-sm">
+              + Kind toevoegen
+            </Link>
+          ) : null
+        }
+      />
 
       {overview.cards.length && (overview.summary.handoversToday || overview.summary.toArrange) ? (
         <p className="text-sm text-[color:var(--famli-muted)]">
@@ -53,7 +54,7 @@ export default async function ChildrenPage({
           actionLabel="Kind toevoegen"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
           {overview.cards.map((card) => (
             <ChildOverviewCardView key={card.child.id} card={card} />
           ))}

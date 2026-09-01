@@ -60,7 +60,7 @@ export function ShoppingListView({
             />
           ))
         ) : (
-          <p className="rounded-3xl border border-dashed border-[color:var(--famli-border)] px-4 py-8 text-center text-sm text-[color:var(--famli-muted)]">
+          <p className="rounded-2xl px-1 py-6 text-sm text-[color:var(--famli-muted)]">
             {canEdit ? "Voeg iets toe — typ en druk op Enter." : "De lijst is leeg."}
           </p>
         )}
@@ -96,7 +96,7 @@ function ListTabs({
             key={list.id}
             href={`/boodschappen?list=${list.id}`}
             className={cn(
-              "shrink-0 rounded-full px-4 py-2 text-sm font-medium transition",
+              "shrink-0 min-h-11 rounded-full px-4 py-2 text-sm font-medium transition",
               active
                 ? "bg-[color:var(--famli-ink)] text-white"
                 : "bg-[color:var(--famli-bg)] text-[color:var(--famli-muted)] hover:text-[color:var(--famli-ink)]",
@@ -132,7 +132,7 @@ function QuickAdd({ listId }: { listId: string }) {
 
   return (
     <form
-      className="famli-card space-y-3 p-4"
+      className="sticky top-0 z-10 space-y-3 rounded-2xl bg-[color:var(--famli-bg)]/90 py-2 backdrop-blur-sm"
       action={submit}
     >
       <div className="flex gap-2">
@@ -245,7 +245,7 @@ function ShoppingItemCard({
   return (
     <article
       className={cn(
-        "famli-card flex items-start gap-3 p-4",
+        "flex min-h-11 items-start gap-3 border-b border-[color:var(--famli-border)] py-3 last:border-b-0",
         item.completed && "opacity-60",
       )}
     >
@@ -256,7 +256,7 @@ function ShoppingItemCard({
         disabled={!canEdit}
       />
       <div className="min-w-0 flex-1">
-        <p className={cn("text-lg font-medium", item.completed && "line-through")}>{item.name}</p>
+        <p className={cn("font-medium", item.completed && "line-through")}>{item.name}</p>
         <p className="text-sm text-[color:var(--famli-muted)]">
           {[detail, shoppingCategoryLabel[item.category], item.note].filter(Boolean).join(" · ")}
         </p>
@@ -272,7 +272,7 @@ function ShoppingItemCard({
           <button
             type="button"
             aria-label="Bewerken"
-            className="rounded-xl p-2 text-[color:var(--famli-muted)] hover:bg-[color:var(--famli-bg)]"
+            className="grid size-11 place-items-center rounded-xl text-[color:var(--famli-muted)] hover:bg-[color:var(--famli-surface)]"
             onClick={() => setEditing(true)}
           >
             <Pencil className="size-4" />
@@ -280,7 +280,7 @@ function ShoppingItemCard({
           <button
             type="button"
             aria-label="Verwijderen"
-            className="rounded-xl p-2 text-[color:var(--famli-muted)] hover:bg-[color:var(--famli-bg)]"
+            className="grid size-11 place-items-center rounded-xl text-[color:var(--famli-muted)] hover:bg-[color:var(--famli-surface)]"
             onClick={() =>
               startTransition(async () => {
                 try {

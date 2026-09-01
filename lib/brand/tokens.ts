@@ -33,18 +33,25 @@ export const famliColor = {
   brandHover: "#2563EB",
   brandSoft: "#DBEAFE",
   onBrand: "#FFFFFF",
-  bg: "#F8FAFC",
-  surface: "#FFFFFF",
+  bg: "#F4F1EB",
+  surface: "#FBF8F3",
+  elevated: "#FFFFFF",
   card: "#FFFFFF",
   ink: "#0F172A",
-  muted: "#64748B",
+  textPrimary: "#0F172A",
+  textSecondary: "#5B6472",
+  muted: "#5B6472",
   border: "rgba(15, 23, 42, 0.08)",
+  success: "#3D7A57",
+  warning: "#C4851A",
+  danger: "#C2413B",
+  info: "#3B82F6",
   parent1: "#3B82F6",
   parent2: "#FF8A7A",
   child: "#FBBF24",
   school: "#94A3B8",
   sport: "#60A5FA",
-  important: "#FF8A7A",
+  important: "#C4851A",
 } as const;
 
 export const famliRadius = {
@@ -64,9 +71,10 @@ export const famliShadow = {
 
 export const famliSpace = {
   page: "1.5rem",
-  card: "1.25rem",
+  card: "1rem",
   stack: "0.75rem",
-  control: "3rem",
+  section: "2rem",
+  control: "2.75rem",
 } as const;
 
 export const famliType = {
@@ -76,11 +84,16 @@ export const famliType = {
 
 export const famliClass = {
   card: "famli-card",
+  statusCard: "famli-status-card",
+  actionCard: "famli-action-card",
+  summaryCard: "famli-summary-card",
   input: "famli-input",
   btn: "famli-btn",
   btnPrimary: "famli-btn famli-btn-primary",
   btnSecondary: "famli-btn famli-btn-secondary",
   btnBrand: "famli-btn famli-btn-brand",
+  page: "famli-page",
+  sectionTitle: "famli-section-title",
 } as const;
 
 export const famliCopy = {

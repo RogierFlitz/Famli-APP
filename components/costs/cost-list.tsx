@@ -52,42 +52,34 @@ function ExpenseCard({
     <article
       key={expense.id}
       id={expense.id}
-      className={cn("famli-card", !open && "opacity-80", focusId === expense.id && "ring-2 ring-[color:var(--famli-brand)]")}
+      className={cn("famli-action-card", !open && "opacity-80", focusId === expense.id && "ring-2 ring-[color:var(--famli-brand)]")}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="flex min-h-11 items-start justify-between gap-3">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className={cn("text-lg font-semibold", !open && "line-through")}>{expense.description}</p>
+          <p className={cn("font-medium", !open && "line-through")}>{expense.description}</p>
             {hasReceipt(expense) ? (
               <Receipt className="size-4 shrink-0 text-[color:var(--famli-brand)]" aria-label="Bon toegevoegd" />
             ) : null}
           </div>
-          {child ? <p className="text-sm text-[color:var(--famli-muted)]">{child.firstName}</p> : (
-            <p className="text-sm text-[color:var(--famli-muted)]">Alle kinderen</p>
-          )}
-          <p className="text-xs text-[color:var(--famli-muted)]">{expense.date} · {expenseCategoryLabel[expense.category]}</p>
-          <p className="mt-2 text-2xl font-semibold">{formatEuro(expense.amountCents)}</p>
-          <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
-            Betaald door: {parentName(snapshot, expense.paidByMemberId)}
-          </p>
           <p className="text-sm text-[color:var(--famli-muted)]">
-            Verdeling: {related.map((split) => `${Math.round(split.sharePercent)}%`).join(" / ")}
+            {[child?.firstName ?? "Alle kinderen", expense.date, expenseCategoryLabel[expense.category], `Betaald door ${parentName(snapshot, expense.paidByMemberId)}`].join(" · ")}
           </p>
-          <p className="mt-1 text-sm font-medium">{open ? "Openstaand" : "Verrekend"}</p>
-          {otherSplit ? (
-            <p className="mt-2 font-medium">
-              {parentName(snapshot, otherSplit.memberId)}: {formatEuro(otherSplit.shareCents)}{" "}
-              {otherSplit.status === "pending" ? "openstaand" : "voldaan"}
-            </p>
-          ) : null}
+          <p className="mt-1 text-sm text-[color:var(--famli-muted)]">
+            {open ? "Openstaand" : "Verrekend"}
+            {otherSplit ? ` · ${parentName(snapshot, otherSplit.memberId)} ${formatEuro(otherSplit.shareCents)}` : ""}
+          </p>
         </div>
+        <div className="shrink-0 text-right">
+          <p className="text-base font-semibold tabular-nums">{formatEuro(expense.amountCents)}</p>
         <button
           type="button"
           onClick={() => onView(expense.id)}
-          className="text-sm font-medium text-[color:var(--famli-brand)]"
+          className="mt-1 min-h-11 text-sm font-medium text-[color:var(--famli-brand)]"
         >
           Bekijk
         </button>
+        </div>
       </div>
       {mine ? (
         <form action={markSplitPaidAction} className="mt-4">
@@ -138,7 +130,7 @@ export function CostList({
 
   const filteredItems = useMemo(() => {
     const monthStart = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
-    const last30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const last30 = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     let items = filter === "open" ? openItems : filter === "done" ? doneItems : allItems;
     if (childFilter === "all-children") {
       items = items.filter((item) => !item.expense.childId);
