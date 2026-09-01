@@ -15,9 +15,16 @@ import { ConfirmActionForm } from "@/components/admin/confirm-action-form";
 import { getAccountFlag } from "@/lib/admin/memory";
 import { notFound } from "next/navigation";
 
-export default async function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AdminUserDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ ok?: string; error?: string }>;
+}) {
   const actor = await requireAdmin();
   const { id } = await params;
+  const flash = await searchParams;
   const { users, families } = await loadAdminDirectory();
   const user = users.find((item) => item.id === id);
   if (!user) notFound();
@@ -40,6 +47,8 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
           {user.firstName} {user.lastName}
         </h1>
         <p className="text-sm text-slate-500">{user.email}</p>
+        {flash.ok ? <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{flash.ok}</p> : null}
+        {flash.error ? <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{flash.error}</p> : null}
       </div>
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -96,6 +105,48 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
           </ul>
         </div>
       </section>
+
+      {adminHasCapability(actor.role, "manage_users") ? (
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Wachtwoord</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Zet een nieuw wachtwoord. De gebruiker kan daarna meteen inloggen in de gezinsapp. Het wachtwoord wordt niet
+            getoond of gelogd.
+          </p>
+          <form action="/admin/users/password" method="post" className="mt-3 grid gap-3 sm:grid-cols-2">
+            <input type="hidden" name="userId" value={user.id} />
+            <label className="block text-sm sm:col-span-2">
+              Reden (verplicht, voor de auditlog)
+              <input name="reason" required className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+            </label>
+            <label className="block text-sm">
+              Nieuw wachtwoord
+              <input
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="block text-sm">
+              Bevestigen
+              <input
+                name="confirm"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white sm:col-span-2">
+              Wachtwoord opslaan
+            </button>
+          </form>
+        </section>
+      ) : null}
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Acties</h2>

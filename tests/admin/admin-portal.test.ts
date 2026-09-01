@@ -19,7 +19,9 @@ describe("admin roles", () => {
   });
 
   it("super admin can block and request elevated inzage", () => {
-    assert.equal(adminHasCapability("super_admin", "block_account"), true);
+    assert.equal(adminHasCapability("readonly_admin", "manage_users"), false);
+    assert.equal(adminHasCapability("support_admin", "manage_users"), false);
+    assert.equal(adminHasCapability("super_admin", "manage_users"), true);
     assert.equal(adminHasCapability("super_admin", "elevate_privacy"), true);
     assert.equal(adminHasCapability("support_admin", "elevate_privacy"), false);
     assert.doesNotThrow(() => assertAdminCapability("super_admin", "block_account"));

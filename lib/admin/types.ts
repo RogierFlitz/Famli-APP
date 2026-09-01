@@ -103,6 +103,12 @@ export interface AdminDashboardStats {
   payingCount: number;
   freeCount: number;
   registrationsLast7Days: number[];
+  registrationDayLabels: string[];
+  onboardedCount: number;
+  openOnboardingCount: number;
+  blockedCount: number;
+  withFamilyCount: number;
+  noFamilyCount: number;
 }
 
 export type UserFilter =

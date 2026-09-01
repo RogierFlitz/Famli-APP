@@ -151,6 +151,30 @@ export function filterUsers(rows: AdminUserRow[], filter: UserFilter, query: str
   );
 }
 
+export function emptyAdminStats(): AdminDashboardStats {
+  return {
+    userCount: 0,
+    familyCount: 0,
+    childCount: 0,
+    active7d: 0,
+    active30d: 0,
+    registrationsToday: 0,
+    registrationsWeek: 0,
+    pendingInvites: 0,
+    connectedCalendars: 0,
+    onboardingCompletedPct: 0,
+    payingCount: 0,
+    freeCount: 0,
+    registrationsLast7Days: [0, 0, 0, 0, 0, 0, 0],
+    registrationDayLabels: ["ma", "di", "wo", "do", "vr", "za", "zo"],
+    onboardedCount: 0,
+    openOnboardingCount: 0,
+    blockedCount: 0,
+    withFamilyCount: 0,
+    noFamilyCount: 0,
+  };
+}
+
 function statsFrom(users: AdminUserRow[], families: AdminFamilyRow[], pendingInvites: number): AdminDashboardStats {
   const now = new Date();
   const today = startOfDay(now).toISOString();
@@ -159,14 +183,17 @@ function statsFrom(users: AdminUserRow[], families: AdminFamilyRow[], pendingInv
   const d30 = daysAgo(30).toISOString();
   const onboarded = users.filter((item) => item.onboardingCompleted).length;
   const paying = families.filter((item) => item.plan !== "free" && item.subscriptionStatus === "active").length;
-  const registrationsLast7Days = Array.from({ length: 7 }, (_, index) => {
-    const day = startOfDay(new Date(Date.now() - (6 - index) * 24 * 60 * 60 * 1000));
+  const dayStarts = Array.from({ length: 7 }, (_, index) =>
+    startOfDay(new Date(Date.now() - (6 - index) * 24 * 60 * 60 * 1000)),
+  );
+  const registrationsLast7Days = dayStarts.map((day) => {
     const nextDay = new Date(day.getTime() + 24 * 60 * 60 * 1000);
     return users.filter((item) => {
       const created = new Date(item.createdAt).getTime();
       return created >= day.getTime() && created < nextDay.getTime();
     }).length;
   });
+  const withFamilyCount = users.filter((item) => item.familyId).length;
   return {
     userCount: users.length,
     familyCount: families.length,
@@ -181,6 +208,12 @@ function statsFrom(users: AdminUserRow[], families: AdminFamilyRow[], pendingInv
     payingCount: paying,
     freeCount: families.filter((item) => item.plan === "free").length,
     registrationsLast7Days,
+    registrationDayLabels: dayStarts.map((day) => day.toLocaleDateString("nl-NL", { weekday: "short" })),
+    onboardedCount: onboarded,
+    openOnboardingCount: users.length - onboarded,
+    blockedCount: users.filter((item) => item.accountStatus === "blocked").length,
+    withFamilyCount,
+    noFamilyCount: users.length - withFamilyCount,
   };
 }
 

@@ -13,6 +13,7 @@ export type AdminCapability =
   | "reset_onboarding"
   | "retry_sync"
   | "manage_admin_roles"
+  | "manage_users"
   | "elevate_privacy";
 
 const ROLE_CAPS: Record<AdminRole, AdminCapability[]> = {
@@ -38,6 +39,7 @@ const ROLE_CAPS: Record<AdminRole, AdminCapability[]> = {
     "reset_onboarding",
     "retry_sync",
     "manage_admin_roles",
+    "manage_users",
     "elevate_privacy",
   ],
 };
