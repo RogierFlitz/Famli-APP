@@ -350,6 +350,8 @@ export function upcomingPackingForChild(
   for (const event of snapshot.events.filter(
     (item) =>
       !item.cancelledAt &&
+      item.category !== "overdracht" &&
+      !item.handoverId &&
       item.childIds.includes(childId) &&
       item.startsAt.slice(0, 10) >= start &&
       item.startsAt.slice(0, 10) <= end &&
