@@ -1,6 +1,7 @@
-import { getAdminActor, familyUserBlockedFromAdmin } from "@/lib/admin/session";
-import { signInAdmin } from "@/lib/admin/actions";
+import { getAdminActor } from "@/lib/admin/session";
+import { signInAdmin, signOutFamilyForAdmin } from "@/lib/admin/actions";
 import { isAdminBootstrapEnabled } from "@/lib/admin/bootstrap";
+import { getSession } from "@/lib/auth/session";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { redirect } from "next/navigation";
 
@@ -11,7 +12,7 @@ export default async function AdminLoginPage({
 }) {
   const actor = await getAdminActor();
   if (actor) redirect("/admin/dashboard");
-  if (await familyUserBlockedFromAdmin()) redirect("/admin/geweigerd");
+  const familySession = await getSession();
   const { error } = await searchParams;
   const supabase = isSupabaseConfigured();
 
@@ -24,6 +25,17 @@ export default async function AdminLoginPage({
           Alleen voor interne medewerkers. Dit is geen onderdeel van de gezinsapp.
         </p>
         {error ? <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
+
+        {familySession ? (
+          <div className="mt-4 rounded-lg bg-amber-50 px-3 py-3 text-sm text-amber-950">
+            <p>Je bent ingelogd in de gezinsapp. Log daar eerst uit om beheer te openen.</p>
+            <form action={signOutFamilyForAdmin} className="mt-3">
+              <button className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">
+                Uitloggen en beheer openen
+              </button>
+            </form>
+          </div>
+        ) : null}
 
         <form action={signInAdmin} className="mt-6 space-y-3">
           <label className="block text-sm">

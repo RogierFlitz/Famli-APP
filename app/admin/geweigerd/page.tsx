@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { signOutFamilyForAdmin } from "@/lib/admin/actions";
 
 export default function AdminDeniedPage() {
   return (
@@ -9,7 +10,12 @@ export default function AdminDeniedPage() {
         <p className="mt-3 text-sm text-slate-600">
           Dit account hoort bij de gezinsapp en heeft geen adminrol. Beheer is alleen voor interne medewerkers.
         </p>
-        <Link href="/vandaag" className="mt-6 inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">
+        <form action={signOutFamilyForAdmin} className="mt-6">
+          <button className="inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">
+            Uitloggen en beheer openen
+          </button>
+        </form>
+        <Link href="/vandaag" className="mt-4 inline-block text-sm text-slate-600 underline">
           Terug naar Famli
         </Link>
       </div>
