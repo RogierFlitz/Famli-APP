@@ -52,11 +52,28 @@ function alreadyCovered(
 }
 
 export function packingItemsForHandover(snapshot: FamilySnapshot, handover: Handover): PackingItem[] {
-  return (snapshot.packingItems ?? []).filter(
-    (item) =>
-      item.handoverId === handover.id ||
-      (handover.childIds.includes(item.childId) && item.dueOn === handover.date && item.context === "handover"),
+  const eventIds = new Set(
+    snapshot.events
+      .filter(
+        (item) =>
+          !item.cancelledAt &&
+          item.startsAt.slice(0, 10) === handover.date &&
+          item.childIds.some((childId) => handover.childIds.includes(childId)),
+      )
+      .map((item) => item.id),
   );
+  const seen = new Set<string>();
+  const items: PackingItem[] = [];
+  for (const item of snapshot.packingItems ?? []) {
+    const linked =
+      item.handoverId === handover.id ||
+      (item.eventId && eventIds.has(item.eventId) && handover.childIds.includes(item.childId)) ||
+      (handover.childIds.includes(item.childId) && item.dueOn === handover.date && item.context === "handover");
+    if (!linked || seen.has(item.id)) continue;
+    seen.add(item.id);
+    items.push(item);
+  }
+  return items;
 }
 
 export function packingItemsForEvent(snapshot: FamilySnapshot, eventId: string): PackingItem[] {
