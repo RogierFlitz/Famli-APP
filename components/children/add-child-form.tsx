@@ -1,8 +1,8 @@
-import { addChildAction } from "@/lib/actions/onboarding";
+import { addChildFromOverviewAction } from "@/lib/actions/onboarding";
 
 export function AddChildForm({ lastName }: { lastName: string }) {
   return (
-    <form id="nieuw-kind" action={addChildAction} className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-4">
+    <form id="nieuw-kind" action={addChildFromOverviewAction} className="rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-4">
       <input type="hidden" name="from" value="kinderen" />
       <p className="text-sm font-medium">Kind toevoegen</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">

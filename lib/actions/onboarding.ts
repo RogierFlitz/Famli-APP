@@ -19,6 +19,15 @@ function actionError(error: unknown): OnboardingActionResult {
   return { ok: false, error: "Er ging iets mis. Probeer het opnieuw." };
 }
 
+function isNextRedirect(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      String((error as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT"),
+  );
+}
+
 export async function createFamilyAction(formData: FormData): Promise<OnboardingActionResult> {
   try {
     const session = await requireSession();
@@ -67,11 +76,19 @@ export async function addChildAction(formData: FormData): Promise<OnboardingActi
     }
     revalidatePath("/onboarding");
     revalidatePath("/kinderen");
-    if (String(formData.get("from") ?? "") === "kinderen") redirect("/kinderen");
+    if (String(formData.get("from") ?? "") === "kinderen") {
+      redirect("/kinderen");
+    }
     return { ok: true };
   } catch (error) {
+    if (isNextRedirect(error)) throw error;
     return actionError(error);
   }
+}
+
+export async function addChildFromOverviewAction(formData: FormData): Promise<void> {
+  const result = await addChildAction(formData);
+  if (result && !result.ok) throw new Error(result.error);
 }
 
 export async function inviteParentAction(formData: FormData): Promise<OnboardingActionResult> {
