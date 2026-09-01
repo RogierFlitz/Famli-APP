@@ -14,6 +14,7 @@ import { namedCostHeadline } from "@/lib/costs/stats";
 import { formatEuro } from "@/lib/money";
 import { forgetAndPack, nowAndSoon } from "@/lib/queries/smart-today";
 import { childrenOverview } from "@/lib/queries/children-overview";
+import { familyActivityFeed } from "@/lib/queries/activity-feed";
 import { AddMenu } from "@/components/compose/add-menu";
 import { ChangeReviewCard } from "@/components/requests/change-review";
 import { SmartHandover } from "@/components/handover/smart-handover";
@@ -22,6 +23,7 @@ import { PageHeader, PageSection } from "@/components/ui/page-header";
 import { TimelineItem } from "@/components/ui/list-row";
 import { EmptyState } from "@/components/empty-state";
 import { ChildOverviewCardView } from "@/components/children/child-overview-card";
+import { FamilyActivity } from "@/components/activity/family-activity";
 
 export default async function TodayPage() {
   const snapshot = await requireSnapshot();
@@ -43,6 +45,7 @@ export default async function TodayPage() {
   const bring = bringHaalToday(snapshot);
   const costs = namedCostHeadline(snapshot);
   const overview = childrenOverview(snapshot);
+  const activity = familyActivityFeed(snapshot, now);
   const hasToArrange = incoming.length || smart.duties.length || costs.net !== 0 || attentionActions.length;
 
   return (
@@ -240,6 +243,8 @@ export default async function TodayPage() {
           </div>
         </PageSection>
       ) : null}
+
+      <FamilyActivity items={activity} />
 
       {next && !showHandover ? (
         <div className="famli-summary-card">
