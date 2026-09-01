@@ -6,6 +6,7 @@ describe("skipSupabaseAuthRefresh", () => {
   it("skips the login and ping routes so they cannot hang on getUser", () => {
     assert.equal(skipSupabaseAuthRefresh("/admin"), true);
     assert.equal(skipSupabaseAuthRefresh("/admin/ok"), true);
+    assert.equal(skipSupabaseAuthRefresh("/admin/login"), true);
   });
 
   it("still refreshes the session on the rest of beheer", () => {

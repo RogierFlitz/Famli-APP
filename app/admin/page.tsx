@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { signInAdmin } from "@/lib/admin/actions";
 import { isAdminBootstrapEnabled } from "@/lib/admin/bootstrap";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -36,7 +35,7 @@ export default async function AdminLoginPage({
           </form>
         </div>
 
-        <form action={signInAdmin} className="mt-6 space-y-3">
+        <form action="/admin/login" method="post" className="mt-6 space-y-3">
           <label className="block text-sm">
             E-mailadres
             <input name="email" type="email" required className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />

@@ -22,7 +22,7 @@ function isPublicPath(pathname: string) {
 
 /** Login + ping must not wait on Supabase; a hung getUser() looks like a dead Chrome tab. */
 export function skipSupabaseAuthRefresh(pathname: string): boolean {
-  return pathname === "/admin" || pathname === "/admin/ok";
+  return pathname === "/admin" || pathname === "/admin/ok" || pathname === "/admin/login";
 }
 
 function withSecurityHeaders(response: NextResponse): NextResponse {
