@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/empty-state";
 import type { FamilySnapshot } from "@/lib/domain/types";
 
 export function ChildActivitiesPanel({ snapshot, childId }: { snapshot: FamilySnapshot; childId: string }) {
-  const activities = snapshot.childActivities.filter((item) => item.childId === childId && item.active);
+  const activities = (snapshot.childActivities ?? []).filter((item) => item.childId === childId && item.active);
   return (
     <div className="space-y-4">
       {activities.length ? (

@@ -6,6 +6,8 @@ import { getRepository } from "@/lib/data";
 import { requireSession } from "@/lib/auth/session";
 import { toISODate } from "@/lib/dates";
 import type { CustodyPattern } from "@/lib/domain/types";
+import { existingChildRecord } from "@/lib/family/unique";
+import { canManageMembers, isParentMember } from "@/lib/members/permissions";
 
 export type OnboardingActionResult = { ok: true } | { ok: false; error: string };
 
@@ -15,6 +17,15 @@ function actionError(error: unknown): OnboardingActionResult {
     return { ok: false, error: String((error as { message: unknown }).message) };
   }
   return { ok: false, error: "Er ging iets mis. Probeer het opnieuw." };
+}
+
+function isNextRedirect(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      String((error as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT"),
+  );
 }
 
 export async function createFamilyAction(formData: FormData): Promise<OnboardingActionResult> {
@@ -46,19 +57,38 @@ export async function addChildAction(formData: FormData): Promise<OnboardingActi
     const repo = getRepository();
     const snapshot = await repo.getSnapshot(session.userId);
     if (!snapshot) return { ok: false, error: "Maak eerst je gezin aan." };
-    await repo.addChild({
-      familyId: snapshot.family.id,
-      createdBy: session.userId,
-      firstName: String(formData.get("firstName") ?? "").trim(),
-      lastName: String(formData.get("lastName") ?? snapshot.currentProfile.lastName),
-      dateOfBirth: String(formData.get("dateOfBirth") ?? ""),
-    });
+    if (!isParentMember(snapshot.currentMember) && !canManageMembers(snapshot)) {
+      return { ok: false, error: "Je mag geen kinderen toevoegen." };
+    }
+    const firstName = String(formData.get("firstName") ?? "").trim();
+    const lastName = String(formData.get("lastName") ?? snapshot.currentProfile.lastName);
+    const dateOfBirth = String(formData.get("dateOfBirth") ?? "");
+    if (!firstName || !dateOfBirth) return { ok: false, error: "Voornaam en geboortedatum zijn verplicht." };
+    const existing = existingChildRecord(snapshot.children, firstName, dateOfBirth);
+    if (!existing) {
+      await repo.addChild({
+        familyId: snapshot.family.id,
+        createdBy: session.userId,
+        firstName,
+        lastName,
+        dateOfBirth,
+      });
+    }
     revalidatePath("/onboarding");
     revalidatePath("/kinderen");
+    if (String(formData.get("from") ?? "") === "kinderen") {
+      redirect("/kinderen");
+    }
     return { ok: true };
   } catch (error) {
+    if (isNextRedirect(error)) throw error;
     return actionError(error);
   }
+}
+
+export async function addChildFromOverviewAction(formData: FormData): Promise<void> {
+  const result = await addChildAction(formData);
+  if (result && !result.ok) throw new Error(result.error);
 }
 
 export async function inviteParentAction(formData: FormData): Promise<OnboardingActionResult> {

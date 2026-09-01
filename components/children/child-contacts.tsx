@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/empty-state";
 import type { FamilySnapshot } from "@/lib/domain/types";
 
 export function ChildContactsPanel({ snapshot, childId }: { snapshot: FamilySnapshot; childId: string }) {
-  const contacts = snapshot.childContacts.filter((item) => item.childId === childId);
+  const contacts = (snapshot.childContacts ?? []).filter((item) => item.childId === childId);
   return (
     <div className="space-y-4">
       {contacts.length ? (

@@ -2358,3 +2358,6 @@ revoke all on function public.handle_new_user() from anon;
 revoke all on function public.handle_new_user() from authenticated;
 grant execute on function public.handle_new_user() to supabase_auth_admin;
 
+-- Admin console schema lives in 0013_admin_portal.sql (run that file too).
+
+

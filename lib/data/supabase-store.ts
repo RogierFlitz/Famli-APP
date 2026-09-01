@@ -23,6 +23,7 @@ import { generateHandovers, generateOccurrences } from "@/lib/custody/generate";
 import { addDaysIso, toISODate } from "@/lib/dates";
 import { famliColor } from "@/lib/brand/tokens";
 import { emptyLifeFields, applyPrivacy } from "@/lib/life/privacy";
+import { uniqueById, existingChildRecord } from "@/lib/family/unique";
 import {
   memberPermissions,
   parentPermissions,
@@ -580,7 +581,8 @@ async function buildCalendarExportSnapshot(
   if (!currentMember || !currentProfile) return null;
 
   const familyRow = familyRes.data;
-  const children: Child[] = (childrenRes.data ?? []).map((row) => ({
+  const children: Child[] = uniqueById(
+    (childrenRes.data ?? []).map((row) => ({
     id: row.id,
     familyId: row.family_id,
     firstName: row.first_name,
@@ -603,7 +605,8 @@ async function buildCalendarExportSnapshot(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     createdBy: row.created_by,
-  }));
+  })),
+  );
 
   const snapshot: FamilySnapshot = {
     family: {
@@ -859,7 +862,8 @@ export const supabaseRepository: FamilyRepository = {
     const currentProfile = profiles[userId];
     if (!currentMember || !currentProfile) return null;
 
-    const children: Child[] = (childrenRes.data ?? []).map((row) => ({
+    const children: Child[] = uniqueById(
+    (childrenRes.data ?? []).map((row) => ({
       id: row.id,
       familyId: row.family_id,
       firstName: row.first_name,
@@ -882,7 +886,8 @@ export const supabaseRepository: FamilyRepository = {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       createdBy: row.created_by,
-    }));
+    })),
+    );
 
     const schedule: CustodySchedule | null = scheduleRes.data
       ? {
@@ -1325,6 +1330,9 @@ export const supabaseRepository: FamilyRepository = {
 
   async addChild(input) {
     const supabase = await db();
+    const existingSnap = await this.getSnapshot(input.createdBy);
+    const already = existingSnap ? existingChildRecord(existingSnap.children, input.firstName, input.dateOfBirth) : undefined;
+    if (already) return already;
     const id = randomUUID();
     const { error } = await supabase.from("children").insert({
       id,
