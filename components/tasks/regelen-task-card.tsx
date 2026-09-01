@@ -21,11 +21,11 @@ export function RegelenTaskCard({
   const isDone = task.status === "done";
 
   return (
-    <article id={task.id} className={`famli-card ${highlight ? "ring-2 ring-[color:var(--famli-brand)]" : ""}`}>
+    <article id={task.id} className={`famli-action-card ${highlight ? "ring-2 ring-[color:var(--famli-brand)]" : ""}`}>
       <div className="flex items-start gap-3">
         <TaskToggle taskId={task.id} checked={isDone} title={task.title} />
         <div className="min-w-0 flex-1">
-          <p className={`text-lg font-medium ${isDone ? "line-through opacity-80" : ""}`}>{task.title}</p>
+          <p className={`font-medium ${isDone ? "line-through opacity-80" : ""}`}>{task.title}</p>
           <p className="text-sm text-[color:var(--famli-muted)]">
             {task.childId ? snapshot.children.find((child) => child.id === task.childId)?.firstName : "Gezin"}
             {task.dueAt ? ` · voor ${formatDayLong(task.dueAt)}` : ""}

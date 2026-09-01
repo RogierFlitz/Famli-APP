@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
 import { AddMenu } from "@/components/compose/add-menu";
+import { PageHeader } from "@/components/ui/page-header";
 import type { FamilySnapshot } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
@@ -29,20 +30,23 @@ export function CalendarHeader({
   const monthLabel = format(anchor, "MMMM yyyy", { locale: nl });
 
   return (
-    <div className="mb-4 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Agenda</h1>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onToday}
-            className="h-9 rounded-full border border-[color:var(--famli-border)] px-3 text-sm hover:bg-[color:var(--famli-bg)]"
-          >
-            Vandaag
-          </button>
-          <AddMenu snapshot={snapshot} compact />
-        </div>
-      </div>
+    <div className="mb-6 space-y-4">
+      <PageHeader
+        title="Agenda"
+        subtitle="Wat er speelt, wie brengt of haalt, en waar de kinderen zijn."
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onToday}
+              className="famli-btn famli-btn-secondary min-h-11 px-4 text-sm"
+            >
+              Vandaag
+            </button>
+            <AddMenu snapshot={snapshot} compact />
+          </div>
+        }
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1">
@@ -50,7 +54,7 @@ export function CalendarHeader({
             type="button"
             aria-label="Vorige maand"
             onClick={onPrev}
-            className="inline-flex size-9 items-center justify-center rounded-full hover:bg-[color:var(--famli-bg)]"
+            className="inline-flex size-11 items-center justify-center rounded-full hover:bg-[color:var(--famli-bg)]"
           >
             <ChevronLeft className="size-5" />
           </button>
@@ -59,7 +63,7 @@ export function CalendarHeader({
             type="button"
             aria-label="Volgende maand"
             onClick={onNext}
-            className="inline-flex size-9 items-center justify-center rounded-full hover:bg-[color:var(--famli-bg)]"
+            className="inline-flex size-11 items-center justify-center rounded-full hover:bg-[color:var(--famli-bg)]"
           >
             <ChevronRight className="size-5" />
           </button>
@@ -93,7 +97,7 @@ function ViewSwitcher({
             type="button"
             onClick={() => onViewChange(item.id)}
             className={cn(
-              "h-8 rounded-full px-3 text-sm transition-colors",
+              "min-h-11 rounded-full px-3 text-sm transition-colors",
               view === item.id
                 ? "bg-[color:var(--famli-card)] font-medium shadow-sm"
                 : "text-[color:var(--famli-muted)] hover:text-[color:var(--famli-ink)]",
@@ -107,7 +111,7 @@ function ViewSwitcher({
         type="button"
         onClick={() => onViewChange("wissels")}
         className={cn(
-          "h-9 rounded-full border px-3 text-sm transition-colors",
+          "min-h-11 rounded-full border px-3 text-sm transition-colors",
           view === "wissels"
             ? "border-[color:var(--famli-ink)] bg-[color:var(--famli-ink)] text-white"
             : "border-[color:var(--famli-border)] text-[color:var(--famli-muted)] hover:text-[color:var(--famli-ink)]",

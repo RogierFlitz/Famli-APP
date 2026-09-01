@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { FileText } from "lucide-react";
 import { documentCategoryLabel } from "@/lib/domain/labels";
 import { uploadFamilyDocumentAction } from "@/lib/actions/family-hub";
 import { EmptyState } from "@/components/empty-state";
@@ -18,24 +19,28 @@ export function DocumentUploadPanel({
   return (
     <div className="space-y-4">
       {docs.length ? (
-        docs.map((doc) => (
+        <div className="grid gap-1 md:grid-cols-2">
+        {docs.map((doc) => (
           <a
             key={doc.id}
             href={doc.storagePath ? `/api/family-document/${doc.id}` : undefined}
-            className="block rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-4 py-3"
+            className="flex min-h-11 items-start gap-3 rounded-2xl px-2 py-3 hover:bg-[color:var(--famli-surface)]"
           >
-            <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">
-              {documentCategoryLabel[doc.category]}
-            </p>
+            <FileText className="mt-0.5 size-5 shrink-0 text-[color:var(--famli-brand)]" aria-hidden />
+            <div className="min-w-0">
             <p className="font-medium">{doc.title}</p>
             <p className="text-sm text-[color:var(--famli-muted)]">
+              {documentCategoryLabel[doc.category]}
+              {" · "}
               {doc.childId
                 ? snapshot.children.find((child) => child.id === doc.childId)?.firstName
                 : "Hele gezin"}
               {doc.createdAt ? ` · ${formatDayLong(doc.createdAt.slice(0, 10))}` : ""}
             </p>
+            </div>
           </a>
-        ))
+        ))}
+        </div>
       ) : (
         <EmptyState
           title="Nog geen documenten"

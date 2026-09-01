@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveSheet } from "@/components/layout/responsive-sheet";
@@ -35,9 +36,23 @@ type Kind =
   | "request"
   | "school"
   | "update"
-  | "import";
+  | "import"
+  | "shopping"
+  | "document";
 
 const GROUPS: { title: string; items: { id: Exclude<Kind, "menu">; label: string }[] }[] = [
+  {
+    title: "Snel",
+    items: [
+      { id: "event", label: "Afspraak" },
+      { id: "task", label: "Taak" },
+      { id: "shopping", label: "Boodschap" },
+      { id: "expense", label: "Kosten" },
+      { id: "needed", label: "Niet vergeten" },
+      { id: "document", label: "Document" },
+      { id: "update", label: "Notitie" },
+    ],
+  },
   {
     title: "Plannen",
     items: [
@@ -68,6 +83,7 @@ const GROUPS: { title: string; items: { id: Exclude<Kind, "menu">; label: string
 export function AddMenu({ snapshot, compact = false }: { snapshot: FamilySnapshot; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Kind>("menu");
+  const router = useRouter();
   const today = toISODate(new Date());
   const other = snapshot.members.find((member) => member.id !== snapshot.currentMember.id);
 
@@ -90,6 +106,8 @@ export function AddMenu({ snapshot, compact = false }: { snapshot: FamilySnapsho
     school: "Schoolmoment",
     update: "Update delen",
     import: "Slim importeren",
+    shopping: "Boodschap",
+    document: "Document",
   };
 
   return (
@@ -125,7 +143,19 @@ export function AddMenu({ snapshot, compact = false }: { snapshot: FamilySnapsho
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setKind(item.id)}
+                      onClick={() => {
+                        if (item.id === "shopping") {
+                          close();
+                          router.push("/boodschappen");
+                          return;
+                        }
+                        if (item.id === "document") {
+                          close();
+                          router.push("/documenten");
+                          return;
+                        }
+                        setKind(item.id);
+                      }}
                       className="flex h-12 w-full items-center rounded-2xl border border-[color:var(--famli-border)] px-4 text-left font-medium"
                     >
                       {item.label}

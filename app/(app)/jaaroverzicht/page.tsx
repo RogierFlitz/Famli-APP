@@ -2,6 +2,7 @@ import { requireSnapshot } from "@/lib/auth/session";
 import { generateOccurrences, memberLabel, yearNightCounts } from "@/lib/custody/generate";
 import { addDaysIso, toISODate } from "@/lib/dates";
 import { FamilyExportPanel } from "@/components/export/family-export";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default async function YearOverviewPage() {
   const snapshot = await requireSnapshot();
@@ -35,19 +36,19 @@ export default async function YearOverviewPage() {
   ).length;
 
   return (
-    <div>
-      <h1 className="font-[family-name:var(--font-display)] text-4xl">Verdeling dit jaar</h1>
-      <p className="mt-2 max-w-xl text-[color:var(--nest-muted)]">
-        Informatief, niet competitief. Gebaseerd op het schema en geaccepteerde wijzigingen.
-      </p>
+    <div className="famli-page max-w-[1120px]">
+      <PageHeader
+        title="Verdeling dit jaar"
+        subtitle="Informatief, niet competitief. Gebaseerd op het schema en geaccepteerde wijzigingen."
+      />
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         {snapshot.members
           .filter((member) => member.role !== "viewer")
           .map((member) => (
-            <article key={member.id} className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-6">
-              <p className="text-[color:var(--nest-muted)]">{memberLabel(snapshot.members, member.id)}</p>
-              <p className="font-[family-name:var(--font-display)] text-5xl">{nights[member.id] ?? 0}</p>
-              <p className="text-sm text-[color:var(--nest-muted)]">nachten</p>
+            <article key={member.id} className="famli-summary-card">
+              <p className="text-[color:var(--famli-muted)]">{memberLabel(snapshot.members, member.id)}</p>
+              <p className="text-4xl font-semibold tracking-tight">{nights[member.id] ?? 0}</p>
+              <p className="text-sm text-[color:var(--famli-muted)]">nachten</p>
             </article>
           ))}
       </div>
@@ -56,7 +57,7 @@ export default async function YearOverviewPage() {
         <Stat label="Vakantiedagen" value={vacationDays} />
         <Stat label="Wijzigingen in het schema" value={overrides} />
       </div>
-      <p className="mt-6 text-xs text-[color:var(--nest-muted)]">Peildatum {toISODate(new Date())}.</p>
+      <p className="mt-6 text-xs text-[color:var(--famli-muted)]">Peildatum {toISODate(new Date())}.</p>
 
       <div className="mt-8">
         <FamilyExportPanel />
@@ -67,9 +68,9 @@ export default async function YearOverviewPage() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <article className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
-      <p className="text-sm text-[color:var(--nest-muted)]">{label}</p>
-      <p className="font-[family-name:var(--font-display)] text-3xl">{value}</p>
+    <article className="famli-summary-card">
+      <p className="text-sm text-[color:var(--famli-muted)]">{label}</p>
+      <p className="text-3xl font-semibold tracking-tight">{value}</p>
     </article>
   );
 }

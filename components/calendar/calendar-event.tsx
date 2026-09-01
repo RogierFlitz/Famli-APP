@@ -63,6 +63,7 @@ export function CalendarEventChip({
   const title = isHandover && handover ? `Wissel · ${handover.time}` : event.title;
   const time = event.allDay ? null : formatTime(event.startsAt);
   const desktop = useDesktop();
+  const child = snapshot.children.find((item) => event.childIds.includes(item.id));
 
   const chip = (
     <div
@@ -80,12 +81,13 @@ export function CalendarEventChip({
         }
       }}
       className={cn(
-        "group flex w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1 py-0.5 text-left transition-colors hover:brightness-[0.98]",
+        "group flex w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-1.5 py-1 text-left transition-colors hover:brightness-[0.98]",
         eventTone(event),
         routine && compact && "opacity-70",
         compact ? "text-[10px] leading-tight" : "text-xs",
         className,
       )}
+      style={child?.color ? { borderLeftWidth: 3, borderLeftColor: child.color } : undefined}
     >
       {createElement(eventIcon(event), {
         className: cn("shrink-0", compact ? "size-2.5" : "size-3"),

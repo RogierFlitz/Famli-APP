@@ -56,8 +56,8 @@ export function CalendarWeek({
               }
             }}
             className={cn(
-              "cursor-pointer rounded-2xl border border-[color:var(--famli-border)] p-3 transition-shadow hover:shadow-sm",
-              isToday && "ring-2 ring-[color:var(--famli-brand)]/35",
+              "min-h-11 cursor-pointer rounded-2xl p-3 transition-colors hover:bg-[color:var(--famli-surface)]",
+              isToday && "bg-[color:var(--famli-brand-soft)]/40",
             )}
             style={custodyBackgroundStyle(custody)}
           >

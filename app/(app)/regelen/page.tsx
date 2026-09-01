@@ -26,6 +26,7 @@ import {
 import { wieRegelt } from "@/lib/queries/responsibility";
 import { neededHeadline } from "@/lib/queries/child-life";
 import { CompletedDutyCard } from "@/components/completion/duty-cards";
+import { PageHeader } from "@/components/ui/page-header";
 import { bringHaalToday } from "@/lib/queries/bring-haal";
 
 export default async function ArrangePage({
@@ -70,21 +71,19 @@ export default async function ArrangePage({
   ] as const;
 
   return (
-    <div className="space-y-8">
-      <header>
-        <h1 className="text-4xl font-semibold tracking-tight">Regelen</h1>
-        <p className="mt-1 text-[color:var(--famli-muted)]">
-          {needsAction ? "Wat nu jouw aandacht nodig heeft." : "Alles is momenteel geregeld."}
-        </p>
-      </header>
+    <div className="famli-page">
+      <PageHeader
+        title="Regelen"
+        subtitle={needsAction ? "Wat nu jouw aandacht nodig heeft." : "Alles is momenteel geregeld."}
+      />
 
       <nav className="flex flex-wrap gap-2">
         {tabs.map((item) => (
           <Link
             key={item.id}
             href={`/regelen?tab=${item.id}`}
-            className={`h-10 rounded-full px-4 text-sm leading-10 ${
-              tab === item.id ? "bg-[color:var(--famli-ink)] text-white" : "border border-[color:var(--famli-border)]"
+            className={`min-h-11 rounded-full px-4 text-sm leading-11 ${
+              tab === item.id ? "bg-[color:var(--famli-ink)] font-medium text-white" : "border border-[color:var(--famli-border)]"
             }`}
           >
             {item.label}
@@ -98,11 +97,11 @@ export default async function ArrangePage({
             <section className="space-y-3">
               <h2 className="text-lg font-semibold">Brengen & halen</h2>
               {bringHaal.map((item) => (
-                <article key={item.id} className="famli-card space-y-2">
-                  <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">
+                <article key={item.id} className="famli-action-card space-y-1">
+                  <p className="text-xs text-[color:var(--famli-muted)]">
                     {item.time} · {item.childNames}
                   </p>
-                  <p className="text-lg font-medium">{item.title}</p>
+                  <p className="font-medium">{item.title}</p>
                   {item.location ? <p className="text-sm text-[color:var(--famli-muted)]">{item.location}</p> : null}
                   <p className="text-sm">Brengen: {item.bringLabel}</p>
                   <p className="text-sm">Halen: {item.haulLabel}</p>
@@ -117,9 +116,9 @@ export default async function ArrangePage({
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">Vandaag</h2>
             {todayDuties.map((item) => (
-              <article key={item.id} className="famli-card">
-                <p className="text-xs uppercase tracking-[0.14em] text-[color:var(--famli-muted)]">{item.time}</p>
-                <p className="mt-1 text-lg font-medium">{item.title}</p>
+              <article key={item.id} className="famli-action-card">
+                <p className="text-xs text-[color:var(--famli-muted)]">{item.time}</p>
+                <p className="mt-1 font-medium">{item.title}</p>
                 {item.subtitle ? <p className="text-sm text-[color:var(--famli-muted)]">{item.subtitle}</p> : null}
               </article>
             ))}
@@ -159,7 +158,7 @@ export default async function ArrangePage({
             <RegelenTaskCard key={task.id} snapshot={snapshot} task={task} highlight={id === task.id} />
           ))}
           {neededForBucket(snapshot, "samen").map((item) => (
-            <Link key={item.id} href={`/kinderen/${item.childId}?tab=nodig`} className="famli-card block">
+            <Link key={item.id} href={`/kinderen/${item.childId}?tab=nodig`} className="famli-action-card block">
               <p className="font-medium">{item.title}</p>
               <p className="text-sm text-[color:var(--famli-muted)]">{wieRegelt(snapshot, item.assigneeMemberId)}</p>
             </Link>
@@ -196,7 +195,7 @@ export default async function ArrangePage({
             <RegelenTaskCard key={task.id} snapshot={snapshot} task={task} highlight={id === task.id} />
           ))}
           {neededForBucket(snapshot, "later").map((item) => (
-            <Link key={item.id} href={`/kinderen/${item.childId}?tab=nodig`} className="famli-card block">
+            <Link key={item.id} href={`/kinderen/${item.childId}?tab=nodig`} className="famli-action-card block">
               <p className="font-medium">{item.title}</p>
               <p className="text-sm text-[color:var(--famli-muted)]">{neededHeadline(item, snapshot)}</p>
             </Link>

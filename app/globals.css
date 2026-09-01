@@ -11,7 +11,13 @@
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-famli);
   --font-display: var(--font-famli);
-  --color-famli-blue: var(--famli-blue);
+  --color-famli-navy: var(--famli-navy);
+  --color-famli-success: var(--famli-success);
+  --color-famli-warning: var(--famli-warning);
+  --color-famli-danger: var(--famli-danger);
+  --color-famli-info: var(--famli-info);
+  --color-famli-surface: var(--famli-surface);
+  --color-famli-elevated: var(--famli-elevated);
   --color-famli-coral: var(--famli-coral);
   --color-famli-yellow: var(--famli-yellow);
   --color-famli-brand: var(--famli-brand);
@@ -75,25 +81,31 @@
   --famli-brand-hover: #2563eb;
   --famli-brand-soft: #dbeafe;
   --famli-on-brand: #ffffff;
-  --famli-bg: var(--famli-light);
+  --famli-bg: #f4f1eb;
+  --famli-surface: #fbf8f3;
+  --famli-elevated: #ffffff;
   --famli-card: #ffffff;
   --famli-ink: var(--famli-navy);
-  --famli-muted: var(--famli-gray);
+  --famli-muted: #5b6472;
   --famli-border: rgba(15, 23, 42, 0.08);
+  --famli-success: #3d7a57;
+  --famli-warning: #c4851a;
+  --famli-danger: #c2413b;
+  --famli-info: var(--famli-blue);
   --famli-parent-1: var(--famli-blue);
   --famli-parent-2: var(--famli-coral);
   --famli-child: var(--famli-yellow);
   --famli-school: #94a3b8;
   --famli-sport: #60a5fa;
-  --famli-important: var(--famli-coral);
-  --famli-radius-sm: 12px;
-  --famli-radius-md: 16px;
-  --famli-radius-lg: 24px;
-  --famli-radius-xl: 32px;
+  --famli-important: var(--famli-warning);
+  --famli-radius-sm: 10px;
+  --famli-radius-md: 14px;
+  --famli-radius-lg: 20px;
+  --famli-radius-xl: 28px;
   --famli-radius-pill: 999px;
-  --famli-shadow-rest: 0 1px 0 rgba(15, 23, 42, 0.04);
-  --famli-shadow-lift: 0 18px 40px -28px rgba(15, 23, 42, 0.28);
-  --famli-control-h: 3rem;
+  --famli-shadow-rest: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --famli-shadow-lift: 0 10px 28px -22px rgba(15, 23, 42, 0.35);
+  --famli-control-h: 2.75rem;
 
   --nest-bg: var(--famli-bg);
   --nest-card: var(--famli-card);
@@ -117,7 +129,7 @@
   --muted-foreground: var(--famli-muted);
   --accent: var(--famli-brand-soft);
   --accent-foreground: var(--famli-ink);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: #c2413b;
   --border: var(--famli-border);
   --input: var(--famli-border);
   --ring: var(--famli-blue);
@@ -170,10 +182,13 @@
     color: var(--famli-ink);
     font-family: var(--font-famli), ui-sans-serif, system-ui, sans-serif;
   }
-  h1,
+  h1 {
+    letter-spacing: -0.035em;
+    font-weight: 600;
+  }
   h2,
   h3 {
-    letter-spacing: -0.03em;
+    letter-spacing: -0.02em;
     font-weight: 600;
   }
   button,
@@ -186,12 +201,60 @@
 }
 
 @layer components {
+  .famli-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  .famli-section-title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--famli-muted);
+  }
+
   .famli-card {
     border-radius: var(--famli-radius-lg);
     border: 1px solid var(--famli-border);
-    background: var(--famli-card);
-    padding: 1.25rem;
+    background: var(--famli-elevated);
+    padding: 1rem 1.1rem;
     box-shadow: var(--famli-shadow-rest);
+  }
+
+  .famli-status-card {
+    border-radius: var(--famli-radius-lg);
+    background: var(--famli-elevated);
+    padding: 0.9rem 1rem;
+    box-shadow: var(--famli-shadow-rest);
+    border: 1px solid transparent;
+    border-left: 3px solid var(--famli-child);
+  }
+
+  .famli-action-card {
+    border-radius: var(--famli-radius-md);
+    background: var(--famli-elevated);
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--famli-border);
+  }
+
+  .famli-summary-card {
+    border-radius: var(--famli-radius-md);
+    background: color-mix(in srgb, var(--famli-surface) 80%, white);
+    padding: 0.85rem 1rem;
+  }
+
+  .famli-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--famli-border);
+  }
+
+  .famli-row:last-child {
+    border-bottom: 0;
   }
 
   .famli-input {
@@ -212,14 +275,22 @@
 
   .famli-btn {
     display: inline-flex;
+    min-height: 44px;
     height: var(--famli-control-h);
-    align-items: center;
-    justify-content: center;
     border-radius: var(--famli-radius-pill);
-    padding: 0 1.25rem;
+    padding: 0 1.15rem;
     font-size: 0.875rem;
     font-weight: 600;
-    transition: background-color 120ms ease, opacity 120ms ease;
+    transition: background-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  }
+
+  .famli-btn:active {
+    transform: translateY(1px);
+  }
+
+  .famli-btn:focus-visible {
+    outline: 2px solid var(--famli-blue);
+    outline-offset: 2px;
   }
 
   .famli-btn-primary,
@@ -258,5 +329,26 @@
     min-height: 5rem;
     padding-top: 0.85rem;
     padding-bottom: 0.85rem;
+  }
+
+  .famli-skeleton {
+    border-radius: var(--famli-radius-md);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--famli-muted) 8%, var(--famli-surface)) 0%,
+      color-mix(in srgb, var(--famli-muted) 14%, var(--famli-surface)) 50%,
+      color-mix(in srgb, var(--famli-muted) 8%, var(--famli-surface)) 100%
+    );
+    background-size: 200% 100%;
+    animation: famli-shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes famli-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
   }
 }

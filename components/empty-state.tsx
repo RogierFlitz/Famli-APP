@@ -7,19 +7,28 @@ export function EmptyState({
   actionHref,
   actionLabel,
   className,
+  tone = "neutral",
 }: {
   title: string;
   body?: string;
   actionHref?: string;
   actionLabel?: string;
   className?: string;
+  tone?: "neutral" | "success";
 }) {
   return (
-    <div className={cn("rounded-3xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] px-5 py-6", className)}>
-      <p className="font-medium">{title}</p>
-      {body ? <p className="mt-1 text-sm leading-6 text-[color:var(--famli-muted)]">{body}</p> : null}
+    <div className={cn("py-1", className)}>
+      <p
+        className={cn(
+          "text-sm font-medium",
+          tone === "success" ? "text-[color:var(--famli-success)]" : "text-[color:var(--famli-ink)]",
+        )}
+      >
+        {tone === "success" ? `✓ ${title}` : title}
+      </p>
+      {body ? <p className="mt-0.5 text-sm leading-6 text-[color:var(--famli-muted)]">{body}</p> : null}
       {actionHref && actionLabel ? (
-        <Link href={actionHref} className="famli-btn famli-btn-secondary mt-4 h-10 px-4 text-sm">
+        <Link href={actionHref} className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-[color:var(--famli-brand)]">
           {actionLabel}
         </Link>
       ) : null}

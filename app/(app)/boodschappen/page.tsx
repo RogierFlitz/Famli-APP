@@ -5,6 +5,7 @@ import { ShoppingListView } from "@/components/shopping/shopping-list-view";
 import { ShoppingLoadError } from "@/components/shopping/shopping-load-error";
 import { ShoppingNotActivated } from "@/components/shopping/shopping-not-activated";
 import { isShoppingNotActivatedError } from "@/lib/shopping/errors";
+import { PageHeader } from "@/components/ui/page-header";
 
 function isNextInternalNavigationError(error: unknown): boolean {
   if (
@@ -60,13 +61,11 @@ export default async function BoodschappenPage({
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-4xl font-semibold tracking-tight">Boodschappen</h1>
-        <p className="mt-1 text-[color:var(--famli-muted)]">
-          Gedeelde lijst voor {snapshot.family.name}
-        </p>
-      </header>
+    <div className="famli-page">
+      <PageHeader
+        title="Boodschappen"
+        subtitle={`Gedeelde lijst voor ${snapshot.family.name}`}
+      />
       <ShoppingListView
         snapshot={{ ...snapshot, shoppingLists: lists, shoppingItems: items }}
         lists={lists}

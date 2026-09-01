@@ -13,7 +13,7 @@ export function CostStats({ snapshot }: { snapshot: FamilySnapshot }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {tiles.map((tile) => (
-        <div key={tile.label} className="rounded-2xl bg-[color:var(--famli-bg)] px-4 py-3">
+        <div key={tile.label} className="famli-summary-card">
           <p className="text-xs text-[color:var(--famli-muted)]">{tile.label}</p>
           <p className="mt-1 text-lg font-semibold">{tile.value}</p>
         </div>

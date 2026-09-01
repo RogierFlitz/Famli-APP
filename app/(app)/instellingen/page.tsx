@@ -7,6 +7,7 @@ import { FamilyMembersPanel } from "@/components/settings/family-members";
 import { NotificationPrefsForm } from "@/components/settings/notification-prefs";
 import { signOut } from "@/lib/auth/actions";
 import { getRepository } from "@/lib/data";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default async function SettingsPage({
   searchParams,
@@ -27,19 +28,17 @@ export default async function SettingsPage({
   }
 
   return (
-    <div className="space-y-8">
-      <header>
-        <h1 className="font-[family-name:var(--font-display)] text-4xl">Instellingen</h1>
-        <p className="mt-1 text-[color:var(--nest-muted)]">
-          {snapshot.family.name} · {planLabel[snapshot.family.plan]} · {snapshot.family.subscriptionStatus}
-        </p>
-      </header>
+    <div className="famli-page max-w-[1120px]">
+      <PageHeader
+        title="Instellingen"
+        subtitle={`${snapshot.family.name} · ${planLabel[snapshot.family.plan]} · ${snapshot.family.subscriptionStatus}`}
+      />
 
       <FamilyMembersPanel snapshot={snapshot} />
 
-      <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
-        <h2 className="font-[family-name:var(--font-display)] text-2xl">Persoonlijke agenda</h2>
-        <p className="mt-2 text-sm text-[color:var(--nest-muted)]">
+      <section className="famli-card">
+        <h2 className="text-xl font-semibold">Persoonlijke agenda</h2>
+        <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
           Koppel je eigen agenda en kies wat andere gezinsleden mogen zien. Famli-gebeurtenissen blijven apart
           zichtbaar.
         </p>
@@ -56,37 +55,37 @@ export default async function SettingsPage({
         />
       </section>
 
-      <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
-        <h2 className="font-[family-name:var(--font-display)] text-2xl">Famli in jouw agenda</h2>
-        <p className="mt-2 text-sm text-[color:var(--nest-muted)]">
+      <section className="famli-card">
+        <h2 className="text-xl font-semibold">Famli in jouw agenda</h2>
+        <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
           Zet Famli in Google Calendar, Apple Agenda of Outlook via een ICS-abonnement. Wijzigingen in
           Famli komen vanzelf in je eigen agenda.
         </p>
         <CalendarExportPanel hasFeed={Boolean(feedStatus)} />
       </section>
 
-      <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
-        <h2 className="font-[family-name:var(--font-display)] text-2xl">Notificaties</h2>
-        <p className="mt-2 text-sm text-[color:var(--nest-muted)]">
+      <section className="famli-card">
+        <h2 className="text-xl font-semibold">Notificaties</h2>
+        <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
           Jij bepaalt wat je ziet. E-mail sturen we later; de keuze staat al klaar.
         </p>
         <NotificationPrefsForm snapshot={snapshot} />
       </section>
 
-      <section className="rounded-3xl border border-[color:var(--nest-border)] bg-[color:var(--nest-card)] p-5">
-        <h2 className="font-[family-name:var(--font-display)] text-2xl">Abonnement</h2>
-        <p className="mt-2 text-sm text-[color:var(--nest-muted)]">
+      <section className="famli-card">
+        <h2 className="text-xl font-semibold">Abonnement</h2>
+        <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
           Stripe volgt later. Nu: {planLabel[snapshot.family.plan]}, status {snapshot.family.subscriptionStatus}
           {snapshot.family.trialEnd ? `, trial tot ${snapshot.family.trialEnd.slice(0, 10)}` : ""}.
         </p>
       </section>
 
       <form action={signOut}>
-        <button className="h-11 text-sm text-[color:var(--nest-muted)] underline">Uitloggen</button>
+        <button className="min-h-11 text-sm text-[color:var(--famli-muted)] underline">Uitloggen</button>
       </form>
 
       <p className="text-sm">
-        <a href="/instellingen/beveiliging" className="text-[color:var(--nest-muted)] underline">
+        <a href="/instellingen/beveiliging" className="text-[color:var(--famli-muted)] underline">
           Beveiligingsinstellingen
         </a>
       </p>
