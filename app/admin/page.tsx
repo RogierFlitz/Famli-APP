@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAdminActor } from "@/lib/admin/session";
-import { signInAdmin, signOutFamilyForAdmin } from "@/lib/admin/actions";
+import { signInAdmin } from "@/lib/admin/actions";
 import { isAdminBootstrapEnabled } from "@/lib/admin/bootstrap";
 import { getSession } from "@/lib/auth/session";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -34,7 +34,7 @@ export default async function AdminLoginPage({
               Je bent ingelogd in de gezinsapp. Beheer gebruikt hetzelfde account: log hieronder opnieuw in, of log
               eerst uit.
             </p>
-            <form action={signOutFamilyForAdmin} className="mt-3">
+            <form action="/admin/family-logout" method="post" className="mt-3">
               <button className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">
                 Uitloggen en beheer openen
               </button>
