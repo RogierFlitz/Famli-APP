@@ -25,21 +25,24 @@ export async function getAdminActor(): Promise<AdminActor | null> {
   if (bootstrapped?.email === "bootstrap@famli.internal") return bootstrapped;
 
   if (isSupabaseConfigured()) {
-    const supabase = await createSupabaseServerClient();
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) return bootstrapped;
-    const role = await lookupStaffRole(supabase, data.user.id);
-    if (!role) return bootstrapped;
-    const staff = { role };
-    const meta = data.user.user_metadata as { first_name?: string; last_name?: string } | undefined;
-    const name =
-      [meta?.first_name, meta?.last_name].filter(Boolean).join(" ") || data.user.email || "Admin";
-    return {
-      userId: data.user.id,
-      email: data.user.email ?? "",
-      name,
-      role: staff.role as AdminRole,
-    };
+    try {
+      const supabase = await createSupabaseServerClient();
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) return bootstrapped;
+      const role = await lookupStaffRole(supabase, data.user.id);
+      if (!role) return bootstrapped;
+      const meta = data.user.user_metadata as { first_name?: string; last_name?: string } | undefined;
+      const name =
+        [meta?.first_name, meta?.last_name].filter(Boolean).join(" ") || data.user.email || "Admin";
+      return {
+        userId: data.user.id,
+        email: data.user.email ?? "",
+        name,
+        role: role as AdminRole,
+      };
+    } catch {
+      return bootstrapped;
+    }
   }
 
   return bootstrapped;

@@ -20,6 +20,11 @@ function isPublicPath(pathname: string) {
   );
 }
 
+/** Login + ping must not wait on Supabase; a hung getUser() looks like a dead Chrome tab. */
+export function skipSupabaseAuthRefresh(pathname: string): boolean {
+  return pathname === "/admin" || pathname === "/admin/ok";
+}
+
 function withSecurityHeaders(response: NextResponse): NextResponse {
   applySecurityHeaders(response.headers);
   return response;
@@ -30,6 +35,9 @@ export async function proxy(request: NextRequest) {
   const isPublic = isPublicPath(pathname);
 
   if (isSupabaseConfigured()) {
+    if (skipSupabaseAuthRefresh(pathname)) {
+      return withSecurityHeaders(NextResponse.next());
+    }
     const { client, response } = createSupabaseProxyClient(request);
     const { data } = await client.auth.getUser();
     if (!data.user && !isPublic) {

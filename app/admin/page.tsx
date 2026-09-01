@@ -1,19 +1,15 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getAdminActor } from "@/lib/admin/session";
 import { signInAdmin } from "@/lib/admin/actions";
 import { isAdminBootstrapEnabled } from "@/lib/admin/bootstrap";
-import { getSession } from "@/lib/auth/session";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+
+export const dynamic = "force-dynamic";
 
 export default async function AdminLoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const actor = await getAdminActor();
-  if (actor) redirect("/admin/dashboard");
-  const familySession = await getSession();
   const { error } = await searchParams;
   const supabase = isSupabaseConfigured();
 
@@ -28,19 +24,17 @@ export default async function AdminLoginPage({
         </p>
         {error ? <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
 
-        {familySession ? (
-          <div className="mt-4 rounded-lg bg-amber-50 px-3 py-3 text-sm text-amber-950">
-            <p>
-              Je bent ingelogd in de gezinsapp. Beheer gebruikt hetzelfde account: log hieronder opnieuw in, of log
-              eerst uit.
-            </p>
-            <form action="/admin/family-logout" method="post" className="mt-3">
-              <button className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">
-                Uitloggen en beheer openen
-              </button>
-            </form>
-          </div>
-        ) : null}
+        <div className="mt-4 rounded-lg bg-amber-50 px-3 py-3 text-sm text-amber-950">
+          <p>
+            Ben je nog ingelogd in de gezinsapp? Beheer gebruikt hetzelfde account: log hieronder opnieuw in, of log
+            eerst uit.
+          </p>
+          <form action="/admin/family-logout" method="post" className="mt-3">
+            <button className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">
+              Uitloggen en beheer openen
+            </button>
+          </form>
+        </div>
 
         <form action={signInAdmin} className="mt-6 space-y-3">
           <label className="block text-sm">
@@ -62,6 +56,13 @@ export default async function AdminLoginPage({
           <Link href="/login/wachtwoord-vergeten" className="text-slate-600 underline">
             Wachtwoord vergeten?
           </Link>
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          Laadt deze pagina niet in Chrome? Open{" "}
+          <a className="underline" href="/admin/ok">
+            /admin/ok
+          </a>{" "}
+          of gebruik een privévenster.
         </p>
 
         {isAdminBootstrapEnabled() ? (

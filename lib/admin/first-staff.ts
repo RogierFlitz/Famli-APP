@@ -8,8 +8,28 @@ export function shouldClaimFirstSuperAdmin(existingStaffCount: number): boolean 
   return existingStaffCount === 0;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(null);
+      },
+    );
+  });
+}
+
 /** Read staff role even when RLS hides admin_staff from the logged-in user. */
 export async function lookupStaffRole(client: UserClient, userId: string): Promise<string | null> {
+  return withTimeout(lookupStaffRoleUnbound(client, userId), 6000);
+}
+
+async function lookupStaffRoleUnbound(client: UserClient, userId: string): Promise<string | null> {
   const rpc = await client.rpc("staff_admin_role");
   if (typeof rpc.data === "string" && rpc.data) return rpc.data;
 
