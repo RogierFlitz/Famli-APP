@@ -3,6 +3,7 @@ import { formatDayShort, formatTime, toISODate } from "@/lib/dates";
 import { custodianForChild } from "@/lib/calendar/helpers";
 import { childAge, nextHandoverForChild, overnightMemberId, parentName } from "@/lib/queries/family-view";
 import { compactStayLine, forgetNot } from "@/lib/queries/child-life";
+import { upcomingPackingForChild } from "@/lib/queries/packing";
 import { wieBrengt } from "@/lib/queries/responsibility";
 import { uniqueById } from "@/lib/family/unique";
 import { canManageMembers, isParentMember } from "@/lib/members/permissions";
@@ -80,11 +81,11 @@ function stayStatus(snapshot: FamilySnapshot, child: Child, now: Date) {
   return { stayHeadline, stayUntil, needsSchedule, handoverToday };
 }
 
-function attentionForChild(snapshot: FamilySnapshot, child: Child, now: Date, todayEvent: CalendarEvent | null) {
+function attentionForChild(snapshot: FamilySnapshot, child: Child, now: Date, _todayEvent: CalendarEvent | null) {
   const today = toISODate(now);
   const lines: string[] = [];
-  const packing = todayEvent?.packingList?.filter(Boolean)[0];
-  if (packing) lines.push(`${packing} mee`);
+  const packing = upcomingPackingForChild(snapshot, child.id, now, 2)[0];
+  if (packing) lines.push(packing.progressLabel);
 
   const needed = forgetNot(snapshot, now).find((item) => item.childId === child.id);
   if (needed && lines.length < 2) lines.push(needed.title);

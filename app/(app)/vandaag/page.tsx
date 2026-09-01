@@ -13,10 +13,13 @@ import { bringHaalToday } from "@/lib/queries/bring-haal";
 import { namedCostHeadline } from "@/lib/costs/stats";
 import { formatEuro } from "@/lib/money";
 import { forgetAndPack, nowAndSoon } from "@/lib/queries/smart-today";
+import { todayPackingGroups } from "@/lib/queries/packing";
 import { childrenOverview } from "@/lib/queries/children-overview";
 import { AddMenu } from "@/components/compose/add-menu";
 import { ChangeReviewCard } from "@/components/requests/change-review";
 import { SmartHandover } from "@/components/handover/smart-handover";
+import { TodayPacking } from "@/components/packing/today-packing";
+import { hasChildCapability } from "@/lib/security/capabilities";
 import { OpenDutyCard, CompletedDutyCard } from "@/components/completion/duty-cards";
 import { PageHeader, PageSection } from "@/components/ui/page-header";
 import { TimelineItem } from "@/components/ui/list-row";
@@ -39,6 +42,8 @@ export default async function TodayPage() {
   const settled = allSettledMessage(snapshot, now);
   const attentionActions = actions.filter((item) => item.kind !== "change");
   const smart = forgetAndPack(snapshot, now);
+  const packingGroups = todayPackingGroups(snapshot, now);
+  const canEditPacking = snapshot.children.some((child) => hasChildCapability(snapshot, child.id, "edit_tasks"));
   const { now: happening, soon } = nowAndSoon(snapshot, now);
   const bring = bringHaalToday(snapshot);
   const costs = namedCostHeadline(snapshot);
@@ -114,9 +119,11 @@ export default async function TodayPage() {
 
       {showHandover && next ? <SmartHandover snapshot={snapshot} handover={next} /> : null}
 
-      {smart.packing.length || smart.needed.length ? (
+      {packingGroups.length ? <TodayPacking groups={packingGroups} canEdit={canEditPacking} /> : null}
+
+      {smart.needed.length ? (
         <PageSection
-          title="Niet vergeten"
+          title="Nog nodig"
           action={
             <Link href="/regelen?tab=nodig" className="text-sm font-medium text-[color:var(--famli-brand)]">
               Alles
@@ -124,9 +131,6 @@ export default async function TodayPage() {
           }
         >
           <div>
-            {smart.packing.map((item) => (
-              <TimelineItem key={item.id} href={item.href} title={item.label} meta={`Mee voor ${item.context}`} />
-            ))}
             {smart.needed.map((item) => {
               const child = snapshot.children.find((row) => row.id === item.childId);
               return (

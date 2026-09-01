@@ -119,6 +119,9 @@ export function generateHandovers(params: {
         toMemberId: tomorrow.custodianMemberId,
         pickupMemberId: existing.pickupMemberId ?? tomorrow.custodianMemberId,
         dropoffMemberId: existing.dropoffMemberId ?? today.custodianMemberId,
+        readyStatus: existing.readyStatus ?? "open",
+        readyAt: existing.readyAt ?? null,
+        readyBy: existing.readyBy ?? null,
       });
       continue;
     }
@@ -136,6 +139,9 @@ export function generateHandovers(params: {
       dropoffMemberId: today.custodianMemberId,
       notes: null,
       packingList: [],
+      readyStatus: "open",
+      readyAt: null,
+      readyBy: null,
       cancelledAt: null,
       createdAt: `${today.date}T${time}:00`,
       updatedAt: `${today.date}T${time}:00`,

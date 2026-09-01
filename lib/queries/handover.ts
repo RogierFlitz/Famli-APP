@@ -5,6 +5,7 @@ import { neededLocationLabel } from "@/lib/domain/labels";
 import { childNames, handoverLine, parentName } from "@/lib/queries/family-view";
 import { openCareForHandover } from "@/lib/queries/routines";
 import { neededHeadline } from "@/lib/queries/child-life";
+import { packingItemsForHandover } from "@/lib/queries/packing";
 import type { FamilySnapshot, Handover, NeededItem, NeededItemLocation } from "@/lib/domain/types";
 
 export type HandoverChecklistItem = {
@@ -74,8 +75,15 @@ export function assembleHandoverChecklist(snapshot: FamilySnapshot, handover: Ha
   const belangrijk: HandoverChecklistItem[] = [];
   const ophalen: HandoverChecklistItem[] = [];
 
+  for (const item of packingItemsForHandover(snapshot, handover)) {
+    if (!meenemen.some((row) => row.label.toLowerCase() === item.label.toLowerCase())) {
+      meenemen.push({ id: item.id, label: item.label });
+    }
+  }
   for (const item of handover.packingList) {
-    meenemen.push({ id: `pack-${item}`, label: item });
+    if (!meenemen.some((row) => row.label.toLowerCase() === item.toLowerCase())) {
+      meenemen.push({ id: `pack-${item}`, label: item });
+    }
   }
 
   for (const care of openCareForHandover(snapshot, date)) {

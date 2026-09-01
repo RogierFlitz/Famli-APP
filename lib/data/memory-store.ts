@@ -30,6 +30,16 @@ import {
   storeExpenseReceiptBlob,
 } from "@/lib/storage/expense-receipts";
 import type { FamilyRepository } from "@/lib/data/repository";
+import { inferPackingContext } from "@/lib/packing/templates";
+import {
+  actorFirstName,
+  handoverReadySummary,
+  packingCreateSummary,
+  packingItemsFromLabels,
+  packingToggleSummary,
+} from "@/lib/packing/materialize";
+import { nextHandoverStatusAfterToggle } from "@/lib/packing/progress";
+import { packingItemsForHandover } from "@/lib/queries/packing";
 import type {
   ActivityLogEntry,
   CalendarEvent,
@@ -47,6 +57,7 @@ import type {
   GuestLinkToken,
   ImportJob,
   NeededItem,
+  PackingItem,
   Profile,
   TaskItem,
   TravelPlan,
@@ -908,6 +919,21 @@ export const memoryRepository: FamilyRepository = {
     };
     mutateFamily(input.familyId, (snap) => {
       snap.events.push(event);
+      snap.packingItems = snap.packingItems ?? [];
+      if (input.packingList.length && input.childIds.length) {
+        snap.packingItems.push(
+          ...packingItemsFromLabels({
+            familyId: input.familyId,
+            childIds: input.childIds,
+            labels: input.packingList,
+            context: inferPackingContext(input.title, input.category),
+            eventId: event.id,
+            dueOn: input.startsAt.slice(0, 10),
+            createdBy: input.createdBy,
+            createdAt: event.createdAt,
+          }),
+        );
+      }
       if (input.party) {
         const giftId = randomUUID();
         snap.neededItems.unshift({
@@ -983,11 +1009,29 @@ export const memoryRepository: FamilyRepository = {
         dropoffMemberId: input.fromMemberId,
         notes: input.notes,
         packingList: input.packingList,
+        readyStatus: "open",
+        readyAt: null,
+        readyBy: null,
         cancelledAt: null,
         createdAt: nowIso(),
         updatedAt: nowIso(),
         createdBy: input.createdBy,
       });
+      snap.packingItems = snap.packingItems ?? [];
+      if (input.packingList.length && input.childIds.length) {
+        snap.packingItems.push(
+          ...packingItemsFromLabels({
+            familyId: input.familyId,
+            childIds: input.childIds,
+            labels: input.packingList,
+            context: "handover",
+            handoverId,
+            dueOn: input.date,
+            createdBy: input.createdBy,
+            createdAt: nowIso(),
+          }),
+        );
+      }
       snap.events.push({
         id: eventId,
         familyId: input.familyId,
@@ -2205,6 +2249,82 @@ export const memoryRepository: FamilyRepository = {
     if (!doc?.storagePath) return null;
     const { familyFileViewUrl } = await import("@/lib/storage/family-files");
     return familyFileViewUrl(doc.storagePath, doc.id);
+  },
+
+  async createPackingItem(input) {
+    const item: PackingItem = {
+      id: randomUUID(),
+      familyId: input.familyId,
+      childId: input.childId,
+      label: input.label.trim(),
+      context: input.context ?? "other",
+      eventId: input.eventId ?? null,
+      handoverId: input.handoverId ?? null,
+      dueOn: input.dueOn ?? null,
+      checked: Boolean(input.checked),
+      checkedAt: input.checked ? nowIso() : null,
+      checkedBy: input.checked ? input.createdBy : null,
+      createdBy: input.createdBy,
+      createdAt: nowIso(),
+    };
+    mutateFamily(input.familyId, (snap) => {
+      snap.packingItems = snap.packingItems ?? [];
+      snap.packingItems.push(item);
+      const actor = actorFirstName(snap.profiles, input.createdBy);
+      log(snap, input.createdBy, "packing_item.create", "packing_item", item.id, null, {
+        summary: packingCreateSummary(actor, item.label, Boolean(item.handoverId)),
+      });
+    });
+    return item;
+  },
+
+  async togglePackingItem(itemId, actorUserId) {
+    const familyId = getStore().userFamily.get(actorUserId);
+    if (!familyId) throw new Error("Item niet gevonden.");
+    const snap = getStore().families.get(familyId);
+    const existing = snap?.packingItems.find((row) => row.id === itemId);
+    if (!existing) throw new Error("Item niet gevonden.");
+    let updated!: PackingItem;
+    mutateFamily(familyId, (family) => {
+      const row = family.packingItems.find((entry) => entry.id === itemId)!;
+      row.checked = !row.checked;
+      row.checkedBy = row.checked ? actorUserId : null;
+      row.checkedAt = row.checked ? nowIso() : null;
+      updated = { ...row };
+      const actor = actorFirstName(family.profiles, actorUserId);
+      log(family, actorUserId, row.checked ? "packing_item.check" : "packing_item.uncheck", "packing_item", row.id, null, {
+        summary: packingToggleSummary(actor, row.label, row.checked),
+      });
+      const handover = row.handoverId
+        ? family.handovers.find((item) => item.id === row.handoverId)
+        : null;
+      if (handover && handover.readyStatus !== "ready" && handover.readyStatus !== "completed") {
+        const remaining = packingItemsForHandover(family, handover).filter((item) => !item.checked).length;
+        handover.readyStatus = nextHandoverStatusAfterToggle(handover.readyStatus, remaining);
+        handover.updatedAt = nowIso();
+      }
+    });
+    return updated;
+  },
+
+  async markHandoverReady(input) {
+    const familyId = getStore().userFamily.get(input.actorUserId);
+    if (!familyId) throw new Error("Overdracht niet gevonden.");
+    mutateFamily(familyId, (family) => {
+      const handover = family.handovers.find((item) => item.id === input.handoverId);
+      if (!handover) throw new Error("Overdracht niet gevonden.");
+      handover.readyStatus = input.status ?? "ready";
+      handover.readyAt = nowIso();
+      handover.readyBy = input.actorUserId;
+      handover.updatedAt = nowIso();
+      const actor = actorFirstName(family.profiles, input.actorUserId);
+      const toLabel =
+        family.members.find((member) => member.id === handover.toMemberId)?.parentLabel ??
+        "de andere ouder";
+      log(family, input.actorUserId, "handover.ready", "handover", handover.id, null, {
+        summary: handoverReadySummary(actor, toLabel),
+      });
+    });
   },
 
   async updateNotificationPrefs(userId, prefs) {

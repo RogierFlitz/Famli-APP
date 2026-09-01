@@ -55,6 +55,16 @@ import {
   sortShoppingLists,
 } from "@/lib/shopping/store-helpers";
 import { inferShoppingCategory } from "@/lib/shopping/categories";
+import { inferPackingContext } from "@/lib/packing/templates";
+import {
+  actorFirstName,
+  handoverReadySummary,
+  packingCreateSummary,
+  packingItemsFromLabels,
+  packingToggleSummary,
+} from "@/lib/packing/materialize";
+import { nextHandoverStatusAfterToggle } from "@/lib/packing/progress";
+import { packingItemsForHandover } from "@/lib/queries/packing";
 import { throwIfMissingShoppingTables } from "@/lib/shopping/errors";
 import { mapRpcRowToPersonalEvent, type RawExternalEventRow } from "@/lib/calendar/sanitize";
 import {
@@ -82,6 +92,9 @@ import type {
   GuestLinkToken,
   Handover,
   HandoverCheckIn,
+  HandoverReadyStatus,
+  PackingContext,
+  PackingItem,
   ImportJob,
   NeededItem,
   Party,
@@ -190,6 +203,34 @@ function mapContextMessageRow(row: Record<string, unknown>): ContextMessage {
     responseBody: (row.response_body as string) ?? null,
     respondedAt: (row.responded_at as string) ?? null,
     respondedByMemberId: (row.responded_by_member_id as string) ?? null,
+  };
+}
+
+function mapHandoverReady(row: Record<string, unknown>): Pick<Handover, "readyStatus" | "readyAt" | "readyBy"> {
+  const status = row.ready_status;
+  const allowed: HandoverReadyStatus[] = ["open", "in_progress", "ready", "completed"];
+  return {
+    readyStatus: allowed.includes(status as HandoverReadyStatus) ? (status as HandoverReadyStatus) : "open",
+    readyAt: (row.ready_at as string) ?? null,
+    readyBy: (row.ready_by as string) ?? null,
+  };
+}
+
+function mapPackingItemRow(row: Record<string, unknown>): PackingItem {
+  return {
+    id: row.id as string,
+    familyId: row.family_id as string,
+    childId: row.child_id as string,
+    label: row.label as string,
+    context: (row.context as PackingContext) ?? "other",
+    eventId: (row.event_id as string) ?? null,
+    handoverId: (row.handover_id as string) ?? null,
+    dueOn: (row.due_on as string) ?? null,
+    checked: Boolean(row.checked),
+    checkedAt: (row.checked_at as string) ?? null,
+    checkedBy: (row.checked_by as string) ?? null,
+    createdBy: (row.created_by as string) ?? "",
+    createdAt: row.created_at as string,
   };
 }
 
@@ -667,6 +708,7 @@ async function buildCalendarExportSnapshot(
       dropoffMemberId: row.dropoff_member_id,
       notes: row.notes,
       packingList: row.packing_list ?? [],
+      ...mapHandoverReady(row),
       cancelledAt: row.cancelled_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -967,6 +1009,7 @@ export const supabaseRepository: FamilyRepository = {
       dropoffMemberId: row.dropoff_member_id,
       notes: row.notes,
       packingList: row.packing_list ?? [],
+      ...mapHandoverReady(row),
       cancelledAt: row.cancelled_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -1008,10 +1051,11 @@ export const supabaseRepository: FamilyRepository = {
       createdBy: row.created_by,
     }));
 
-    const [activityRows, contactRows, schoolRows] = await Promise.all([
+    const [activityRows, contactRows, schoolRows, packingRows] = await Promise.all([
       optionalRows(supabase.from("child_activities").select("*").eq("family_id", familyId)),
       optionalRows(supabase.from("child_contacts").select("*").eq("family_id", familyId)),
       optionalRows(supabase.from("child_schools").select("*").eq("family_id", familyId)),
+      optionalRows(supabase.from("packing_items").select("*").eq("family_id", familyId)),
     ]);
 
     const snapshot: FamilySnapshot = {
@@ -1247,6 +1291,7 @@ export const supabaseRepository: FamilyRepository = {
       handoverCheckIns: (handoverCheckInsRes.data ?? []).map(mapHandoverCheckInRow),
       importJobs: (importJobsRes.data ?? []).map(mapImportJobRow),
       guestLinkTokens: (guestLinksRes.data ?? []).map((row) => mapGuestLinkRow(row)),
+      packingItems: packingRows.map(mapPackingItemRow),
     };
 
     refreshRoutineOccurrences(snapshot);
@@ -1850,6 +1895,34 @@ export const supabaseRepository: FamilyRepository = {
     ];
     if (participants.length) await supabase.from("event_participants").insert(participants);
 
+    if (input.packingList.length && input.childIds.length) {
+      const rows = packingItemsFromLabels({
+        familyId: input.familyId,
+        childIds: input.childIds,
+        labels: input.packingList,
+        context: inferPackingContext(input.title, input.category),
+        eventId: id,
+        dueOn: input.startsAt.slice(0, 10),
+        createdBy: input.createdBy,
+        createdAt: new Date().toISOString(),
+      });
+      if (rows.length) {
+        await supabase.from("packing_items").insert(
+          rows.map((item) => ({
+            id: item.id,
+            family_id: item.familyId,
+            child_id: item.childId,
+            label: item.label,
+            context: item.context,
+            event_id: item.eventId,
+            handover_id: item.handoverId,
+            due_on: item.dueOn,
+            created_by: item.createdBy,
+          })),
+        );
+      }
+    }
+
     if (input.party) {
       const giftId = randomUUID();
       await supabase.from("needed_items").insert({
@@ -1965,6 +2038,33 @@ export const supabaseRepository: FamilyRepository = {
       await supabase.from("handover_children").insert(
         input.childIds.map((childId) => ({ handover_id: handoverId, child_id: childId })),
       );
+    }
+    if (input.packingList.length && input.childIds.length) {
+      const rows = packingItemsFromLabels({
+        familyId: input.familyId,
+        childIds: input.childIds,
+        labels: input.packingList,
+        context: "handover",
+        handoverId,
+        dueOn: input.date,
+        createdBy: input.createdBy,
+        createdAt: new Date().toISOString(),
+      });
+      if (rows.length) {
+        await supabase.from("packing_items").insert(
+          rows.map((item) => ({
+            id: item.id,
+            family_id: item.familyId,
+            child_id: item.childId,
+            label: item.label,
+            context: item.context,
+            event_id: item.eventId,
+            handover_id: item.handoverId,
+            due_on: item.dueOn,
+            created_by: item.createdBy,
+          })),
+        );
+      }
     }
     const toUserId = await fetchMemberUserId(supabase, input.toMemberId);
     if (toUserId) {
@@ -3543,6 +3643,138 @@ export const supabaseRepository: FamilyRepository = {
     if (!doc?.storagePath) return null;
     const { familyFileViewUrl } = await import("@/lib/storage/family-files");
     return familyFileViewUrl(doc.storagePath, doc.id);
+  },
+
+  async createPackingItem(input) {
+    const supabase = await db();
+    const item = packingItemsFromLabels({
+      familyId: input.familyId,
+      childIds: [input.childId],
+      labels: [input.label],
+      context: input.context ?? "other",
+      eventId: input.eventId ?? null,
+      handoverId: input.handoverId ?? null,
+      dueOn: input.dueOn ?? null,
+      createdBy: input.createdBy,
+      createdAt: new Date().toISOString(),
+    })[0];
+    if (!item) throw new Error("Geef een item op.");
+    const { error } = await supabase.from("packing_items").insert({
+      id: item.id,
+      family_id: item.familyId,
+      child_id: item.childId,
+      label: item.label,
+      context: item.context,
+      event_id: item.eventId,
+      handover_id: item.handoverId,
+      due_on: item.dueOn,
+      checked: Boolean(input.checked),
+      checked_at: input.checked ? item.createdAt : null,
+      checked_by: input.checked ? input.createdBy : null,
+      created_by: item.createdBy,
+    });
+    if (error) throw error;
+    const snap = await this.getSnapshot(input.createdBy);
+    const actor = actorFirstName(snap?.profiles ?? {}, input.createdBy);
+    await supabase.from("activity_log").insert({
+      family_id: input.familyId,
+      actor_id: input.createdBy,
+      action: "packing_item.create",
+      entity_type: "packing_item",
+      entity_id: item.id,
+      before: null,
+      after: { summary: packingCreateSummary(actor, item.label, Boolean(item.handoverId)) },
+    });
+    return item;
+  },
+
+  async togglePackingItem(itemId, actorUserId) {
+    const supabase = await db();
+    const snap = await this.getSnapshot(actorUserId);
+    const existing = snap?.packingItems.find((row) => row.id === itemId);
+    if (!existing || !snap) throw new Error("Item niet gevonden.");
+    const checked = !existing.checked;
+    const checkedAt = checked ? new Date().toISOString() : null;
+    const { error } = await supabase
+      .from("packing_items")
+      .update({
+        checked,
+        checked_at: checkedAt,
+        checked_by: checked ? actorUserId : null,
+      })
+      .eq("id", itemId)
+      .eq("family_id", snap.family.id);
+    if (error) throw error;
+    const actor = actorFirstName(snap.profiles, actorUserId);
+    await supabase.from("activity_log").insert({
+      family_id: snap.family.id,
+      actor_id: actorUserId,
+      action: checked ? "packing_item.check" : "packing_item.uncheck",
+      entity_type: "packing_item",
+      entity_id: itemId,
+      before: null,
+      after: { summary: packingToggleSummary(actor, existing.label, checked) },
+    });
+    const handover = existing.handoverId
+      ? snap.handovers.find((item) => item.id === existing.handoverId)
+      : null;
+    if (handover && handover.readyStatus !== "ready" && handover.readyStatus !== "completed") {
+      const remaining = packingItemsForHandover(
+        {
+          ...snap,
+          packingItems: snap.packingItems.map((row) =>
+            row.id === itemId ? { ...row, checked } : row,
+          ),
+        },
+        handover,
+      ).filter((item) => !item.checked).length;
+      const next = nextHandoverStatusAfterToggle(handover.readyStatus, remaining);
+      if (next !== handover.readyStatus) {
+        await supabase
+          .from("handovers")
+          .update({ ready_status: next, updated_at: new Date().toISOString() })
+          .eq("id", handover.id)
+          .eq("family_id", snap.family.id);
+      }
+    }
+    return {
+      ...existing,
+      checked,
+      checkedAt,
+      checkedBy: checked ? actorUserId : null,
+    };
+  },
+
+  async markHandoverReady(input) {
+    const supabase = await db();
+    const snap = await this.getSnapshot(input.actorUserId);
+    const handover = snap?.handovers.find((item) => item.id === input.handoverId);
+    if (!handover || !snap) throw new Error("Overdracht niet gevonden.");
+    const now = new Date().toISOString();
+    const status = input.status ?? "ready";
+    const { error } = await supabase
+      .from("handovers")
+      .update({
+        ready_status: status,
+        ready_at: now,
+        ready_by: input.actorUserId,
+        updated_at: now,
+      })
+      .eq("id", handover.id)
+      .eq("family_id", snap.family.id);
+    if (error) throw error;
+    const actor = actorFirstName(snap.profiles, input.actorUserId);
+    const toLabel =
+      snap.members.find((member) => member.id === handover.toMemberId)?.parentLabel ?? "de andere ouder";
+    await supabase.from("activity_log").insert({
+      family_id: snap.family.id,
+      actor_id: input.actorUserId,
+      action: "handover.ready",
+      entity_type: "handover",
+      entity_id: handover.id,
+      before: null,
+      after: { summary: handoverReadySummary(actor, toLabel) },
+    });
   },
 
   async updateNotificationPrefs(userId, prefs) {

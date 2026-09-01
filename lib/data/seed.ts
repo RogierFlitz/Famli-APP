@@ -8,6 +8,8 @@ import { generateRoutineOccurrences } from "@/lib/routines/generate";
 import { splitAmounts } from "@/lib/money";
 import { famliColor } from "@/lib/brand/tokens";
 import { IDS } from "@/lib/data/ids";
+import { inferPackingContext } from "@/lib/packing/templates";
+import { packingItemsFromLabels } from "@/lib/packing/materialize";
 import type {
   CalendarEvent,
   ChangeRequest,
@@ -16,6 +18,7 @@ import type {
   Expense,
   ExpenseSplit,
   FamilySnapshot,
+  PackingItem,
   Profile,
   TaskItem,
 } from "@/lib/domain/types";
@@ -813,7 +816,49 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     shoppingItems: buildDemoShoppingItems(todayIso, createdAt),
     childActivities: [],
     childContacts: [],
+    packingItems: buildDemoPackingItems(events, handovers, createdAt),
   };
+}
+
+function buildDemoPackingItems(
+  events: CalendarEvent[],
+  handovers: FamilySnapshot["handovers"],
+  createdAt: string,
+): PackingItem[] {
+  const items: PackingItem[] = [];
+  for (const event of events) {
+    if (!event.packingList.length || event.category === "overdracht") continue;
+    items.push(
+      ...packingItemsFromLabels({
+        familyId: IDS.family,
+        childIds: event.childIds,
+        labels: event.packingList,
+        context: inferPackingContext(event.title, event.category),
+        eventId: event.id,
+        dueOn: event.startsAt.slice(0, 10),
+        createdBy: IDS.emmaUser,
+        createdAt,
+        idPrefix: `pack-evt-${event.id}`,
+      }),
+    );
+  }
+  for (const handover of handovers) {
+    if (!handover.packingList.length) continue;
+    items.push(
+      ...packingItemsFromLabels({
+        familyId: IDS.family,
+        childIds: handover.childIds,
+        labels: handover.packingList,
+        context: "handover",
+        handoverId: handover.id,
+        dueOn: handover.date,
+        createdBy: IDS.emmaUser,
+        createdAt,
+        idPrefix: `pack-han-${handover.id}`,
+      }),
+    );
+  }
+  return items;
 }
 
 function buildDemoShoppingLists(todayIso: string, createdAt: string) {
