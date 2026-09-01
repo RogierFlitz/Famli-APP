@@ -6,6 +6,8 @@ import { getRepository } from "@/lib/data";
 import { requireSession } from "@/lib/auth/session";
 import { toISODate } from "@/lib/dates";
 import type { CustodyPattern } from "@/lib/domain/types";
+import { existingChildRecord } from "@/lib/family/unique";
+import { canManageMembers, isParentMember } from "@/lib/members/permissions";
 
 export type OnboardingActionResult = { ok: true } | { ok: false; error: string };
 
@@ -46,15 +48,26 @@ export async function addChildAction(formData: FormData): Promise<OnboardingActi
     const repo = getRepository();
     const snapshot = await repo.getSnapshot(session.userId);
     if (!snapshot) return { ok: false, error: "Maak eerst je gezin aan." };
-    await repo.addChild({
-      familyId: snapshot.family.id,
-      createdBy: session.userId,
-      firstName: String(formData.get("firstName") ?? "").trim(),
-      lastName: String(formData.get("lastName") ?? snapshot.currentProfile.lastName),
-      dateOfBirth: String(formData.get("dateOfBirth") ?? ""),
-    });
+    if (!isParentMember(snapshot.currentMember) && !canManageMembers(snapshot)) {
+      return { ok: false, error: "Je mag geen kinderen toevoegen." };
+    }
+    const firstName = String(formData.get("firstName") ?? "").trim();
+    const lastName = String(formData.get("lastName") ?? snapshot.currentProfile.lastName);
+    const dateOfBirth = String(formData.get("dateOfBirth") ?? "");
+    if (!firstName || !dateOfBirth) return { ok: false, error: "Voornaam en geboortedatum zijn verplicht." };
+    const existing = existingChildRecord(snapshot.children, firstName, dateOfBirth);
+    if (!existing) {
+      await repo.addChild({
+        familyId: snapshot.family.id,
+        createdBy: session.userId,
+        firstName,
+        lastName,
+        dateOfBirth,
+      });
+    }
     revalidatePath("/onboarding");
     revalidatePath("/kinderen");
+    if (String(formData.get("from") ?? "") === "kinderen") redirect("/kinderen");
     return { ok: true };
   } catch (error) {
     return actionError(error);

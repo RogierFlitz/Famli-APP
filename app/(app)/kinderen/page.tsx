@@ -1,54 +1,66 @@
 import Link from "next/link";
 import { requireSnapshot } from "@/lib/auth/session";
-import { toISODate } from "@/lib/dates";
-import { nextEventForChild, nextHandoverForChild } from "@/lib/queries/family-view";
-import { childPlace } from "@/lib/queries/child-life";
-import { formatTime } from "@/lib/dates";
+import { childrenOverview } from "@/lib/queries/children-overview";
+import { EmptyState } from "@/components/empty-state";
+import { ChildOverviewCardView } from "@/components/children/child-overview-card";
+import { AddChildForm } from "@/components/children/add-child-form";
 
-export default async function ChildrenPage() {
+export default async function ChildrenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ nieuw?: string }>;
+}) {
   const snapshot = await requireSnapshot();
-  const today = toISODate(new Date());
+  const { nieuw } = await searchParams;
+  const overview = childrenOverview(snapshot);
+  const showForm = overview.canAddChild && (nieuw === "1" || overview.cards.length === 0);
 
   return (
-    <div>
-      <h1 className="text-4xl font-semibold tracking-tight">Kinderen</h1>
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {snapshot.children.map((child) => {
-          const nextEvent = nextEventForChild(snapshot, child.id, today);
-          const nextHandover = nextHandoverForChild(snapshot, child.id, today);
-          const place = childPlace(snapshot, child);
-          return (
-            <article key={child.id} className="famli-card">
-              <div
-                className="mb-4 grid size-14 place-items-center rounded-full text-lg font-semibold text-white"
-                style={{ background: child.color }}
-              >
-                {child.firstName.slice(0, 1)}
-              </div>
-              <h2 className="text-2xl font-semibold">{child.firstName}</h2>
-              <p className="mt-2 text-sm">Vandaag: <strong>{place.label}</strong></p>
-              {nextEvent ? (
-                <p className="mt-1 text-sm text-[color:var(--famli-muted)]">
-                  Volgende afspraak: {nextEvent.title} · {nextEvent.allDay ? "hele dag" : formatTime(nextEvent.startsAt)}
-                </p>
-              ) : null}
-              {nextHandover ? (
-                <p className="text-sm text-[color:var(--famli-muted)]">
-                  Volgende wissel: {nextHandover.date.slice(8, 10)} {monthLabel(nextHandover.date)} · {nextHandover.time}
-                </p>
-              ) : null}
-              <Link href={`/kinderen/${child.id}`} className="famli-btn famli-btn-secondary mt-4 h-11 px-4">
-                Bekijk profiel
-              </Link>
-            </article>
-          );
-        })}
-      </div>
+    <div className="space-y-6">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-4xl font-semibold tracking-tight">Kinderen</h1>
+          <p className="mt-2 text-sm text-[color:var(--famli-muted)]">Alles rondom jullie kinderen op één plek.</p>
+        </div>
+        {overview.canAddChild && overview.cards.length > 0 ? (
+          <Link href="/kinderen?nieuw=1" className="famli-btn famli-btn-secondary min-h-11 shrink-0 px-4 text-sm">
+            + Kind toevoegen
+          </Link>
+        ) : null}
+      </header>
+
+      {overview.cards.length && (overview.summary.handoversToday || overview.summary.toArrange) ? (
+        <p className="text-sm text-[color:var(--famli-muted)]">
+          {[
+            `${overview.summary.children} ${overview.summary.children === 1 ? "kind" : "kinderen"}`,
+            overview.summary.handoversToday
+              ? `${overview.summary.handoversToday} ${overview.summary.handoversToday === 1 ? "wissel" : "wissels"} vandaag`
+              : null,
+            overview.summary.toArrange
+              ? `${overview.summary.toArrange} ${overview.summary.toArrange === 1 ? "ding" : "dingen"} te regelen`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      ) : null}
+
+      {overview.cards.length === 0 ? (
+        <EmptyState
+          title="Nog geen kinderen toegevoegd"
+          body="Voeg jullie eerste kind toe om agenda’s, school, taken en afspraken op één plek bij te houden."
+          actionHref="#nieuw-kind"
+          actionLabel="Kind toevoegen"
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {overview.cards.map((card) => (
+            <ChildOverviewCardView key={card.child.id} card={card} />
+          ))}
+        </div>
+      )}
+
+      {showForm ? <AddChildForm lastName={snapshot.currentProfile.lastName} /> : null}
     </div>
   );
-}
-
-function monthLabel(iso: string) {
-  const months = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
-  return months[Number(iso.slice(5, 7)) - 1];
 }
