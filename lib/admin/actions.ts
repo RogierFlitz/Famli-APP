@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { assertAdminCapability } from "@/lib/admin/roles";
 import { requireAdmin } from "@/lib/admin/session";
 import { ADMIN_SESSION_COOKIE } from "@/lib/admin/types";
+import { SESSION_COOKIE } from "@/lib/domain/types";
 import {
   addAudit,
   addSupportNote,
@@ -141,6 +142,16 @@ export async function signOutAdmin() {
   }
   const store = await cookies();
   store.delete(ADMIN_SESSION_COOKIE);
+  redirect("/admin");
+}
+
+export async function signOutFamilyForAdmin() {
+  if (isSupabaseConfigured()) {
+    const supabase = await createSupabaseServerClient();
+    await supabase.auth.signOut();
+  }
+  const store = await cookies();
+  store.delete(SESSION_COOKIE);
   redirect("/admin");
 }
 
