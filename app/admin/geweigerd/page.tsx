@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { signOutFamilyForAdmin } from "@/lib/admin/actions";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +15,7 @@ export default async function AdminDeniedPage() {
           Dit account hoort bij de gezinsapp en heeft geen adminrol. Beheer is alleen voor interne medewerkers.
         </p>
         {familySession ? (
-          <form action={signOutFamilyForAdmin} className="mt-6">
+          <form action="/admin/family-logout" method="post" className="mt-6">
             <button className="inline-block rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">
               Uitloggen en beheer openen
             </button>
