@@ -130,7 +130,7 @@ export function CostList({
 
   const filteredItems = useMemo(() => {
     const monthStart = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
-    const last30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const last30 = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     let items = filter === "open" ? openItems : filter === "done" ? doneItems : allItems;
     if (childFilter === "all-children") {
       items = items.filter((item) => !item.expense.childId);
