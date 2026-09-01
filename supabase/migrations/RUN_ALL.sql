@@ -2359,5 +2359,6 @@ revoke all on function public.handle_new_user() from authenticated;
 grant execute on function public.handle_new_user() to supabase_auth_admin;
 
 -- Admin console schema lives in 0013_admin_portal.sql (run that file too).
+-- First /admin login claim: 0014_claim_first_super_admin.sql.
 
 

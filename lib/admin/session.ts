@@ -27,11 +27,11 @@ export async function getAdminActor(): Promise<AdminActor | null> {
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getUser();
     if (!data.user) return bootstrapped;
-    const { data: staff } = await supabase
-      .from("admin_staff")
-      .select("role")
-      .eq("user_id", data.user.id)
-      .maybeSingle();
+    const viaRpc = await supabase.rpc("staff_admin_role");
+    const roleFromRpc = typeof viaRpc.data === "string" ? viaRpc.data : null;
+    const { data: staff } = roleFromRpc
+      ? { data: { role: roleFromRpc } }
+      : await supabase.from("admin_staff").select("role").eq("user_id", data.user.id).maybeSingle();
     if (!staff?.role) return bootstrapped;
     const meta = data.user.user_metadata as { first_name?: string; last_name?: string } | undefined;
     const name =

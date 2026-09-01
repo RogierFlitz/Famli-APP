@@ -23,13 +23,17 @@ export default async function AdminLoginPage({
         <p className="text-xs uppercase tracking-wider text-slate-500">Famli intern</p>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Beheeromgeving</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Alleen voor interne medewerkers. Dit is geen onderdeel van de gezinsapp.
+          Alleen voor interne medewerkers. Gebruik hetzelfde e-mailadres en wachtwoord als je Famli-account.
+          Als er nog geen beheerder is, wordt dit account de eerste super-admin.
         </p>
         {error ? <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
 
         {familySession ? (
           <div className="mt-4 rounded-lg bg-amber-50 px-3 py-3 text-sm text-amber-950">
-            <p>Je bent ingelogd in de gezinsapp. Log daar eerst uit om beheer te openen.</p>
+            <p>
+              Je bent ingelogd in de gezinsapp. Beheer gebruikt hetzelfde account: log hieronder opnieuw in, of log
+              eerst uit.
+            </p>
             <form action={signOutFamilyForAdmin} className="mt-3">
               <button className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">
                 Uitloggen en beheer openen

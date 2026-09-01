@@ -17,6 +17,7 @@ import {
 } from "@/lib/admin/memory";
 import { extendMemoryAdminInvite, patchMemoryAdminProfile } from "@/lib/data/memory-store";
 import { assertRateLimit } from "@/lib/security/rate-limit";
+import { claimFirstSuperAdmin } from "@/lib/admin/first-staff";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -116,8 +117,13 @@ export async function signInAdmin(formData: FormData) {
   if (!data.user) redirect("/admin?error=Inloggen%20mislukt.");
   const { data: staff } = await supabase.from("admin_staff").select("role").eq("user_id", data.user.id).maybeSingle();
   if (!staff) {
-    await supabase.auth.signOut();
-    redirect("/admin?error=Dit%20account%20heeft%20geen%20adminrechten.");
+    const claimed = await claimFirstSuperAdmin(supabase, data.user.id);
+    if (!claimed) {
+      await supabase.auth.signOut();
+      redirect(
+        "/admin?error=Dit%20account%20heeft%20geen%20adminrechten.%20Als%20er%20nog%20geen%20beheerder%20is%2C%20voer%20migratie%200014%20uit%20in%20Supabase.",
+      );
+    }
   }
   await supabase.from("admin_audit_log").insert({
     admin_user_id: data.user.id,
