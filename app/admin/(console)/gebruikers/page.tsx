@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { filterUsers, loadAdminDirectory } from "@/lib/admin/directory";
+import { adminHasCapability } from "@/lib/admin/roles";
 import { requireAdmin } from "@/lib/admin/session";
 import type { UserFilter } from "@/lib/admin/types";
 
@@ -20,16 +21,27 @@ export default async function AdminUsersPage({
 }: {
   searchParams: Promise<{ q?: string; filter?: string }>;
 }) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const params = await searchParams;
   const filter = (FILTERS.some((item) => item.id === params.filter) ? params.filter : "all") as UserFilter;
   const q = params.q ?? "";
   const { users } = await loadAdminDirectory();
   const rows = filterUsers(users, filter, q);
+  const canManage = adminHasCapability(actor.role, "manage_users");
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Gebruikers</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Gebruikers</h1>
+        {canManage ? (
+          <Link
+            href="/admin/gebruikers/nieuw"
+            className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+          >
+            Gebruiker toevoegen
+          </Link>
+        ) : null}
+      </div>
       <form className="flex flex-wrap gap-2">
         <input
           name="q"
@@ -93,6 +105,9 @@ export default async function AdminUsersPage({
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-slate-500">
+        Open een naam om het wachtwoord te wijzigen, te blokkeren of supportnotities te zetten.
+      </p>
     </div>
   );
 }
