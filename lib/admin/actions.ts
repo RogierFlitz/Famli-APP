@@ -17,8 +17,7 @@ import {
 } from "@/lib/admin/memory";
 import { extendMemoryAdminInvite, patchMemoryAdminProfile } from "@/lib/data/memory-store";
 import { assertRateLimit } from "@/lib/security/rate-limit";
-import { claimFirstSuperAdmin } from "@/lib/admin/first-staff";
-import { isMissingRelationError } from "@/lib/admin/schema-errors";
+import { claimFirstSuperAdmin, lookupStaffRole } from "@/lib/admin/first-staff";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -117,21 +116,13 @@ export async function signInAdmin(formData: FormData) {
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/admin?error=Inloggen%20mislukt.");
   try {
-    const { data: staff, error: staffError } = await supabase
-      .from("admin_staff")
-      .select("role")
-      .eq("user_id", data.user.id)
-      .maybeSingle();
-    if (isMissingRelationError(staffError)) {
-      await supabase.auth.signOut();
-      redirect("/admin?error=Beheer-tabellen%20ontbreken.%20Voer%20in%20Supabase%20migratie%200013_admin_portal.sql%20uit.");
-    }
-    if (!staff) {
+    const role = await lookupStaffRole(supabase, data.user.id);
+    if (!role) {
       const claimed = await claimFirstSuperAdmin(supabase, data.user.id);
       if (!claimed) {
         await supabase.auth.signOut();
         redirect(
-          "/admin?error=Dit%20account%20heeft%20geen%20adminrechten.%20Voer%20eerst%200013_admin_portal.sql%20uit%20en%20daarna%20de%20admin_staff-insert.",
+          "/admin?error=Dit%20account%20heeft%20geen%20adminrechten.%20De%20SQL-rij%20is%20er%2C%20maar%20de%20app%20kan%20die%20niet%20lezen%20zonder%20RLS-policy%20of%20SERVICE_ROLE_KEY.",
         );
       }
     }
