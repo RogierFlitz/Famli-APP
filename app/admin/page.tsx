@@ -1,5 +1,6 @@
 import { getAdminActor, familyUserBlockedFromAdmin } from "@/lib/admin/session";
 import { signInAdmin } from "@/lib/admin/actions";
+import { isAdminBootstrapEnabled } from "@/lib/admin/bootstrap";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { redirect } from "next/navigation";
 
@@ -40,6 +41,19 @@ export default async function AdminLoginPage({
           </label>
           <button className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">Inloggen</button>
         </form>
+
+        {isAdminBootstrapEnabled() ? (
+          <form action="/admin/bootstrap" method="post" className="mt-8 space-y-3 border-t border-slate-200 pt-6">
+            <p className="text-xs text-slate-500">Tijdelijke toegang (tot staff-accounts klaar zijn)</p>
+            <label className="block text-sm">
+              Toegangscode
+              <input name="secret" type="password" required minLength={16} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+            </label>
+            <button className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
+              Tijdelijk inloggen
+            </button>
+          </form>
+        ) : null}
 
         {!supabase ? (
           <div className="mt-8 space-y-2">
