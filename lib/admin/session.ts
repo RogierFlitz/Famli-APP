@@ -29,9 +29,10 @@ export async function getAdminActor(): Promise<AdminActor | null> {
     if (!data.user) return bootstrapped;
     const viaRpc = await supabase.rpc("staff_admin_role");
     const roleFromRpc = typeof viaRpc.data === "string" ? viaRpc.data : null;
-    const { data: staff } = roleFromRpc
+    const staffResult = roleFromRpc
       ? { data: { role: roleFromRpc } }
       : await supabase.from("admin_staff").select("role").eq("user_id", data.user.id).maybeSingle();
+    const staff = staffResult.data;
     if (!staff?.role) return bootstrapped;
     const meta = data.user.user_metadata as { first_name?: string; last_name?: string } | undefined;
     const name =

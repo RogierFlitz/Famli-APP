@@ -18,6 +18,7 @@ import {
 import { extendMemoryAdminInvite, patchMemoryAdminProfile } from "@/lib/data/memory-store";
 import { assertRateLimit } from "@/lib/security/rate-limit";
 import { claimFirstSuperAdmin } from "@/lib/admin/first-staff";
+import { isMissingRelationError } from "@/lib/admin/schema-errors";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -115,21 +116,42 @@ export async function signInAdmin(formData: FormData) {
   if (error) redirect(`/admin?error=${encodeURIComponent(error.message)}`);
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/admin?error=Inloggen%20mislukt.");
-  const { data: staff } = await supabase.from("admin_staff").select("role").eq("user_id", data.user.id).maybeSingle();
-  if (!staff) {
-    const claimed = await claimFirstSuperAdmin(supabase, data.user.id);
-    if (!claimed) {
+  try {
+    const { data: staff, error: staffError } = await supabase
+      .from("admin_staff")
+      .select("role")
+      .eq("user_id", data.user.id)
+      .maybeSingle();
+    if (isMissingRelationError(staffError)) {
       await supabase.auth.signOut();
-      redirect(
-        "/admin?error=Dit%20account%20heeft%20geen%20adminrechten.%20Als%20er%20nog%20geen%20beheerder%20is%2C%20voer%20migratie%200014%20uit%20in%20Supabase.",
-      );
+      redirect("/admin?error=Beheer-tabellen%20ontbreken.%20Voer%20in%20Supabase%20migratie%200013_admin_portal.sql%20uit.");
     }
+    if (!staff) {
+      const claimed = await claimFirstSuperAdmin(supabase, data.user.id);
+      if (!claimed) {
+        await supabase.auth.signOut();
+        redirect(
+          "/admin?error=Dit%20account%20heeft%20geen%20adminrechten.%20Voer%20eerst%200013_admin_portal.sql%20uit%20en%20daarna%20de%20admin_staff-insert.",
+        );
+      }
+    }
+    await supabase.from("admin_audit_log").insert({
+      admin_user_id: data.user.id,
+      action: "admin.login",
+      metadata: { source: "supabase" },
+    });
+  } catch (caught) {
+    if (
+      caught &&
+      typeof caught === "object" &&
+      "digest" in caught &&
+      String((caught as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT")
+    ) {
+      throw caught;
+    }
+    await supabase.auth.signOut();
+    redirect("/admin?error=Inloggen%20in%20beheer%20mislukt.%20Voer%20migratie%200013_admin_portal.sql%20uit%20in%20Supabase.");
   }
-  await supabase.from("admin_audit_log").insert({
-    admin_user_id: data.user.id,
-    action: "admin.login",
-    metadata: { source: "supabase" },
-  });
   redirect("/admin/dashboard");
 }
 
