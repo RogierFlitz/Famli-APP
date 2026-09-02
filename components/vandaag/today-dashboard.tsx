@@ -11,11 +11,11 @@ import {
 } from "lucide-react";
 import { formatDayLong } from "@/lib/dates";
 import { parentName } from "@/lib/queries/family-view";
-import { handoverProgress, packingItemsForHandover } from "@/lib/queries/packing";
+import { handoverPackingSuggestions, packingItemsForHandover } from "@/lib/queries/packing";
 import { PackingAddRow, PackingSuggestionToggle, PackingToggle } from "@/components/packing/packing-toggle";
 import type { NowSoonEvent, WeekLine } from "@/lib/queries/smart-today";
 import type { FamilySnapshot, Handover, NeededItem, PackingItem } from "@/lib/domain/types";
-import type { PackingGroup } from "@/lib/queries/packing";
+import type { PackingGroup, PackingSuggestion } from "@/lib/queries/packing";
 import type { DutyItem } from "@/lib/queries/routines";
 import { OpenDutyCard } from "@/components/completion/duty-cards";
 import { cn } from "@/lib/utils";
@@ -219,10 +219,11 @@ export function TodayHandoverPackingCard({
   handover: Handover;
   canEdit: boolean;
 }) {
-  const progress = handoverProgress(snapshot, handover);
-  const items = packingItemsForHandover(snapshot, handover);
-  const unique = uniqueByLabel(items);
-  const percent = progress.total ? Math.round((progress.checked / progress.total) * 100) : 0;
+  const items = uniqueByLabel(packingItemsForHandover(snapshot, handover));
+  const suggestions = uniqueSuggestionLabels(handoverPackingSuggestions(snapshot, handover));
+  const checked = items.filter((item) => item.checked).length;
+  const total = items.length + suggestions.length;
+  const percent = total ? Math.round((checked / total) * 100) : 0;
   const toLabel = parentName(snapshot, handover.toMemberId);
   const childId = handover.childIds[0] ?? snapshot.children[0]?.id;
 
@@ -235,7 +236,7 @@ export function TodayHandoverPackingCard({
             {formatDayLong(handover.date)} · {handover.time}
           </p>
         </div>
-        <p className="shrink-0 text-sm font-medium tabular-nums">{progress.checked} van {progress.total} klaar</p>
+        <p className="shrink-0 text-sm font-medium tabular-nums">{checked} van {total} klaar</p>
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[color:var(--famli-surface)]">
         <div
@@ -244,9 +245,23 @@ export function TodayHandoverPackingCard({
         />
       </div>
       <ul className="mt-2">
-        {unique.map((item) => (
+        {items.map((item) => (
           <li key={item.id}>
             <PackingToggle itemId={item.id} checked={item.checked} label={item.label} disabled={!canEdit} compact />
+          </li>
+        ))}
+        {suggestions.map((suggestion) => (
+          <li key={suggestion.key}>
+            <PackingSuggestionToggle
+              childId={suggestion.childId}
+              label={suggestion.label}
+              context={suggestion.context}
+              eventId={suggestion.eventId}
+              handoverId={suggestion.handoverId}
+              dueOn={suggestion.dueOn}
+              disabled={!canEdit}
+              compact
+            />
           </li>
         ))}
       </ul>
@@ -255,6 +270,18 @@ export function TodayHandoverPackingCard({
       ) : null}
     </section>
   );
+}
+
+function uniqueSuggestionLabels(items: PackingSuggestion[]): PackingSuggestion[] {
+  const seen = new Set<string>();
+  const out: PackingSuggestion[] = [];
+  for (const item of items) {
+    const key = item.label.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
 }
 
 function uniqueByLabel(items: PackingItem[]): PackingItem[] {

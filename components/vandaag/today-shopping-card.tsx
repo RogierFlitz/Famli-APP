@@ -78,7 +78,7 @@ export function TodayShoppingCard({
               id="today-shop-add"
               name="name"
               disabled={pending}
-              placeholder="Item toevoegen"
+              placeholder="+ Item toevoegen"
               autoComplete="off"
               className="h-10 min-w-0 flex-1 bg-transparent text-sm font-medium text-[color:var(--famli-brand)] outline-none placeholder:text-[color:var(--famli-brand)]/70"
             />
