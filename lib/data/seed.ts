@@ -281,20 +281,20 @@ export function createDemoSnapshot(now = new Date()): FamilySnapshot {
     location: "School",
   });
 
-  const todayHandoverIndex = handovers.findIndex((item) => item.date === todayIso);
-  if (todayHandoverIndex >= 0) {
-    const current = handovers[todayHandoverIndex];
+  const soonHandoverIndex = handovers.findIndex((item) => !item.cancelledAt && item.date >= todayIso);
+  if (soonHandoverIndex >= 0) {
+    const current = handovers[soonHandoverIndex];
     handovers = [
-      ...handovers.slice(0, todayHandoverIndex),
+      ...handovers.slice(0, soonHandoverIndex),
       {
         ...current,
         location: "School",
         pickupMemberId: current.toMemberId,
         dropoffMemberId: current.fromMemberId,
-        packingList: ["schooltas", "hockeytas", "medicijnen"],
+        packingList: ["Schooltas", "Hockeystick", "Medicijnen", "Knuffel"],
         notes: "Roxy heeft na school hockey.",
       },
-      ...handovers.slice(todayHandoverIndex + 1),
+      ...handovers.slice(soonHandoverIndex + 1),
     ];
   }
 
