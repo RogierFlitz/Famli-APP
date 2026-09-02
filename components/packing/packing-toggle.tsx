@@ -89,7 +89,7 @@ export function PackingAddRow({
           setOpen(true);
           requestAnimationFrame(() => inputRef.current?.focus());
         }}
-        className="mt-1 min-h-11 w-full rounded-2xl px-2 text-left text-sm font-medium text-[color:var(--famli-brand)]"
+        className="mt-1 inline-flex min-h-11 w-full items-center rounded-2xl px-1 text-left text-sm font-medium leading-none text-[color:var(--famli-brand)]"
       >
         + Item toevoegen
       </button>

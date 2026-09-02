@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { addMonths } from "date-fns";
-import { Plus } from "lucide-react";
 import { toISODate } from "@/lib/dates";
 import type { CalendarEvent, FamilySnapshot } from "@/lib/domain/types";
 import { DEFAULT_FILTERS, type CalendarFilterState } from "@/lib/calendar/helpers";
 import { ResponsiveSheet } from "@/components/layout/responsive-sheet";
 import { ProposeChangeForm } from "@/components/requests/propose-form";
-import { AddMenu } from "@/components/compose/add-menu";
 import { CalendarHeader, type CalendarView } from "@/components/calendar/calendar-header";
 import { CalendarFilters } from "@/components/calendar/calendar-filters";
 import { CalendarMonth } from "@/components/calendar/calendar-month";
@@ -62,7 +60,6 @@ export function FamilyCalendar({
     () => snapshot.events.find((event) => event.id === focusId) ?? null,
   );
   const [proposeOpen, setProposeOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
 
   const [mobileDefaultApplied, setMobileDefaultApplied] = useState(Boolean(initialView));
   if (!initialView && mobile && !mobileDefaultApplied) {
@@ -192,19 +189,6 @@ export function FamilyCalendar({
           />
         ) : null}
 
-        {mobile && view !== "wissels" ? (
-          <div className="fixed bottom-20 right-4 z-40 md:hidden">
-            <button
-              type="button"
-              aria-label="Toevoegen"
-              onClick={() => setAddOpen(true)}
-              className="inline-flex size-14 items-center justify-center rounded-full bg-[color:var(--famli-brand)] text-white shadow-lg"
-            >
-              <Plus className="size-6" />
-            </button>
-          </div>
-        ) : null}
-
         <ResponsiveSheet
           open={Boolean(selectedDate) && !selectedEvent && !proposeOpen}
           onOpenChange={(open) => {
@@ -238,14 +222,6 @@ export function FamilyCalendar({
             <ProposeChangeForm snapshot={snapshot} date={dayPanelDate} onDone={() => setProposeOpen(false)} />
           ) : null}
         </ResponsiveSheet>
-
-        {mobile ? (
-          <ResponsiveSheet open={addOpen} onOpenChange={setAddOpen} title="Toevoegen">
-            <div className="py-2">
-              <AddMenu snapshot={snapshot} />
-            </div>
-          </ResponsiveSheet>
-        ) : null}
       </div>
     </TooltipProvider>
   );

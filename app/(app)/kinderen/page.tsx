@@ -23,8 +23,8 @@ export default async function ChildrenPage({
         subtitle="Alles rondom jullie kinderen op één plek."
         action={
           overview.canAddChild && overview.cards.length > 0 ? (
-            <Link href="/kinderen?nieuw=1" className="famli-btn famli-btn-secondary min-h-11 shrink-0 px-4 text-sm">
-              + Kind toevoegen
+            <Link href="/kinderen?nieuw=1" className="famli-btn famli-btn-secondary">
+              Kind toevoegen
             </Link>
           ) : null
         }

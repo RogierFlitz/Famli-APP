@@ -40,11 +40,11 @@ export function FamilySearch({ snapshot }: { snapshot: FamilySnapshot }) {
       >
         <Search className="size-4" />
       </button>
-      <div className={mobileOpen ? "block" : "hidden lg:block"}>
+      <div className={mobileOpen ? "relative block" : "relative hidden lg:block"}>
         <label className="sr-only" htmlFor="famli-search">
           Zoek in Famli
         </label>
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[color:var(--famli-muted)]" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[color:var(--famli-muted)]" />
         <input
           ref={inputRef}
           id="famli-search"

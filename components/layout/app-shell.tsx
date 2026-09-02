@@ -89,7 +89,7 @@ export function AppShell({
             </nav>
           </SheetContent>
         </Sheet>
-        <div className="hidden items-center gap-3 px-8 pt-5 lg:flex">
+        <div className="hidden items-center gap-2 px-8 pt-5 lg:flex">
           <FamilySearch snapshot={snapshot} />
           <NotificationBell snapshot={snapshot} />
           <AddMenu snapshot={snapshot} compact />

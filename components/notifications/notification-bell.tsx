@@ -57,7 +57,7 @@ export function NotificationBell({ snapshot }: { snapshot: FamilySnapshot }) {
         <button
           type="button"
           aria-label={unread > 0 ? `${unread} ongelezen meldingen` : "Meldingen"}
-          className="relative grid size-10 shrink-0 place-items-center rounded-2xl border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] text-[color:var(--famli-ink)] transition hover:bg-[color:var(--famli-bg)]"
+          className="relative grid size-11 shrink-0 place-items-center rounded-full border border-[color:var(--famli-border)] bg-[color:var(--famli-card)] text-[color:var(--famli-ink)] transition hover:bg-[color:var(--famli-bg)]"
         >
           <Bell className="size-5" />
           {unread > 0 ? (
