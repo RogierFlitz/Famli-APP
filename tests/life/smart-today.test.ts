@@ -5,9 +5,12 @@ import { createDemoSnapshot } from "@/lib/data/seed";
 import { toISODate } from "@/lib/dates";
 import {
   forgetAndPack,
+  nextWeekLines,
   nowAndSoon,
   openShoppingCount,
   packingForDate,
+  packingRemainingCount,
+  todaySchedule,
   tomorrowPreview,
   weekGlance,
 } from "@/lib/queries/smart-today";
@@ -64,6 +67,18 @@ describe("smart today composition", () => {
     const overdrachtDupes = packing.filter((item) => item.context === "Overdracht" && /schooltas/i.test(item.label));
     const eventDupes = packing.filter((item) => item.context !== "Overdracht" && /schooltas/i.test(item.label));
     assert.ok(overdrachtDupes.length + eventDupes.length <= 2);
+  });
+
+  it("counts remaining packing and next-week lines without school pickup noise", () => {
+    const now = new Date("2026-04-15T10:00:00.000Z");
+    const snapshot = createDemoSnapshot(now);
+    const remaining = packingRemainingCount(snapshot, now);
+    assert.ok(remaining >= 0);
+    const weekLines = nextWeekLines(snapshot, now);
+    assert.ok(weekLines.every((line) => !/^School$/.test(line.title)));
+    assert.ok(weekLines.every((line) => !line.title.startsWith("Ophalen")));
+    const schedule = todaySchedule(snapshot, now);
+    assert.ok(schedule.every((item) => item.href.includes("/agenda")));
   });
 
   it("counts open shopping and week glance without cancelled events", () => {

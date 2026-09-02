@@ -82,7 +82,7 @@ describe("packing persistence across parents", () => {
     const handover = await memoryRepository.createHandover({
       familyId: IDS.family,
       createdBy: IDS.emmaUser,
-      date: toISODate(new Date("2026-09-02")),
+      date: "2027-03-18",
       time: "17:30",
       fromMemberId: IDS.emmaMember,
       toMemberId: IDS.rogierMember,
@@ -94,7 +94,7 @@ describe("packing persistence across parents", () => {
     void handover;
     const emma = await memoryRepository.getSnapshot(IDS.emmaUser);
     assert.ok(emma);
-    const created = emma.handovers.find((item) => item.date === "2026-09-02" && item.packingList.includes("Knuffel"));
+    const created = emma.handovers.find((item) => item.date === "2027-03-18" && item.packingList.includes("Knuffel"));
     assert.ok(created);
     const items = packingItemsForHandover(emma, created);
     assert.equal(items.length, 4);

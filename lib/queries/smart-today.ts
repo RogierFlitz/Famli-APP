@@ -1,10 +1,11 @@
 import { addDays } from "date-fns";
-import { formatTime, toISODate } from "@/lib/dates";
+import { formatDayShort, formatTime, toISODate } from "@/lib/dates";
 import { bringHaalToday } from "@/lib/queries/bring-haal";
 import { childDaySections, childTimelineForDate } from "@/lib/queries/vandaag";
 import { forgetNot } from "@/lib/queries/child-life";
 import { parentName } from "@/lib/queries/family-view";
 import { myOpenDutiesToday } from "@/lib/queries/routines";
+import { todayPackingGroups } from "@/lib/queries/packing";
 import type { CalendarEvent, FamilySnapshot } from "@/lib/domain/types";
 
 export type PackingLine = {
@@ -21,6 +22,7 @@ export type NowSoonEvent = {
   who: string;
   href: string;
   event?: CalendarEvent;
+  live?: boolean;
 };
 
 export type TomorrowLine = {
@@ -88,33 +90,50 @@ export function packingForDate(snapshot: FamilySnapshot, date: string): PackingL
   return lines;
 }
 
-export function nowAndSoon(snapshot: FamilySnapshot, now = new Date()): { now: NowSoonEvent[]; soon: NowSoonEvent[] } {
+function eventWhoLine(snapshot: FamilySnapshot, event: CalendarEvent): string {
+  const names = snapshot.children
+    .filter((child) => event.childIds.includes(child.id))
+    .map((child) => child.firstName)
+    .join(" & ");
+  const packing = (event.packingList ?? []).filter(Boolean).join(", ");
+  return [names, packing ? `${packing} mee` : null].filter(Boolean).join(" · ");
+}
+
+export function todaySchedule(snapshot: FamilySnapshot, now = new Date()): NowSoonEvent[] {
   const today = toISODate(now);
   const stamp = now.toISOString().slice(0, 16);
-  const nowItems: NowSoonEvent[] = [];
-  const soonItems: NowSoonEvent[] = [];
+  return eventsOnDate(snapshot, today)
+    .filter((event) => event.category !== "overdracht")
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+    .map((event) => {
+      const start = event.startsAt.slice(0, 16);
+      const end = event.endsAt.slice(0, 16);
+      const live = !event.allDay && start <= stamp && end >= stamp;
+      return {
+        id: event.id,
+        time: event.allDay ? null : formatTime(event.startsAt),
+        title: event.title,
+        who: eventWhoLine(snapshot, event),
+        href: `/agenda?date=${today}&focus=${event.id}`,
+        event,
+        live,
+      };
+    });
+}
 
-  for (const event of eventsOnDate(snapshot, today).sort((a, b) => a.startsAt.localeCompare(b.startsAt))) {
-    if (event.category === "overdracht") continue;
-    const names = snapshot.children
-      .filter((child) => event.childIds.includes(child.id))
-      .map((child) => child.firstName)
-      .join(" & ");
-    const row: NowSoonEvent = {
-      id: event.id,
-      time: event.allDay ? null : formatTime(event.startsAt),
-      title: event.title,
-      who: names,
-      href: `/agenda?date=${today}&focus=${event.id}`,
-      event,
-    };
-    const start = event.startsAt.slice(0, 16);
-    const end = event.endsAt.slice(0, 16);
-    if (start <= stamp && end >= stamp) nowItems.push(row);
-    else if (start > stamp) soonItems.push(row);
-  }
+export function nowAndSoon(snapshot: FamilySnapshot, now = new Date()): { now: NowSoonEvent[]; soon: NowSoonEvent[] } {
+  const items = todaySchedule(snapshot, now);
+  return {
+    now: items.filter((item) => item.live),
+    soon: items.filter((item) => !item.live && item.time),
+  };
+}
 
-  return { now: nowItems, soon: soonItems };
+export function navBadges(snapshot: FamilySnapshot, now = new Date()): Record<string, number> {
+  return {
+    "/regelen": myOpenDutiesToday(snapshot, now).length,
+    "/boodschappen": openShoppingCount(snapshot),
+  };
 }
 
 export function tomorrowPreview(snapshot: FamilySnapshot, now = new Date()): TomorrowLine[] {
@@ -193,4 +212,53 @@ export function forgetAndPack(snapshot: FamilySnapshot, now = new Date()) {
     currentName: snapshot.currentProfile.firstName,
     parentLabel: parentName(snapshot, snapshot.currentMember.id),
   };
+}
+
+export function packingRemainingCount(snapshot: FamilySnapshot, now = new Date()): number {
+  return todayPackingGroups(snapshot, now).reduce(
+    (sum, group) => sum + group.items.filter((item) => !item.checked).length + group.suggestions.length,
+    0,
+  );
+}
+
+export type WeekLine = {
+  id: string;
+  when: string;
+  title: string;
+  href: string;
+};
+
+export function nextWeekLines(snapshot: FamilySnapshot, now = new Date(), limit = 6): WeekLine[] {
+  const start = toISODate(addDays(now, 1));
+  const end = toISODate(addDays(now, 7));
+  const lines: WeekLine[] = [];
+  const seenDays = new Set<string>();
+
+  for (const event of snapshot.events
+    .filter((item) => !item.cancelledAt && item.startsAt.slice(0, 10) >= start && item.startsAt.slice(0, 10) <= end)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))) {
+    if (event.category === "overdracht") continue;
+    if (event.title === "School" || event.title.startsWith("Ophalen")) continue;
+    lines.push({
+      id: event.id,
+      when: formatDayShort(event.startsAt),
+      title: event.title,
+      href: `/agenda?date=${event.startsAt.slice(0, 10)}&focus=${event.id}`,
+    });
+    seenDays.add(event.startsAt.slice(0, 10));
+  }
+
+  for (const handover of snapshot.handovers.filter((item) => !item.cancelledAt && item.date >= start && item.date <= end)) {
+    if (seenDays.has(handover.date) && lines.some((line) => line.href.includes(`date=${handover.date}`))) {
+      continue;
+    }
+    lines.push({
+      id: handover.id,
+      when: formatDayShort(handover.date),
+      title: `Wissel · ${handover.time}`,
+      href: `/agenda?date=${handover.date}&view=wissels`,
+    });
+  }
+
+  return lines.slice(0, limit);
 }
