@@ -13,5 +13,6 @@ export type ProductEventName = (typeof PRODUCT_EVENTS)[number];
  * No-op until a provider is wired.
  */
 export function trackProductEvent(_name: ProductEventName, _meta?: { count?: number }): void {
-  return;
+  void _name;
+  void _meta;
 }
