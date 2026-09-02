@@ -13,6 +13,7 @@ import { AddMenu } from "@/components/compose/add-menu";
 import { FamilySearch } from "@/components/search/family-search";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { navBadges } from "@/lib/queries/smart-today";
 
 export function AppShell({
   snapshot,
@@ -23,6 +24,8 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const badges = navBadges(snapshot);
+  const initial = snapshot.currentProfile.firstName.slice(0, 1).toUpperCase();
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -34,7 +37,14 @@ export function AppShell({
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 px-2.5">
           {primaryNav.map((item) => (
-            <NavLink key={item.href} href={item.href} active={pathname.startsWith(item.href)} icon={item.icon} label={item.label} />
+            <NavLink
+              key={item.href}
+              href={item.href}
+              active={pathname.startsWith(item.href)}
+              icon={item.icon}
+              label={item.label}
+              badge={badges[item.href] ?? 0}
+            />
           ))}
           <div className="mt-4 space-y-0.5 border-t border-[color:var(--famli-border)] pt-3">
             {secondaryNav.map((item) => (
@@ -42,14 +52,27 @@ export function AppShell({
             ))}
           </div>
         </nav>
-        <div className="mt-auto border-t border-[color:var(--famli-border)] px-4 py-4">
-          <p className="text-sm font-medium">{snapshot.currentProfile.firstName}</p>
-          <p className="text-xs text-[color:var(--famli-muted)]">{snapshot.family.name}</p>
-          <form action={signOut}>
-            <button className="mt-2 min-h-11 text-xs text-[color:var(--famli-muted)] underline-offset-2 hover:underline">
-              Uitloggen
-            </button>
-          </form>
+        <div className="mt-auto flex items-center gap-3 border-t border-[color:var(--famli-border)] px-4 py-4">
+          {snapshot.currentProfile.avatarUrl ? (
+            <img
+              src={snapshot.currentProfile.avatarUrl}
+              alt=""
+              className="size-10 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[color:var(--famli-surface)] text-sm font-semibold">
+              {initial}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{snapshot.currentProfile.firstName}</p>
+            <p className="truncate text-xs text-[color:var(--famli-muted)]">{snapshot.family.name}</p>
+            <form action={signOut}>
+              <button className="mt-1 min-h-8 text-xs text-[color:var(--famli-muted)] underline-offset-2 hover:underline">
+                Uitloggen
+              </button>
+            </form>
+          </div>
         </div>
       </aside>
 
@@ -83,6 +106,7 @@ export function AppShell({
                   active={pathname.startsWith(item.href)}
                   icon={item.icon}
                   label={item.label}
+                  badge={badges[item.href] ?? 0}
                   onClick={() => setMenuOpen(false)}
                 />
               ))}
@@ -110,11 +134,18 @@ export function AppShell({
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex min-h-16 flex-col items-center justify-center gap-1 text-[11px]",
-                      active ? "font-medium text-[color:var(--famli-brand)]" : "text-[color:var(--famli-muted)]",
+                      "relative flex min-h-16 flex-col items-center justify-center gap-1 text-[11px]",
+                      active ? "font-medium text-[color:var(--famli-ink)]" : "text-[color:var(--famli-muted)]",
                     )}
                   >
-                    <Icon className="size-5" />
+                    <span className="relative">
+                      <Icon className="size-5" />
+                      {(badges[item.href] ?? 0) > 0 ? (
+                        <span className="absolute -right-2 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-[color:var(--famli-yellow)] px-1 text-[9px] font-semibold leading-none text-[color:var(--famli-ink)]">
+                          {badges[item.href]}
+                        </span>
+                      ) : null}
+                    </span>
                     {item.label}
                   </Link>
                 </li>
@@ -149,14 +180,14 @@ function NavLink({
       className={cn(
         "flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
         active
-          ? "bg-[color:var(--famli-brand-soft)] font-medium text-[color:var(--famli-ink)]"
+          ? "bg-[color:color-mix(in_srgb,var(--famli-yellow)_42%,white)] font-medium text-[color:var(--famli-ink)]"
           : "text-[color:var(--famli-muted)] hover:bg-[color:var(--famli-surface)] hover:text-[color:var(--famli-ink)]",
       )}
     >
       <Icon className="size-4" />
       <span className="flex-1">{label}</span>
       {badge > 0 ? (
-        <span className="grid size-5 place-items-center rounded-full bg-[color:var(--famli-brand)] text-[10px] text-white">
+        <span className="grid size-5 place-items-center rounded-full bg-[color:var(--famli-yellow)] text-[10px] font-semibold leading-none text-[color:var(--famli-ink)]">
           {badge}
         </span>
       ) : null}

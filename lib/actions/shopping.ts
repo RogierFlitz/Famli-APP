@@ -7,6 +7,7 @@ import type { ShoppingCategory } from "@/lib/domain/types";
 
 function refreshShopping() {
   revalidatePath("/boodschappen");
+  revalidatePath("/vandaag");
 }
 
 export async function addShoppingItemAction(formData: FormData) {

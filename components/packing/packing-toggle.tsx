@@ -13,11 +13,13 @@ export function PackingToggle({
   checked,
   label,
   disabled = false,
+  compact = false,
 }: {
   itemId: string;
   checked: boolean;
   label: string;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   const [optimistic, setOptimistic] = useOptimistic(checked);
   const [pending, startTransition] = useTransition();
@@ -34,15 +36,20 @@ export function PackingToggle({
   }
 
   return (
-    <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl px-1 py-1">
+    <label
+      className={cn(
+        "flex cursor-pointer items-center gap-3 rounded-2xl px-1",
+        compact ? "min-h-10 py-0.5" : "min-h-12 py-1",
+      )}
+    >
       <Checkbox
         checked={optimistic}
         disabled={disabled || pending}
         onCheckedChange={(value) => toggle(value === true)}
         aria-label={optimistic ? `${label} terugzetten` : `${label} afvinken`}
-        className="size-11 shrink-0 rounded-xl"
+        className={cn("shrink-0 rounded-md", compact ? "size-5 rounded-md" : "size-11 rounded-xl")}
       />
-      <span className={cn("text-base leading-snug", optimistic && "text-[color:var(--famli-muted)] line-through")}>
+      <span className={cn("leading-snug", compact ? "text-sm" : "text-base", optimistic && "text-[color:var(--famli-muted)] line-through")}>
         {label}
       </span>
     </label>
@@ -129,6 +136,7 @@ export function PackingSuggestionToggle({
   handoverId,
   dueOn,
   disabled = false,
+  compact = false,
 }: {
   childId: string;
   label: string;
@@ -137,6 +145,7 @@ export function PackingSuggestionToggle({
   handoverId: string | null;
   dueOn: string | null;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [checked, setChecked] = useState(false);
@@ -162,7 +171,12 @@ export function PackingSuggestionToggle({
   }
 
   return (
-    <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl px-1 py-1">
+    <label
+      className={cn(
+        "flex cursor-pointer items-center gap-3 rounded-2xl px-1",
+        compact ? "min-h-10 py-0.5" : "min-h-12 py-1",
+      )}
+    >
       <Checkbox
         checked={checked}
         disabled={disabled || pending}
@@ -170,9 +184,9 @@ export function PackingSuggestionToggle({
           if (value === true) persistChecked();
         }}
         aria-label={`${label} afvinken`}
-        className="size-11 shrink-0 rounded-xl"
+        className={cn("shrink-0", compact ? "size-5 rounded-md" : "size-11 rounded-xl")}
       />
-      <span className={cn("text-base leading-snug", checked && "text-[color:var(--famli-muted)] line-through")}>
+      <span className={cn("leading-snug", compact ? "text-sm" : "text-base", checked && "text-[color:var(--famli-muted)] line-through")}>
         {label}
       </span>
     </label>
