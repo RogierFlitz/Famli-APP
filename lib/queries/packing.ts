@@ -298,6 +298,7 @@ export type UpcomingPackingCard = {
   when: string;
   href: string;
   progressLabel: string;
+  items: PackingItem[];
 };
 
 export function upcomingPackingForChild(
@@ -344,6 +345,7 @@ export function upcomingPackingForChild(
           : `/kinderen/${childId}`,
       progressLabel:
         remaining <= 0 ? "Alles gereed ✓" : remaining === 1 ? "1 ding nog niet klaar" : `${remaining} dingen mee`,
+      items: list,
     });
   }
 
@@ -365,6 +367,7 @@ export function upcomingPackingForChild(
       when: formatDayLong(event.startsAt),
       href: `/agenda?date=${event.startsAt.slice(0, 10)}&focus=${event.id}`,
       progressLabel: leftover === 1 ? "1 ding mee" : `${leftover} dingen mee`,
+      items: [],
     });
   }
 
@@ -384,6 +387,7 @@ export function upcomingPackingForChild(
       href: `/agenda?date=${handover.date}&view=wissels`,
       progressLabel:
         handover.packingList.length === 1 ? "1 ding mee" : `${handover.packingList.length} dingen mee`,
+      items: [],
     });
   }
 

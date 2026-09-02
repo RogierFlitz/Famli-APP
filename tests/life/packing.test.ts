@@ -5,6 +5,7 @@ import { memoryRepository } from "@/lib/data/memory-store";
 import { IDS } from "@/lib/data/ids";
 import { toISODate } from "@/lib/dates";
 import { packingProgressLabel } from "@/lib/packing/progress";
+import { packingListOrTemplate, handoverPackingOrTemplate } from "@/lib/packing/templates";
 import {
   handoverProgress,
   packingItemsForHandover,
@@ -29,6 +30,12 @@ describe("packing progress copy", () => {
     assert.equal(packingProgressLabel(3, 4), "Nog 1 ding");
     assert.equal(packingProgressLabel(4, 4), "Alles gereed ✓");
     assert.equal(packingProgressLabel(0, 4), "Nog 4 dingen");
+  });
+
+  it("fills empty packing lists from sport and handover templates", () => {
+    assert.deepEqual(packingListOrTemplate("Hockey Roxy", "sport", []), ["Hockeystick", "Bitje", "Bidon"]);
+    assert.deepEqual(packingListOrTemplate("Hockey Roxy", "sport", ["Stick"]), ["Stick"]);
+    assert.deepEqual(handoverPackingOrTemplate([]), ["Schooltas", "Medicijnen", "Knuffel", "Sportspullen"]);
   });
 });
 

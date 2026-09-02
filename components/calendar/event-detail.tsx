@@ -5,8 +5,9 @@ import { formatTime } from "@/lib/dates";
 import { childNames, overnightMemberId, parentName } from "@/lib/queries/family-view";
 import { eventResponsibilityLines, wieBrengt, wieHaalt } from "@/lib/queries/responsibility";
 import type { CalendarEvent, FamilySnapshot } from "@/lib/domain/types";
-import { HandoverDetail } from "@/components/calendar/handover-event";
 import { ContextMessages } from "@/components/messages/context-messages";
+import { EventPacking } from "@/components/packing/event-packing";
+import { SmartHandover } from "@/components/handover/smart-handover";
 
 export function EventDetail({ snapshot, event }: { snapshot: FamilySnapshot; event: CalendarEvent }) {
   const handover = snapshot.handovers.find((item) => item.id === event.handoverId);
@@ -26,7 +27,8 @@ export function EventDetail({ snapshot, event }: { snapshot: FamilySnapshot; eve
         {event.endsAt && !event.allDay ? `–${formatTime(event.endsAt)}` : ""}
         {event.location ? ` · ${event.location}` : ""}
       </p>
-      {handover ? <HandoverDetail snapshot={snapshot} handover={handover} /> : null}
+      {handover ? <SmartHandover snapshot={snapshot} handover={handover} compact /> : null}
+      {!handover ? <EventPacking snapshot={snapshot} event={event} /> : null}
       {event.schoolKind === "studiedag" ? (
         <div className="rounded-2xl bg-[color:var(--famli-bg)] p-4">
           <p className="font-medium">Geen school.</p>
@@ -88,7 +90,6 @@ export function EventDetail({ snapshot, event }: { snapshot: FamilySnapshot; eve
           Bekijk reisgegevens
         </Link>
       ) : null}
-      {event.packingList.length ? <p>Meenemen: {event.packingList.join(", ")}</p> : null}
       {event.childIds.length ? <p>{childNames(snapshot, event.childIds)}</p> : null}
       <div className="flex flex-wrap gap-2 pt-2">
         <Link href={`/kinderen/${event.childIds[0] ?? snapshot.children[0]?.id}`} className="famli-btn famli-btn-secondary h-10 px-4">

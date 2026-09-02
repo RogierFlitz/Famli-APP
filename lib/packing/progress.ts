@@ -21,8 +21,7 @@ export function handoverReadyLabel(
 ): string {
   if (handover.readyStatus === "completed") return "Overdracht afgerond";
   if (handover.readyStatus === "ready") return "Alles gereed ✓";
-  if (remaining <= 0) return "Bijna klaar";
-  if (remaining <= 2) return packingRemainingLabel(remaining);
+  if (remaining <= 0) return "Alles gereed ✓";
   return packingRemainingLabel(remaining);
 }
 

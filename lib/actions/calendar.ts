@@ -5,6 +5,7 @@ import { getRepository } from "@/lib/data";
 import { writeAuditLog } from "@/lib/security/audit";
 import { requireAuthorizedMutation } from "@/lib/security/guard";
 import type { ChangeRequestType, EventCategory } from "@/lib/domain/types";
+import { handoverPackingOrTemplate, packingListOrTemplate } from "@/lib/packing/templates";
 
 export async function createChangeRequestAction(formData: FormData) {
   const { snapshot } = await requireAuthorizedMutation({
@@ -90,10 +91,14 @@ export async function createEventAction(formData: FormData) {
     endsAt: `${date}T${end}:00`,
     location: String(formData.get("location") ?? "") || null,
     notes: String(formData.get("notes") ?? "") || null,
-    packingList: String(formData.get("packingList") ?? "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean),
+    packingList: packingListOrTemplate(
+      String(formData.get("title") ?? ""),
+      String(formData.get("category") ?? "activiteit") as EventCategory,
+      String(formData.get("packingList") ?? "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
     childIds,
     memberIds: formData.getAll("memberIds").map(String),
     allDay: String(formData.get("allDay") ?? "") === "true",
@@ -122,10 +127,12 @@ export async function createHandoverAction(formData: FormData) {
     fromMemberId: String(formData.get("fromMemberId") ?? snapshot.currentMember.id),
     toMemberId: String(formData.get("toMemberId") ?? snapshot.currentMember.id),
     location: String(formData.get("location") ?? "") || null,
-    packingList: String(formData.get("packingList") ?? "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean),
+    packingList: handoverPackingOrTemplate(
+      String(formData.get("packingList") ?? "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
     notes: String(formData.get("notes") ?? "") || null,
     childIds: childIds.length ? childIds : snapshot.children.map((child) => child.id),
   });

@@ -25,3 +25,17 @@ export function templateLabelsForContext(context: PackingContext): string[] {
   if (context === "event" || context === "other") return [];
   return PACKING_TEMPLATES[context];
 }
+
+export function packingListOrTemplate(
+  title: string,
+  category: EventCategory | null | undefined,
+  explicit: string[],
+): string[] {
+  if (explicit.length) return explicit;
+  return templateLabelsForContext(inferPackingContext(title, category));
+}
+
+export function handoverPackingOrTemplate(explicit: string[]): string[] {
+  if (explicit.length) return explicit;
+  return templateLabelsForContext("handover");
+}

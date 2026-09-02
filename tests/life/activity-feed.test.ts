@@ -56,4 +56,23 @@ describe("family activity feed", () => {
     assert.ok(items[0]?.text.includes("Hockey Roxy"));
     assert.equal(items[0]?.href.includes("/agenda"), true);
   });
+
+  it("renders packing and handover-ready summaries without ids", () => {
+    const now = new Date("2026-04-16T10:00:00.000Z");
+    const snapshot = createDemoSnapshot(now);
+    snapshot.activityLog.unshift({
+      id: "log-pack",
+      familyId: snapshot.family.id,
+      actorId: snapshot.currentProfile.id,
+      action: "packing_item.check",
+      entityType: "packing_item",
+      entityId: "pack-1",
+      before: null,
+      after: { summary: `${snapshot.currentProfile.firstName} vinkte Hockeystick af.` },
+      createdAt: now.toISOString(),
+    });
+    const items = familyActivityFeed(snapshot, now);
+    assert.ok(items[0]?.text.includes("Hockeystick"));
+    assert.equal(items[0]?.text.includes("pack-1"), false);
+  });
 });
