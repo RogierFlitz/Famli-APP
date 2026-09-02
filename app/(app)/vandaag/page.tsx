@@ -1,6 +1,6 @@
 import { requireSnapshot } from "@/lib/auth/session";
 import { greetingForHour } from "@/lib/domain/labels";
-import { formatDayLong, toISODate } from "@/lib/dates";
+import { addDaysIso, formatDayLong } from "@/lib/dates";
 import { nextHandover } from "@/lib/queries/family-view";
 import { myCompletedDutiesToday } from "@/lib/queries/routines";
 import { canAcceptChangeRequests } from "@/lib/members/permissions";
@@ -28,11 +28,39 @@ import {
   TodayWeekCard,
 } from "@/components/vandaag/today-dashboard";
 import { TodayShoppingCard } from "@/components/vandaag/today-shopping-card";
+import { DayBrief } from "@/components/vandaag/day-brief";
+import { DayToggle } from "@/components/vandaag/day-toggle";
+import { buildFamilyDayContext, familyCalendarDate } from "@/lib/context/family-day";
+import { trackProductEvent } from "@/lib/analytics/product";
 
-export default async function TodayPage() {
+export default async function TodayPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ dag?: string }>;
+}) {
   const snapshot = await requireSnapshot();
+  const params = await searchParams;
   const now = new Date();
-  const today = toISODate(now);
+  const today = familyCalendarDate(snapshot, now);
+  const tomorrow = addDaysIso(today, 1);
+  const showTomorrow = params.dag === "morgen";
+  const ctx = buildFamilyDayContext(snapshot, showTomorrow ? tomorrow : today, now);
+
+  if (showTomorrow) {
+    trackProductEvent("tomorrow_viewed");
+    if (ctx.ready) trackProductEvent("tomorrow_all_ready");
+    return (
+      <div className="famli-page">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-[1.85rem] font-semibold tracking-tight text-[color:var(--famli-ink)] sm:text-4xl">
+            Famli Morgen
+          </h1>
+        </header>
+        <DayBrief snapshot={snapshot} ctx={ctx} />
+      </div>
+    );
+  }
+
   const next = nextHandover(snapshot, today);
   const showHandover = Boolean(next && handoverIsSoon(next, today));
   const incoming = canAcceptChangeRequests(snapshot)
@@ -66,16 +94,28 @@ export default async function TodayPage() {
             {greetingForHour(now.getHours())}, {snapshot.currentProfile.firstName}
           </h1>
           <p className="mt-1.5 text-sm text-[color:var(--famli-muted)]">
-            Vandaag · {formatDayLong(now)}
+            Vandaag · {formatDayLong(today)}
           </p>
         </div>
-        <TodayStatChips
-          childrenCount={overview.cards.length}
-          openTasks={smart.duties.length}
-          packingLeft={packingRemainingCount(snapshot, now)}
-          handovers={handoverCount}
-        />
+        <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <DayToggle active="today" />
+          <TodayStatChips
+            childrenCount={overview.cards.length}
+            openTasks={smart.duties.length}
+            packingLeft={packingRemainingCount(snapshot, now)}
+            handovers={handoverCount}
+          />
+        </div>
       </header>
+
+      {ctx.alerts.length ? (
+        <p className="text-sm text-[color:var(--famli-muted)]">
+          {ctx.alerts[0]?.title}{" "}
+          <a href="/vandaag?dag=morgen" className="font-medium text-[color:var(--famli-brand)]">
+            Morgen →
+          </a>
+        </p>
+      ) : null}
 
       {overview.cards.length ? (
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">

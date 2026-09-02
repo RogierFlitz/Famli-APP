@@ -127,6 +127,13 @@ export interface Profile {
   updatedAt: string;
 }
 
+export interface FamliMorgenPrefs {
+  enabled: boolean;
+  time: string;
+  inApp: boolean;
+  email: boolean;
+}
+
 export interface NotificationPrefs {
   handoverReminder: ChannelPrefs;
   changeRequest: ChannelPrefs;
@@ -136,6 +143,7 @@ export interface NotificationPrefs {
   payment: ChannelPrefs;
   event: ChannelPrefs;
   activity: ChannelPrefs;
+  famliMorgen: FamliMorgenPrefs;
 }
 
 export interface ChannelPrefs {

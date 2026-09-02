@@ -65,6 +65,8 @@ export function notificationHref(notification: AppNotification): string {
       return "/agenda";
     case "invite":
       return "/instellingen";
+    case "famli_morgen":
+      return "/vandaag?dag=morgen";
     default:
       if (notification.type.includes("task") || notification.type.includes("routine")) return "/regelen";
       if (notification.type.includes("expense")) return "/kosten";

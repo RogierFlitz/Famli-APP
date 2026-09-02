@@ -212,6 +212,7 @@ export function notificationPrefLabel(key: string): string {
     payment: "Betalingen en verrekenen",
     event: "Afspraken",
     activity: "Kindactiviteiten",
+    famliMorgen: "Famli Morgen",
   };
   return labels[key] ?? key;
 }

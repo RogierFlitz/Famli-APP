@@ -17,6 +17,7 @@ export const NOTIFICATION_TYPES = [
   "event_created",
   "vacation",
   "travel_plan",
+  "famli_morgen",
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -31,9 +32,9 @@ export interface CreateNotificationInput {
   entityType: string;
   entityId: string;
   payload?: Record<string, unknown>;
+  /** Daily brief is addressed to the same user who enabled it. */
+  allowSelf?: boolean;
 }
-
-export interface NotifyFamilyInput {
   familyId: string;
   actorId: string;
   recipientUserIds: string[];

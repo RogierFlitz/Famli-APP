@@ -230,6 +230,17 @@ export interface FamilyRepository {
   reopenRoutineOccurrence(occurrenceId: string, actorUserId: string): Promise<void>;
   updateTaskStatus(taskId: string, status: TaskStatus, actorUserId: string): Promise<void>;
   createEvent(input: CreateEventInput): Promise<CalendarEvent>;
+  updateEventTransport(input: {
+    eventId: string;
+    actorUserId: string;
+    role: "dropoff" | "pickup";
+    memberId: string | null;
+  }): Promise<CalendarEvent>;
+  listActiveUserIds(): Promise<string[]>;
+  getSnapshotForCron(userId: string): Promise<FamilySnapshot | null>;
+  createSystemNotification(
+    input: import("@/lib/notifications/types").CreateNotificationInput,
+  ): Promise<boolean>;
   createHandover(input: CreateHandoverInput): Promise<void>;
   createVacation(input: {
     familyId: string;

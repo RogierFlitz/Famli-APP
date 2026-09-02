@@ -44,7 +44,7 @@ export async function createNotification(
   supabase: SupabaseClient,
   input: CreateNotificationInput,
 ): Promise<AppNotification | null> {
-  if (input.userId === input.actorId) return null;
+  if (input.userId === input.actorId && !input.allowSelf) return null;
   const { data: profile } = await supabase
     .from("profiles")
     .select("notification_prefs")

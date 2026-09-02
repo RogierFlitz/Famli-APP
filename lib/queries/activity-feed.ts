@@ -81,6 +81,7 @@ function sentence(snapshot: FamilySnapshot, entry: ActivityLogEntry): string | n
     case "packing_item.create":
     case "packing_item.check":
     case "packing_item.uncheck":
+    case "event.transport_assigned":
       return packingSentence(entry);
     case "context_message.create":
       return `${who} deelde een update.`;
