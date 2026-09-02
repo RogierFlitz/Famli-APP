@@ -3,7 +3,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
-import { AddMenu } from "@/components/compose/add-menu";
 import { PageHeader } from "@/components/ui/page-header";
 import type { FamilySnapshot } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
@@ -11,7 +10,7 @@ import { cn } from "@/lib/utils";
 export type CalendarView = "month" | "week" | "day" | "wissels";
 
 export function CalendarHeader({
-  snapshot,
+  snapshot: _snapshot,
   anchor,
   view,
   onViewChange,
@@ -35,16 +34,9 @@ export function CalendarHeader({
         title="Agenda"
         subtitle="Wat er speelt, wie brengt of haalt, en waar de kinderen zijn."
         action={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onToday}
-              className="famli-btn famli-btn-secondary min-h-11 px-4 text-sm"
-            >
-              Vandaag
-            </button>
-            <AddMenu snapshot={snapshot} compact />
-          </div>
+          <button type="button" onClick={onToday} className="famli-btn famli-btn-secondary">
+            Vandaag
+          </button>
         }
       />
 
@@ -97,7 +89,7 @@ function ViewSwitcher({
             type="button"
             onClick={() => onViewChange(item.id)}
             className={cn(
-              "min-h-11 rounded-full px-3 text-sm transition-colors",
+              "inline-flex min-h-11 items-center justify-center rounded-full px-3.5 text-sm leading-none transition-colors",
               view === item.id
                 ? "bg-[color:var(--famli-card)] font-medium shadow-sm"
                 : "text-[color:var(--famli-muted)] hover:text-[color:var(--famli-ink)]",
@@ -111,7 +103,7 @@ function ViewSwitcher({
         type="button"
         onClick={() => onViewChange("wissels")}
         className={cn(
-          "min-h-11 rounded-full border px-3 text-sm transition-colors",
+          "inline-flex min-h-11 items-center justify-center rounded-full border px-3.5 text-sm leading-none transition-colors",
           view === "wissels"
             ? "border-[color:var(--famli-ink)] bg-[color:var(--famli-ink)] text-white"
             : "border-[color:var(--famli-border)] text-[color:var(--famli-muted)] hover:text-[color:var(--famli-ink)]",

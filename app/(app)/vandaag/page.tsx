@@ -16,7 +16,6 @@ import { forgetAndPack, nowAndSoon } from "@/lib/queries/smart-today";
 import { todayPackingGroups } from "@/lib/queries/packing";
 import { childrenOverview } from "@/lib/queries/children-overview";
 import { familyActivityFeed } from "@/lib/queries/activity-feed";
-import { AddMenu } from "@/components/compose/add-menu";
 import { ChangeReviewCard } from "@/components/requests/change-review";
 import { SmartHandover } from "@/components/handover/smart-handover";
 import { TodayPacking } from "@/components/packing/today-packing";
@@ -59,11 +58,6 @@ export default async function TodayPage() {
         eyebrow={`${greetingForHour(now.getHours())}, ${snapshot.currentProfile.firstName}`}
         title={`Vandaag · ${formatDayLong(now)}`}
         subtitle="Wat er speelt, wie iets doet en wat je niet mag vergeten."
-        action={
-          <div className="hidden lg:block">
-            <AddMenu snapshot={snapshot} compact />
-          </div>
-        }
       />
 
       {overview.cards.length ? (

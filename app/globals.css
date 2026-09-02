@@ -275,13 +275,24 @@
 
   .famli-btn {
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
     min-height: 44px;
     height: var(--famli-control-h);
     border-radius: var(--famli-radius-pill);
-    padding: 0 1.15rem;
+    padding: 0 1.125rem;
     font-size: 0.875rem;
     font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
     transition: background-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  }
+
+  .famli-btn svg {
+    display: block;
+    flex-shrink: 0;
   }
 
   .famli-btn:active {

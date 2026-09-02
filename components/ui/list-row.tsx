@@ -18,11 +18,11 @@ export function TimelineItem({
     <Link
       href={href}
       className={cn(
-        "flex min-h-11 gap-3 rounded-2xl px-1 py-2.5 transition-colors hover:bg-[color:var(--famli-surface)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--famli-brand)]",
+        "flex min-h-11 items-baseline gap-3 rounded-2xl px-1 py-2.5 transition-colors hover:bg-[color:var(--famli-surface)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--famli-brand)]",
         accent && "bg-[color:var(--famli-brand-soft)]/50 px-3",
       )}
     >
-      <span className="w-12 shrink-0 pt-0.5 text-xs tabular-nums text-[color:var(--famli-muted)]">{time ?? "Dag"}</span>
+      <span className="w-12 shrink-0 text-xs tabular-nums text-[color:var(--famli-muted)]">{time ?? "Dag"}</span>
       <div className="min-w-0">
         <p className="font-medium text-[color:var(--famli-ink)]">{title}</p>
         {meta ? <p className="text-sm text-[color:var(--famli-muted)]">{meta}</p> : null}

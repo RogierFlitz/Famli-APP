@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useRef, useState, useTransition } from "react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { createPackingItemAction, togglePackingItemAction } from "@/lib/actions/packing";
 import { cn } from "@/lib/utils";
@@ -89,9 +90,10 @@ export function PackingAddRow({
           setOpen(true);
           requestAnimationFrame(() => inputRef.current?.focus());
         }}
-        className="mt-1 min-h-11 w-full rounded-2xl px-2 text-left text-sm font-medium text-[color:var(--famli-brand)]"
+        className="mt-1 inline-flex min-h-11 w-full items-center gap-1.5 rounded-2xl px-1 text-left text-sm font-medium leading-none text-[color:var(--famli-brand)]"
       >
-        + Item toevoegen
+        <Plus className="size-3.5" strokeWidth={2.5} />
+        Item toevoegen
       </button>
     );
   }

@@ -80,7 +80,7 @@ export function CalendarFilters({
           <button
             type="button"
             className={cn(
-              "inline-flex h-8 items-center gap-1 rounded-full border px-3 text-sm transition-colors",
+              "inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm leading-none transition-colors",
               activeAdvanced
                 ? "border-[color:var(--famli-brand)] bg-[color:var(--famli-brand-soft)] text-[color:var(--famli-ink)]"
                 : "border-[color:var(--famli-border)] text-[color:var(--famli-muted)] hover:text-[color:var(--famli-ink)]",
@@ -179,7 +179,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "h-8 rounded-full px-3 text-sm transition-colors",
+        "inline-flex h-9 items-center justify-center rounded-full px-3.5 text-sm leading-none transition-colors",
         active
           ? "bg-[color:var(--famli-brand-soft)] font-medium text-[color:var(--famli-ink)]"
           : "text-[color:var(--famli-muted)] hover:bg-[color:var(--famli-bg)]",

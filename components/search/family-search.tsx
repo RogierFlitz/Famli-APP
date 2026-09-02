@@ -40,11 +40,11 @@ export function FamilySearch({ snapshot }: { snapshot: FamilySnapshot }) {
       >
         <Search className="size-4" />
       </button>
-      <div className={mobileOpen ? "block" : "hidden lg:block"}>
+      <div className={mobileOpen ? "relative block" : "relative hidden lg:block"}>
         <label className="sr-only" htmlFor="famli-search">
           Zoek in Famli
         </label>
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[color:var(--famli-muted)]" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[color:var(--famli-muted)]" />
         <input
           ref={inputRef}
           id="famli-search"
@@ -56,7 +56,7 @@ export function FamilySearch({ snapshot }: { snapshot: FamilySnapshot }) {
             if (!query) setMobileOpen(false);
           }}
           placeholder="Zoek kind, afspraak, document…"
-          className="h-11 w-full rounded-full border border-[color:var(--famli-border)] bg-[color:var(--famli-elevated)] pl-10 pr-24 text-sm outline-none focus-visible:border-[color:var(--famli-blue)] focus-visible:ring-2 focus-visible:ring-[color:var(--famli-blue)]/20"
+          className="h-11 w-full rounded-full border border-[color:var(--famli-border)] bg-[color:var(--famli-elevated)] pl-10 pr-24 text-sm leading-none outline-none focus-visible:border-[color:var(--famli-blue)] focus-visible:ring-2 focus-visible:ring-[color:var(--famli-blue)]/20"
         />
         <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-[color:var(--famli-border)] px-1.5 py-0.5 text-[10px] text-[color:var(--famli-muted)] lg:inline">
           ⌘K / Ctrl+K

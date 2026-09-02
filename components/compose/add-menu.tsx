@@ -117,14 +117,17 @@ export function AddMenu({ snapshot, compact = false }: { snapshot: FamilySnapsho
         onClick={() => setOpen(true)}
         className={cn(
           compact
-            ? "famli-btn famli-btn-primary hidden h-11 px-4 lg:inline-flex"
-            : "fixed right-4 z-50 grid size-14 place-items-center rounded-full bg-[color:var(--famli-brand)] text-white shadow-[0_12px_30px_-18px_rgba(37,99,235,0.9)] lg:hidden",
+            ? "famli-btn famli-btn-primary"
+            : "fixed right-4 z-50 inline-flex size-14 items-center justify-center rounded-full bg-[color:var(--famli-brand)] text-white shadow-[0_12px_30px_-18px_rgba(37,99,235,0.9)] lg:hidden",
           !compact && "bottom-[calc(5.5rem+env(safe-area-inset-bottom))]",
         )}
         aria-label="Toevoegen"
       >
         {compact ? (
-          "+ Toevoegen"
+          <>
+            <Plus className="size-4" strokeWidth={2.5} />
+            Toevoegen
+          </>
         ) : (
           <>
             <Plus className="size-6" />
