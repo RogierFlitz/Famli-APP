@@ -165,47 +165,52 @@ export function TodayForgetCard({
   needed: NeededItem[];
   canEdit: boolean;
 }) {
-  const packingRows = groups.flatMap((group) => [
-    ...group.items.map((item) => ({ key: item.id, group, item, suggestion: null as null })),
-    ...group.suggestions.map((suggestion) => ({ key: suggestion.key, group, item: null as PackingItem | null, suggestion })),
-  ]);
-  const visible = packingRows.slice(0, 6);
+  const visible = groups.filter((group) => group.items.length || group.suggestions.length).slice(0, 4);
   if (!visible.length && !needed.length) return null;
 
   return (
     <section className="famli-card">
       <h2 className="famli-section-title">Niet vergeten</h2>
-      <ul className="mt-2">
-        {visible.map((row) => (
-          <li key={row.key} className="flex items-center gap-1">
-            <div className="min-w-0 flex-1">
-              {row.item ? (
-                <PackingToggle itemId={row.item.id} checked={row.item.checked} label={row.item.label} disabled={!canEdit} compact />
-              ) : row.suggestion ? (
-                <PackingSuggestionToggle
-                  childId={row.suggestion.childId}
-                  label={row.suggestion.label}
-                  context={row.suggestion.context}
-                  eventId={row.suggestion.eventId}
-                  handoverId={row.suggestion.handoverId}
-                  dueOn={row.suggestion.dueOn}
-                  disabled={!canEdit}
-                  compact
-                />
-              ) : null}
-            </div>
-            <span className="shrink-0 text-xs text-[color:var(--famli-muted)]">{row.group.childName}</span>
-          </li>
+      <div className="mt-2 space-y-4">
+        {visible.map((group) => (
+          <div key={group.id}>
+            <p className="text-sm font-medium">
+              {group.childName} · {group.title}
+              {group.when ? ` ${group.when}` : ""}
+            </p>
+            <ul className="mt-1">
+              {group.items.map((item) => (
+                <li key={item.id}>
+                  <PackingToggle itemId={item.id} checked={item.checked} label={item.label} disabled={!canEdit} />
+                </li>
+              ))}
+              {group.suggestions.map((suggestion) => (
+                <li key={suggestion.key}>
+                  <PackingSuggestionToggle
+                    childId={suggestion.childId}
+                    label={suggestion.label}
+                    context={suggestion.context}
+                    eventId={suggestion.eventId}
+                    handoverId={suggestion.handoverId}
+                    dueOn={suggestion.dueOn}
+                    disabled={!canEdit}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
         {needed.slice(0, 3).map((item) => (
-          <li key={item.id}>
-            <Link href={`/kinderen/${item.childId}?tab=nodig`} className="flex min-h-10 items-center gap-3 px-1 text-sm">
-              <span className="size-5 rounded-md border border-[color:var(--famli-border)]" />
-              <span className="flex-1">{item.title}</span>
-            </Link>
-          </li>
+          <Link
+            key={item.id}
+            href={`/kinderen/${item.childId}?tab=nodig`}
+            className="flex min-h-11 items-center gap-3 text-sm"
+          >
+            <span className="size-11 shrink-0 rounded-xl border border-[color:var(--famli-border)]" />
+            <span className="flex-1">{item.title}</span>
+          </Link>
         ))}
-      </ul>
+      </div>
     </section>
   );
 }

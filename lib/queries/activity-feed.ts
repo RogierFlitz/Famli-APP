@@ -35,11 +35,20 @@ function hrefFor(entry: ActivityLogEntry): string {
       return `/kosten?id=${entry.entityId}`;
     case "handover":
       return "/agenda?view=wissels";
+    case "packing_item":
+      return "/vandaag";
     case "custody_schedule":
       return "/jaaroverzicht";
     default:
       return "/vandaag";
   }
+}
+
+function packingSentence(entry: ActivityLogEntry): string | null {
+  const summary = entry.after && typeof entry.after.summary === "string" ? entry.after.summary.trim() : "";
+  if (!summary || summary.length > 140) return null;
+  if (/[{}\[\]]/.test(summary) || /[0-9a-f]{8}-[0-9a-f]{4}-/.test(summary)) return null;
+  return summary;
 }
 
 function sentence(snapshot: FamilySnapshot, entry: ActivityLogEntry): string | null {
@@ -68,6 +77,11 @@ function sentence(snapshot: FamilySnapshot, entry: ActivityLogEntry): string | n
       return title ? `${who} plande ${title}.` : `${who} voegde een afspraak toe.`;
     case "handover.check_in":
       return `${who} checkte in bij een overdracht.`;
+    case "handover.ready":
+    case "packing_item.create":
+    case "packing_item.check":
+    case "packing_item.uncheck":
+      return packingSentence(entry);
     case "context_message.create":
       return `${who} deelde een update.`;
     default:

@@ -11,6 +11,8 @@ import { formatDayLong, formatTime, toISODate } from "@/lib/dates";
 import { childAge, nextEventForChild, nextHandoverForChild, parentName } from "@/lib/queries/family-view";
 import { childPlace, nowImportant, neededHeadline } from "@/lib/queries/child-life";
 import { upcomingPackingForChild } from "@/lib/queries/packing";
+import { hasChildCapability } from "@/lib/security/capabilities";
+import { PackingToggle } from "@/components/packing/packing-toggle";
 import { EmptyState } from "@/components/empty-state";
 import { PageSection } from "@/components/ui/page-header";
 import { TimelineItem } from "@/components/ui/list-row";
@@ -255,7 +257,23 @@ function Overview({
       {packingSoon.length ? (
         <PageSection title="Binnenkort">
           {packingSoon.map((item) => (
-            <TimelineItem key={item.id} href={item.href} title={`${item.when} · ${item.title}`} meta={item.progressLabel} />
+            <div key={item.id} className="mb-3 last:mb-0">
+              <TimelineItem href={item.href} title={`${item.when} · ${item.title}`} meta={item.progressLabel} />
+              {item.items.length ? (
+                <ul className="mt-1">
+                  {item.items.slice(0, 6).map((pack) => (
+                    <li key={pack.id}>
+                      <PackingToggle
+                        itemId={pack.id}
+                        checked={pack.checked}
+                        label={pack.label}
+                        disabled={!hasChildCapability(snapshot, child.id, "edit_tasks")}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ))}
         </PageSection>
       ) : null}
