@@ -367,7 +367,7 @@ export function upcomingPackingForChild(
       when: formatDayLong(event.startsAt),
       href: `/agenda?date=${event.startsAt.slice(0, 10)}&focus=${event.id}`,
       progressLabel: leftover === 1 ? "1 ding mee" : `${leftover} dingen mee`,
-      items: [],
+      items: packingItemsForEvent(snapshot, event.id).filter((item) => item.childId === childId),
     });
   }
 
@@ -387,7 +387,7 @@ export function upcomingPackingForChild(
       href: `/agenda?date=${handover.date}&view=wissels`,
       progressLabel:
         handover.packingList.length === 1 ? "1 ding mee" : `${handover.packingList.length} dingen mee`,
-      items: [],
+      items: packingItemsForHandover(snapshot, handover).filter((item) => item.childId === childId),
     });
   }
 
