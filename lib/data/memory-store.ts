@@ -40,6 +40,8 @@ import {
 } from "@/lib/packing/materialize";
 import { nextHandoverStatusAfterToggle } from "@/lib/packing/progress";
 import { packingItemsForHandover } from "@/lib/queries/packing";
+import { parentName } from "@/lib/queries/family-view";
+import { defaultNotificationPrefs } from "@/lib/notifications/prefs";
 import type {
   ActivityLogEntry,
   CalendarEvent,
@@ -293,6 +295,24 @@ export const memoryRepository: FamilyRepository = {
     return attachViewer(family, userId);
   },
 
+  async getSnapshotForCron(userId) {
+    return this.getSnapshot(userId);
+  },
+
+  async listActiveUserIds() {
+    return [...getStore().userFamily.keys()];
+  },
+
+  async createSystemNotification(input) {
+    const familyId = getStore().userFamily.get(input.userId);
+    if (!familyId) return false;
+    let created = false;
+    mutateFamily(familyId, (snap) => {
+      created = Boolean(pushNotification(snap, input));
+    });
+    return created;
+  },
+
   async getProfile(userId) {
     return getStore().users.get(userId)?.profile ?? null;
   },
@@ -308,16 +328,7 @@ export const memoryRepository: FamilyRepository = {
       phone: null,
       locale: "nl-NL",
       timezone: "Europe/Amsterdam",
-      notificationPrefs: {
-        handoverReminder: { inApp: true, email: true, push: false },
-        changeRequest: { inApp: true, email: true, push: false },
-        sport: { inApp: true, email: false, push: false },
-        taskDue: { inApp: true, email: true, push: false },
-        expense: { inApp: true, email: true, push: false },
-        payment: { inApp: true, email: true, push: false },
-        event: { inApp: true, email: false, push: false },
-        activity: { inApp: true, email: false, push: false },
-      },
+      notificationPrefs: defaultNotificationPrefs(),
       onboardingCompletedAt: null,
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -350,6 +361,7 @@ export const memoryRepository: FamilyRepository = {
           payment: { inApp: true, email: true, push: false },
           event: { inApp: true, email: false, push: false },
           activity: { inApp: true, email: false, push: false },
+          famliMorgen: { enabled: false, time: "20:00", inApp: true, email: false },
         },
         onboardingCompletedAt: null,
         createdAt,
@@ -989,6 +1001,27 @@ export const memoryRepository: FamilyRepository = {
       }
     });
     return event;
+  },
+
+  async updateEventTransport(input) {
+    const familyId = getStore().userFamily.get(input.actorUserId);
+    if (!familyId) throw new Error("Afspraak niet gevonden.");
+    let updated!: CalendarEvent;
+    mutateFamily(familyId, (snap) => {
+      const event = snap.events.find((item) => item.id === input.eventId);
+      if (!event) throw new Error("Afspraak niet gevonden.");
+      if (input.role === "dropoff") event.dropoffMemberId = input.memberId;
+      else event.pickupMemberId = input.memberId;
+      event.updatedAt = nowIso();
+      updated = { ...event };
+      const actor = actorFirstName(snap.profiles, input.actorUserId);
+      const who = input.memberId ? parentName(snap, input.memberId) : "niemand";
+      const verb = input.role === "dropoff" ? "brengen" : "ophalen";
+      log(snap, input.actorUserId, "event.transport_assigned", "event", event.id, null, {
+        summary: `${actor} stelde ${who} in voor ${verb}.`,
+      });
+    });
+    return updated;
   },
 
   async createHandover(input) {

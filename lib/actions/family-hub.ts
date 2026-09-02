@@ -5,7 +5,8 @@ import { getRepository } from "@/lib/data";
 import { writeAuditLog } from "@/lib/security/audit";
 import { requireAuthorizedMutation } from "@/lib/security/guard";
 import { validateUpload } from "@/lib/security/storage";
-import { mergeNotificationPrefs } from "@/lib/notifications/prefs";
+import { mergeNotificationPrefs, NOTIFICATION_CHANNEL_KEYS } from "@/lib/notifications/prefs";
+import { trackProductEvent } from "@/lib/analytics/product";
 import type {
   ChildActivityKind,
   ChildContactCategory,
@@ -184,12 +185,23 @@ export async function updateNotificationPrefsAction(formData: FormData) {
   });
   const current = mergeNotificationPrefs(snapshot.currentProfile.notificationPrefs);
   const next = { ...current };
-  for (const key of Object.keys(current) as Array<keyof typeof current>) {
-    next[key] = {
-      inApp: formData.get(`${key}_inApp`) === "on",
-      email: formData.get(`${key}_email`) === "on",
-      push: formData.get(`${key}_push`) === "on",
+  if (formData.has("famliMorgen")) {
+    const enabled = formData.get("famliMorgen_enabled") === "on";
+    next.famliMorgen = {
+      enabled,
+      time: String(formData.get("famliMorgen_time") ?? current.famliMorgen.time),
+      inApp: formData.get("famliMorgen_inApp") === "on",
+      email: formData.get("famliMorgen_email") === "on",
     };
+    if (enabled && !current.famliMorgen.enabled) trackProductEvent("daily_brief_enabled");
+  } else {
+    for (const key of NOTIFICATION_CHANNEL_KEYS) {
+      next[key] = {
+        inApp: formData.get(`${key}_inApp`) === "on",
+        email: formData.get(`${key}_email`) === "on",
+        push: formData.get(`${key}_push`) === "on",
+      };
+    }
   }
   await getRepository().updateNotificationPrefs(snapshot.currentProfile.id, next);
   revalidatePath("/instellingen");

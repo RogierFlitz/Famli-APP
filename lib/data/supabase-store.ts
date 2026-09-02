@@ -37,6 +37,7 @@ import {
   fetchMemberUserId,
   mapNotificationRow,
   notifyFamilyMembers,
+  createNotification,
 } from "@/lib/notifications/supabase";
 import { generateInviteToken, inviteExpiresAt } from "@/lib/security/invites";
 import {
@@ -56,6 +57,7 @@ import {
 } from "@/lib/shopping/store-helpers";
 import { inferShoppingCategory } from "@/lib/shopping/categories";
 import { inferPackingContext } from "@/lib/packing/templates";
+import { parentName } from "@/lib/queries/family-view";
 import {
   actorFirstName,
   handoverReadySummary,
@@ -754,8 +756,8 @@ async function buildCalendarExportSnapshot(
 }
 
 export const supabaseRepository: FamilyRepository = {
-  async getSnapshot(userId) {
-    const supabase = await db();
+  async getSnapshot(userId: string, client?: Awaited<ReturnType<typeof db>>) {
+    const supabase = client ?? (await db());
     const { data: memberships, error } = await supabase
       .from("family_members")
       .select("*")
@@ -1298,6 +1300,31 @@ export const supabaseRepository: FamilyRepository = {
     markPastOccurrencesUnregistered(snapshot);
 
     return applyPrivacy(snapshot);
+  },
+
+  async getSnapshotForCron(userId) {
+    const admin = bootstrapDb();
+    if (!admin) return this.getSnapshot(userId);
+    return this.getSnapshot(userId, admin);
+  },
+
+  async listActiveUserIds() {
+    const admin = bootstrapDb();
+    if (!admin) return [];
+    const { data, error } = await admin
+      .from("family_members")
+      .select("user_id")
+      .eq("status", "active")
+      .not("user_id", "is", null);
+    if (error) throw error;
+    return [...new Set((data ?? []).map((row) => row.user_id as string).filter(Boolean))];
+  },
+
+  async createSystemNotification(input) {
+    const admin = bootstrapDb();
+    if (!admin) return false;
+    const created = await createNotification(admin, input);
+    return Boolean(created);
   },
 
   async getProfile(userId) {
@@ -1990,6 +2017,37 @@ export const supabaseRepository: FamilyRepository = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       createdBy: input.createdBy,
+    };
+  },
+
+  async updateEventTransport(input) {
+    const supabase = await db();
+    const snap = await this.getSnapshot(input.actorUserId);
+    const event = snap?.events.find((item) => item.id === input.eventId);
+    if (!event || !snap) throw new Error("Afspraak niet gevonden.");
+    const patch =
+      input.role === "dropoff"
+        ? { dropoff_member_id: input.memberId, updated_at: new Date().toISOString() }
+        : { pickup_member_id: input.memberId, updated_at: new Date().toISOString() };
+    const { error } = await supabase.from("events").update(patch).eq("id", input.eventId);
+    if (error) throw error;
+    const actor = actorFirstName(snap.profiles, input.actorUserId);
+    const who = input.memberId ? parentName(snap, input.memberId) : "niemand";
+    const verb = input.role === "dropoff" ? "brengen" : "ophalen";
+    await supabase.from("activity_log").insert({
+      family_id: snap.family.id,
+      actor_id: input.actorUserId,
+      action: "event.transport_assigned",
+      entity_type: "event",
+      entity_id: event.id,
+      before: null,
+      after: { summary: `${actor} stelde ${who} in voor ${verb}.` },
+    });
+    return {
+      ...event,
+      dropoffMemberId: input.role === "dropoff" ? input.memberId : event.dropoffMemberId,
+      pickupMemberId: input.role === "pickup" ? input.memberId : event.pickupMemberId,
+      updatedAt: new Date().toISOString(),
     };
   },
 

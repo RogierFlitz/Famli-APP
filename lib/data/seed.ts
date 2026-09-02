@@ -42,6 +42,7 @@ function defaultPrefs() {
     payment: all,
     event: { inApp: true, email: false, push: false },
     activity: { inApp: true, email: false, push: false },
+    famliMorgen: { enabled: false, time: "20:00", inApp: true, email: false },
   };
 }
 

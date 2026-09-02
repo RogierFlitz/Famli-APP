@@ -8,6 +8,7 @@ import { NotificationPrefsForm } from "@/components/settings/notification-prefs"
 import { signOut } from "@/lib/auth/actions";
 import { getRepository } from "@/lib/data";
 import { PageHeader } from "@/components/ui/page-header";
+import { FamliMorgenPrefsForm } from "@/components/settings/famli-morgen-prefs";
 
 export default async function SettingsPage({
   searchParams,
@@ -62,6 +63,14 @@ export default async function SettingsPage({
           Famli komen vanzelf in je eigen agenda.
         </p>
         <CalendarExportPanel hasFeed={Boolean(feedStatus)} />
+      </section>
+
+      <section className="famli-card">
+        <h2 className="text-xl font-semibold">Famli Morgen</h2>
+        <p className="mt-2 text-sm text-[color:var(--famli-muted)]">
+          Wat jullie morgen moeten weten, gebundeld. Geen losse ping voor elk item.
+        </p>
+        <FamliMorgenPrefsForm snapshot={snapshot} />
       </section>
 
       <section className="famli-card">

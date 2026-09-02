@@ -10,6 +10,7 @@ import {
   requireAuthorizedMutation,
 } from "@/lib/security/guard";
 import { hasChildCapability } from "@/lib/security/capabilities";
+import { trackProductEvent } from "@/lib/analytics/product";
 import type { PackingContext } from "@/lib/domain/types";
 
 function refreshPacking() {
@@ -62,7 +63,10 @@ export async function togglePackingItemAction(itemId: string) {
   if (!hasChildCapability(snapshot, item.childId, "edit_tasks")) {
     throw new AuthorizationError();
   }
-  await getRepository().togglePackingItem(itemId, snapshot.currentProfile.id);
+  const updated = await getRepository().togglePackingItem(itemId, snapshot.currentProfile.id);
+  if (updated.checked) {
+    trackProductEvent("packing_item_checked");
+  }
   refreshPacking();
 }
 

@@ -28,7 +28,7 @@ export function pushNotification(
   snap: FamilySnapshot,
   input: CreateNotificationInput,
 ): AppNotification | null {
-  if (input.userId === input.actorId) return null;
+  if (input.userId === input.actorId && !input.allowSelf) return null;
   const recipientPrefs = snap.profiles[input.userId]?.notificationPrefs;
   if (!allowsInAppNotification(recipientPrefs, input.type)) return null;
   if (isDuplicate(snap.notifications, input)) return null;

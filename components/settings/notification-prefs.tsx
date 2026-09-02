@@ -2,7 +2,7 @@
 
 import { toast } from "sonner";
 import { notificationPrefLabel } from "@/lib/domain/labels";
-import { mergeNotificationPrefs } from "@/lib/notifications/prefs";
+import { mergeNotificationPrefs, NOTIFICATION_CHANNEL_KEYS } from "@/lib/notifications/prefs";
 import { updateNotificationPrefsAction } from "@/lib/actions/family-hub";
 import type { FamilySnapshot } from "@/lib/domain/types";
 
@@ -24,7 +24,7 @@ export function NotificationPrefsForm({ snapshot }: { snapshot: FamilySnapshot }
         Kies per onderwerp of je een melding in de app en/of per e-mail wilt. Push volgt later.
       </p>
       <div className="space-y-3">
-        {(Object.keys(prefs) as Array<keyof typeof prefs>).map((key) => (
+        {NOTIFICATION_CHANNEL_KEYS.map((key) => (
           <div key={key} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-[color:var(--famli-bg)] px-4 py-3">
             <p className="text-sm font-medium">{notificationPrefLabel(key)}</p>
             <div className="flex gap-4 text-sm">
