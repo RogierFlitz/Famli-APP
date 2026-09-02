@@ -1,14 +1,75 @@
 # Famli Phase 2 — masterplan
 
-Status: audit + roadmap. **Geen implementatie in deze PR.** Niet mergen zonder review.
+Status: **fase 0 + analyse**. Geen features, geen migrations, geen productiecode. Niet mergen.
 
-Bron van waarheid: codebase op `main` na PR #28–#32 (Today-dashboard, persistente packing, Famli Morgen).
+Audit: 2 september 2026 tegen `origin/main` `6e60a5f` (na PR #28–#33). Eerste versie van dit document stond al in PR #33; deze revisie voegt **bewijs uit de code** toe.
 
 Kernbelofte:
 
 > Famli onthoudt wat er speelt, wie iets doet en wat je niet mag vergeten.
 
 Iedere volgende PR moet deze test doorstaan: **neemt dit mentale belasting weg?** Zo nee: niet bouwen.
+
+**Stop hier tot de product owner een eerste PR kiest.** Voorgestelde keuze staat in §Q.
+
+---
+
+## Fase 0 — wat de code écht doet
+
+### App-routes (gezin)
+
+| Route | Bestand | Wat de gebruiker ziet |
+| --- | --- | --- |
+| `/vandaag` | `app/(app)/vandaag/page.tsx` | Greeting, DayToggle, kindkaarten, max 1 change-request card, 3-koloms dashboard (schema/duties, packing+handover, boodschappen+week), activity feed. **Geen** `DayBrief`. Family-day alleen als 1-regel alert + link “Morgen →”. |
+| `/vandaag?dag=morgen` | zelfde page | Alleen `DayBrief` (`components/vandaag/day-brief.tsx`) + `DaySignals`. |
+| `/agenda` | `app/(app)/agenda/page.tsx` | Kalender + event packing + wissels |
+| `/regelen` | `app/(app)/regelen/page.tsx` | Tabs: voor jou / samen / verzoeken / later + `bringHaalToday` + routines + needed |
+| `/boodschappen` | … | Lijsten; faalt zonder migratie 0009 |
+| `/kosten` | … | Expenses + splits |
+| `/kinderen` `/kinderen/[id]` | … | Overzicht + profiel + activities + contacts |
+| `/documenten` | … | Upload/lijst |
+| `/jaaroverzicht` `/vakanties` | … | **Bestaan, niet in `primaryNav`** (`lib/nav.ts`) |
+| `/instellingen` | … | Leden, kalender, Morgen-prefs, notificatieprefs, export |
+| `/onboarding` | wizard 7 stappen | Welkom → Gezin → Kinderen → Uitnodigen → Schema → Agenda → Klaar. Geen school/sport-stap. |
+
+Geen `/inbox`. Geen `/privacy` `/voorwaarden`. Geen contactroute. API: health, cron Morgen, calendar OAuth/ICS, document/receipt blobs.
+
+### Context-lagen op Vandaag (overlap)
+
+| Laag | Bestand | Gebruikt op `/vandaag` (vandaag) | Gebruikt op Morgen |
+| --- | --- | --- | --- |
+| `buildFamilyDayContext` | `lib/context/family-day.ts` | alleen `ctx.alerts[0]` | volledige brief |
+| `forgetAndPack` / `todaySchedule` / `weekGlance` / `nextWeekLines` | `lib/queries/smart-today.ts` | ja (schema, duties-count, weekkaart) | `weekGlance` zit ook in family-day, **niet gerenderd** (comment P1) |
+| `allSettledMessage` → `urgentActions` + duties | `lib/queries/vandaag.ts` + `family-view.ts` | ja, als “Alles geregeld” / “N dingen” op de schemakaart | nee |
+| `childrenOverview` | `lib/queries/children-overview.ts` | ja, kindkaarten | family-day bouwt eigen `children[]` via `childTimelineForDate` |
+| `todayPackingGroups` | `lib/queries/packing.ts` | ja | family-day heeft eigen `packing[]` (persistent + templates) |
+
+`urgentActions` kinds: `change` \| `expense` \| `task` \| `needed` \| `school`. Change-requests zijn **uitgefilterd** in `attentionCount`; ze staan apart als `ChangeReviewCard`. De lijst zelf wordt **nergens als inbox gerenderd**.
+
+`bringHaalToday` (`lib/queries/bring-haal.ts`) toont alleen events die **al** `dropoffMemberId` of `pickupMemberId` hebben. Ontbrekende chauffeur zit in family-day alerts (`assign_transport`), niet in deze lijst.
+
+### Wat al persistent is (geen nieuwe packing/handover-PR nodig)
+
+- `packing_items` + RLS: migraties `0017`, `0018`
+- `handovers.ready_status`
+- `events.dropoff_member_id` / `pickup_member_id` + `updateEventTransport`
+- `notificationPrefs.famliMorgen` + cron `GET/POST /api/cron/famli-morgen` + `vercel.json` hourly
+- Change-request types bevatten al `dropoff`, `pickup`, `pickup_time` (`lib/domain/types.ts`) — bevestigingsflow kan hierop, niet op chat
+
+### Stubs / dode paden
+
+- `trackProductEvent` no-op — `lib/analytics/product.ts`
+- `buildFamilyQueryContext` — `lib/ai/query-context.ts`, **nergens aangeroepen**, geen chat-UI
+- Notificatieprefs `email: true` default op sommige kanalen; **geen send**
+- Push: `push: false` hardcoded in defaults (`lib/notifications/prefs.ts`)
+- Account verwijderen: knop disabled (`app/(app)/instellingen/beveiliging/page.tsx`); export bestaat
+- Invite: token/URL in store; **geen invite-mail** (alleen Auth `resetPasswordForEmail`)
+- `.env.example` mist `CRON_SECRET`, `CONTACT_EMAIL`, mailprovider
+
+### Tests die de bestaande engine dekken
+
+- `tests/life/family-day.test.ts` — Morgen-scenario’s A–E, timezone, e-mailcopy zonder namen
+- `tests/life/smart-today.test.ts` — `weekGlance` e.d.
 
 ---
 
@@ -358,6 +419,23 @@ Geen Stripe tot pricing-besluit.
 | Zes maanden | Kindprofiel, schema, mappings, packing-gewoontes — opnieuw uitleggen is duurder dan blijven |
 
 Niet: “er zijn veel schermen.”
+
+---
+
+## Q. Kies de eerste PR (geen implementatie tot jij kiest)
+
+Aanbevolen volgorde blijft §O. Voor **eerste** PR zijn dit de reële opties:
+
+| Kies | Doel | Waarom eerst | Risico als je iets anders eerst doet |
+| --- | --- | --- | --- |
+| **PR 1** | Vandaag leest `buildFamilyDayContext` voor stay/timeline/packing/alerts i.p.v. parallelle smart-today/packing-strings | Zonder dit blijft Inbox/Morgen/Vandaag drie waarheden | Inbox toont andere “open packing” dan Morgen |
+| **PR 2** | Famli Inbox als presentatie over bestaande data | Hoogste user-value gap (score 16) | Wordt een vierde aandacht-laag als PR 1 niet eerst komt |
+| **PR 3** | Transport: Ik kan / vraag / bevestig (hergebruik change-request `dropoff`/`pickup` of event-velden) | WhatsApp-vervanger | Werkt, maar “wat is open?” blijft verspreid |
+| **PR 4** | E-mailprovider + brief-send + contact | Famli buiten de app | Onafhankelijk van 1–3; lost in-app mentale last niet op |
+
+**Aanbeveling van deze audit:** start met **PR 1** (context unificatie, geen schema). Daarna **PR 2** (Inbox). PR 4 mag parallel als ops.
+
+Niet als eerste: weekbrief, search-groepen, legal, analytics, routine-templates, AI-parser, chat.
 
 ---
 
