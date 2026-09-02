@@ -1305,7 +1305,10 @@ export const supabaseRepository: FamilyRepository = {
   async getSnapshotForCron(userId) {
     const admin = bootstrapDb();
     if (!admin) return this.getSnapshot(userId);
-    return this.getSnapshot(userId, admin);
+    return (this as unknown as { getSnapshot: (id: string, client?: unknown) => Promise<FamilySnapshot | null> }).getSnapshot(
+      userId,
+      admin,
+    );
   },
 
   async listActiveUserIds() {

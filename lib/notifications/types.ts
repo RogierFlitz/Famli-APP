@@ -35,6 +35,8 @@ export interface CreateNotificationInput {
   /** Daily brief is addressed to the same user who enabled it. */
   allowSelf?: boolean;
 }
+
+export interface NotifyFamilyInput {
   familyId: string;
   actorId: string;
   recipientUserIds: string[];

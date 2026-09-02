@@ -425,7 +425,7 @@ function collectSignals(input: {
     ranked.push({
       id: `loc-${item.id}`,
       priority: "attention",
-      title: `${item.title} staat nog bij ${where}, maar ${child.firstName} is ${dateStayWord(snapshot, date)} bij ${parentName(snapshot, custodianId!).toLowerCase()}.`,
+      title: `${item.title} staat nog bij ${where}, maar ${child.firstName} is dan bij ${parentName(snapshot, custodianId!).toLowerCase()}.`,
       href: `/kinderen/${child.id}?tab=nodig`,
     });
   }
@@ -453,14 +453,12 @@ function shortTitle(title: string) {
   return title.replace(/ Roxy| Sophie/g, "").trim() || title;
 }
 
-function dateStayWord(_snapshot: FamilySnapshot, _date: string) {
-  return "dan";
-}
-
 export function famliMorgenEntityId(date: string): string {
   const compact = date.replace(/-/g, "");
   return `a1111111-1111-4111-a111-${compact}0000`;
 }
+
+export function inAppFamliMorgenBody(ctx: FamilyDayContext): string {
   if (ctx.quiet) return "Morgen is rustig.";
   if (ctx.ready) return "Morgen staat klaar.";
   const n = ctx.counts.events + ctx.counts.handovers;

@@ -113,4 +113,5 @@ Geen AI-look (geen glow, sparkles, chat).
 - Cron op demo/memory is proces-lokaal.
 - E-mail zonder provider blijft architectuur + copy.
 - PR #30 (kindprofiel packing) zit mogelijk niet op main; niet herbouwen.
+- Demo packing gebruikt soms `Stick` i.p.v. `Hockeystick`; de engine behandelt die als hetzelfde item.
 - Geen destructieve data-cleanup bij dubbele packing-labels: uniek tonen.
