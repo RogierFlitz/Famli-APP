@@ -219,8 +219,14 @@ export function TodayHandoverPackingCard({
   handover: Handover;
   canEdit: boolean;
 }) {
-  const items = uniqueByLabel(packingItemsForHandover(snapshot, handover));
-  const suggestions = uniqueSuggestionLabels(handoverPackingSuggestions(snapshot, handover));
+  const items = uniqueByLabel(
+    packingItemsForHandover(snapshot, handover).filter(
+      (item) => item.handoverId === handover.id || item.context === "handover",
+    ),
+  );
+  const suggestions = uniqueSuggestionLabels(
+    handoverPackingSuggestions(snapshot, handover).filter((row) => !row.eventId),
+  ).filter((row) => !items.some((item) => item.label.trim().toLowerCase() === row.label.trim().toLowerCase()));
   const checked = items.filter((item) => item.checked).length;
   const total = items.length + suggestions.length;
   const percent = total ? Math.round((checked / total) * 100) : 0;
